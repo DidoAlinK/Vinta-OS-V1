@@ -180,6 +180,45 @@ def update_appearance():
     return jsonify({"message": "Appearance updated"}), 200
 
 
+# ── Billing Rules toggles ───────────────────────────────────────────
+# The six per-academy edge-case switches on AcademySettings. They are plain
+# booleans, but they arrive over JSON where clients send "false" (string) or
+# 0/1 rather than a real boolean. The column type will not rescue that: a bare
+# setattr of "false" reaches the Boolean bind processor and raises at flush
+# (an unhandled 500), and a junk value would be stored as-is on a laxer
+# backend. So they are coerced explicitly on write instead.
+BILLING_BOOL_FIELDS = (
+    "absence_consumes_credit",
+    "count_gap_sessions",
+    "restore_credits_on_cancellation",
+    "free_session_auto_present",
+    "share_credits_across_groups",
+    "early_payment_on_extra_sessions",
+)
+
+
+def _coerce_bool(value):
+    """
+    Return the boolean a JSON client meant, or None if the value is not
+    unambiguously boolean-ish (the caller turns None into a 400).
+
+    Accepted: real booleans; "true"/"false" (any case); "1"/"0"; 1/0.
+    Everything else — "yes", 2, null, lists — is rejected rather than stored.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("true", "1"):
+            return True
+        if lowered in ("false", "0"):
+            return False
+        return None
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    return None
+
+
 @settings_bp.route("/billing-config", methods=["GET"])
 @jwt_required()
 @tenant_required
@@ -202,6 +241,12 @@ def get_billing_config():
         "allow_makeups_default": settings.allow_makeups_default,
         "default_access_weeks": settings.default_access_weeks,
         "default_max_groups": settings.default_max_groups,
+        "absence_consumes_credit": settings.absence_consumes_credit,
+        "count_gap_sessions": settings.count_gap_sessions,
+        "restore_credits_on_cancellation": settings.restore_credits_on_cancellation,
+        "free_session_auto_present": settings.free_session_auto_present,
+        "share_credits_across_groups": settings.share_credits_across_groups,
+        "early_payment_on_extra_sessions": settings.early_payment_on_extra_sessions,
     }), 200
 
 
@@ -215,8 +260,14 @@ def update_billing_config():
     Body: { currency?, default_plan_duration?, billing_reminder_days_before?,
             due_date_reminder_timing?, whatsapp_template?,
             default_credits_per_cycle?, allow_rollover_default?,
-            allow_makeups_default?, default_access_weeks?, default_max_groups? }
+            allow_makeups_default?, default_access_weeks?, default_max_groups?,
+            absence_consumes_credit?, count_gap_sessions?,
+            restore_credits_on_cancellation?, free_session_auto_present?,
+            share_credits_across_groups?, early_payment_on_extra_sessions? }
     Currency is locked to DZD on write: any other value is ignored with a warning.
+    The six Billing Rules toggles are coerced to real booleans ("false" and 0
+    both mean False); a value that is not boolean-ish is rejected with a 400
+    naming the field. Unknown fields are ignored.
     """
     from flask import g
     data = request.get_json()
@@ -229,6 +280,16 @@ def update_billing_config():
     warning = None
     if "currency" in data and data["currency"] != "DZD":
         warning = "currency is locked to DZD and was not changed"
+
+    # Billing Rules toggles: coerce before writing, so a client that sends
+    # "false" cannot store a truthy value and junk cannot reach the column.
+    for field in BILLING_BOOL_FIELDS:
+        if field in data:
+            coerced = _coerce_bool(data[field])
+            if coerced is None:
+                return jsonify({"error": f"{field} must be a boolean"}), 400
+            setattr(settings, field, coerced)
+
     for field in ("default_plan_duration", "billing_reminder_days_before",
                   "due_date_reminder_timing", "whatsapp_template",
                   "default_credits_per_cycle", "allow_rollover_default",

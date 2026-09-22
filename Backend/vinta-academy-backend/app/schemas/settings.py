@@ -36,6 +36,14 @@ class UpdateBillingConfigRequestSchema(Schema):
     allow_makeups_default = fields.Boolean(metadata={"description": "Makeup sessions allowed by default"})
     default_access_weeks = fields.Integer(metadata={"description": "Default access window in weeks", "example": 4})
     default_max_groups = fields.Integer(metadata={"description": "Default max groups included", "example": 1})
+    # Billing Rules — per-academy edge-case toggles. Coerced on write: a
+    # non-boolean-ish value is rejected with a 400 naming the field.
+    absence_consumes_credit = fields.Boolean(metadata={"description": "An ABSENT student still spends a credit"})
+    count_gap_sessions = fields.Boolean(metadata={"description": "Charge sessions missed during a payment gap against the next subscription"})
+    restore_credits_on_cancellation = fields.Boolean(metadata={"description": "Restore credits when a class is cancelled after check-in"})
+    free_session_auto_present = fields.Boolean(metadata={"description": "Auto-mark everyone PRESENT for a free session"})
+    share_credits_across_groups = fields.Boolean(metadata={"description": "One subscription covers every group of the same subject"})
+    early_payment_on_extra_sessions = fields.Boolean(metadata={"description": "Prompt for renewal as soon as extra sessions drain the credits"})
 
 
 class UpdateAutomationsRequestSchema(Schema):
@@ -99,6 +107,12 @@ class BillingConfigResponseSchema(Schema):
     allow_makeups_default = fields.Boolean(metadata={"description": "Makeups default"})
     default_access_weeks = fields.Integer(metadata={"description": "Default access window in weeks"})
     default_max_groups = fields.Integer(metadata={"description": "Default max groups included"})
+    absence_consumes_credit = fields.Boolean(metadata={"description": "An ABSENT student still spends a credit"})
+    count_gap_sessions = fields.Boolean(metadata={"description": "Charge sessions missed during a payment gap"})
+    restore_credits_on_cancellation = fields.Boolean(metadata={"description": "Restore credits on post-check-in cancellation"})
+    free_session_auto_present = fields.Boolean(metadata={"description": "Auto-mark everyone PRESENT for a free session"})
+    share_credits_across_groups = fields.Boolean(metadata={"description": "One subscription covers every group of the subject"})
+    early_payment_on_extra_sessions = fields.Boolean(metadata={"description": "Prompt for renewal when extra sessions drain credits"})
 
 
 class AutomationsResponseSchema(Schema):
