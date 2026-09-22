@@ -173,6 +173,50 @@ def cancel_session(session_id):
     return jsonify({"message": "Session cancelled"}), 200
 
 
+@calendar_bp.route("/sessions/<session_id>/start", methods=["POST"])
+@jwt_required()
+@tenant_required
+def start_session(session_id):
+    """
+    Start a class: SCHEDULED -> IN_PROGRESS, and open the register.
+
+    This is where a class begins to exist. Until it is started, a session is
+    only a plan on the calendar — it holds no attendance and no money.
+    Starting materialises the register from the group's active enrollments
+    as a blank slate of absences ("false until true"), so the desk flips
+    students to PRESENT as they arrive rather than recording who was absent.
+
+    Idempotent: starting an already-started class returns 200 with
+    ``already_started: true`` rather than restarting the clock or
+    duplicating the register.
+
+    No PIN — starting a class is routine and moves no money. The PIN gate
+    belongs on the finalise step, which is what settles credits.
+    """
+    from flask import g
+    from app.services import session_lifecycle_service as lifecycle
+
+    try:
+        session, created, already = lifecycle.start_session(
+            session_id, g.current_academy_id, g.current_user.id
+        )
+    except lifecycle.LifecycleError as exc:
+        return jsonify({"error": exc.message}), exc.status
+
+    db.session.commit()
+    return jsonify({
+        "message": "Class already started" if already else "Class started",
+        "session_id": session.id,
+        "status": session.status,
+        "actual_start_time": (
+            session.actual_start_time.isoformat() if session.actual_start_time else None
+        ),
+        "already_started": already,
+        "roster_created": len(created),
+        "is_free_session": bool(session.is_free_session),
+    }), 200
+
+
 @calendar_bp.route("/sessions/<session_id>/roster", methods=["GET"])
 @jwt_required()
 @tenant_required

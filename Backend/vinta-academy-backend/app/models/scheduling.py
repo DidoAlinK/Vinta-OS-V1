@@ -109,7 +109,10 @@ class Session(db.Model):
     )
     started_by_staff_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=True,
-        comment="PIN-verified staff member who started the class",
+        comment=("Staff member who started the class. Attributed from the "
+                 "authenticated session without a PIN — starting a class is "
+                 "routine and moves no money. The finalise step is the one "
+                 "that settles credits, and that one is PIN-verified."),
     )
     ended_by_staff_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=True,

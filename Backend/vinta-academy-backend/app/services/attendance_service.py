@@ -24,10 +24,15 @@ def check_in_student(
         checked_in_by: staff user id recording the check-in — PIN
             attribution (``@verify_staff_pin``) is enforced at the route
             layer; the id is stored on ``checked_in_by``.
-        status: PRESENT | ABSENT. Defaults to ABSENT — a roster is a blank
-            slate of absences, so an unspecified status must never silently
-            mark someone present. Whether an absence still consumes a credit
-            is the academy's ``absence_consumes_credit`` toggle.
+        status: PRESENT | ABSENT. Defaults to PRESENT, because this is the
+            *check-in* operation — the caller is asserting the student is
+            here. (The blank-slate ABSENT rows that a new roster starts from
+            are created by ``materialize_roster`` / ``add_student_to_session``,
+            not here.) Whether an absence still consumes a credit is the
+            academy's ``absence_consumes_credit`` toggle; that decision is
+            made when the class is finalised, not at check-in. An
+            unrecognised value raises rather than guessing, since guessing
+            PRESENT would charge money the caller never asked to charge.
         is_group_swap: True for guest check-ins into a different group —
             billing resolves the level-based subscription.
         apply_billing: run billing side effects inline (default True).
@@ -39,9 +44,9 @@ def check_in_student(
     ``billing_service.record_checkin_billing_side_effects`` (imported
     lazily to avoid a circular import).
     """
-    status = (status or "ABSENT").upper()
+    status = (status or "PRESENT").upper()
     if status not in ("PRESENT", "ABSENT"):
-        status = "ABSENT"
+        raise ValueError(f"status must be PRESENT or ABSENT, got {status!r}")
 
     record = SessionStudent.query.filter_by(
         session_id=session_id, student_id=student_id

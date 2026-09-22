@@ -31,7 +31,11 @@ def check_in():
     from flask import g
     data = request.get_json()
 
-    status = data.get("status", "PRESENT").upper()
+    # Validate here so an unrecognised status is a 400, never a 500 out of
+    # the service — and never a silent guess, since PRESENT moves money.
+    status = str(data.get("status") or "PRESENT").upper()
+    if status not in ("PRESENT", "ABSENT"):
+        return jsonify({"error": "status must be PRESENT or ABSENT"}), 400
     is_group_swap = data.get("is_group_swap", False)
 
     # check_in_student owns the attendance row (status/is_group_swap params);
