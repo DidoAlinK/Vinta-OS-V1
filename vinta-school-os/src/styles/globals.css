@@ -1,0 +1,290 @@
+@import "tailwindcss";
+
+/* ============================================
+   VINTA SCHOOL OS — Design Tokens
+   ============================================ */
+
+@theme {
+  /* Fonts */
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Border Radius */
+  --radius-xs: 8px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+
+  /* Gold */
+  --color-gold: #b3872a;
+  --color-gold-dark: #e0b93f;
+  --color-gold-soft: rgba(179, 135, 42, 0.14);
+  --color-gold-soft-dark: rgba(224, 185, 63, 0.15);
+
+  /* Emerald */
+  --color-emerald: #0f6b4d;
+  --color-emerald-dark: #1fae7c;
+  --color-emerald-soft: rgba(15, 107, 77, 0.13);
+  --color-emerald-soft-dark: rgba(31, 174, 124, 0.15);
+
+  /* Violet */
+  --color-violet: #7c3aed;
+  --color-violet-dark: #a07cc5;
+  --color-violet-soft: rgba(124, 58, 237, 0.14);
+  --color-violet-soft-dark: rgba(160, 124, 197, 0.15);
+
+  /* Red */
+  --color-red: #dc2626;
+  --color-red-dark: #e07a6f;
+  --color-red-soft: rgba(220, 38, 38, 0.14);
+  --color-red-soft-dark: rgba(224, 122, 111, 0.15);
+
+  /* Text */
+  --color-text: #1f1f22;
+  --color-text-dark: #ececec;
+  --color-muted: #75726a;
+  --color-muted-dark: #9497a1;
+  --color-muted-soft: rgba(117, 114, 106, 0.14);
+
+  /* Background */
+  --color-bg: #efece4;
+  --color-bg-dark: #1a1a1c;
+
+  /* Glass */
+  --color-glass: rgba(255, 255, 255, 0.55);
+  --color-glass-dark: rgba(255, 255, 255, 0.055);
+  --color-glass-strong: rgba(255, 255, 255, 0.82);
+  --color-glass-strong-dark: rgba(255, 255, 255, 0.10);
+  --color-glass-border: rgba(255, 255, 255, 0.75);
+  --color-glass-border-dark: rgba(255, 255, 255, 0.10);
+  --color-input-bg: rgba(255, 255, 255, 0.6);
+  --color-input-bg-dark: rgba(255, 255, 255, 0.05);
+
+  /* Divider */
+  --color-divider: rgba(35, 36, 31, 0.09);
+  --color-divider-dark: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================
+   CSS Custom Properties (Theme Variables)
+   ============================================ */
+
+:root {
+  /* Light mode defaults */
+  --gold: #b3872a;
+  --emerald: #0f6b4d;
+  --violet: #7c3aed;
+  --red: #dc2626;
+  --text: #1f1f22;
+  --muted: #75726a;
+  --bg: #efece4;
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-strong: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 18px 40px rgba(120, 105, 80, 0.16);
+  --sheen: linear-gradient(115deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.12) 30%, rgba(255, 255, 255, 0) 55%);
+  --input-bg: rgba(255, 255, 255, 0.6);
+  --divider: rgba(35, 36, 31, 0.09);
+  --gold-soft: rgba(179, 135, 42, 0.14);
+  --emerald-soft: rgba(15, 107, 77, 0.13);
+  --violet-soft: rgba(124, 58, 237, 0.14);
+  --red-soft: rgba(220, 38, 38, 0.14);
+  --muted-soft: rgba(117, 114, 106, 0.14);
+
+  /* Elevated opaque surface for popups/modals.
+     Previously referenced by 23 components but never defined, so every one of
+     them rendered a transparent panel with only a border + shadow. */
+  --card-bg: #fbfaf7;
+
+  /* Background gradients */
+  --bg-grad: radial-gradient(1000px 500px at 20% -10%, rgba(255, 255, 255, 0.9), transparent 60%),
+             radial-gradient(900px 500px at 100% 0%, rgba(201, 162, 39, 0.10), transparent 55%),
+             linear-gradient(180deg, #f4f1ea, #e9e5db);
+}
+
+[data-theme="dark"] {
+  --gold: #e0b93f;
+  --emerald: #1fae7c;
+  --violet: #a07cc5;
+  --red: #e07a6f;
+  --text: #ececec;
+  --muted: #9497a1;
+  --bg: #1a1a1c;
+  --glass: rgba(255, 255, 255, 0.055);
+  --glass-strong: rgba(255, 255, 255, 0.10);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 20px 50px rgba(0, 0, 0, 0.55);
+  --sheen: linear-gradient(115deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.02) 30%, rgba(255, 255, 255, 0) 55%);
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --divider: rgba(255, 255, 255, 0.08);
+  --gold-soft: rgba(224, 185, 63, 0.15);
+  --emerald-soft: rgba(31, 174, 124, 0.15);
+  --violet-soft: rgba(160, 124, 197, 0.15);
+  --red-soft: rgba(224, 122, 111, 0.15);
+  --muted-soft: rgba(148, 151, 161, 0.16);
+  --card-bg: #232327;
+
+  --bg-grad: radial-gradient(1000px 500px at 15% -10%, rgba(255, 255, 255, 0.05), transparent 60%),
+             radial-gradient(900px 500px at 100% 10%, rgba(31, 174, 124, 0.07), transparent 55%),
+             linear-gradient(180deg, #1d1d20, #131315);
+}
+
+/* ============================================
+   Base Styles
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-grad);
+  background-color: var(--bg);
+  color: var(--text);
+  transition: background 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   Glass Effect Utility
+   ============================================ */
+
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(22px) saturate(180%);
+}
+
+.glass > * {
+  position: relative;
+  z-index: 1;
+}
+
+.glass-strong {
+  background: var(--glass-strong);
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text);
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.3s ease;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease;
+}
+
+.animate-pulse {
+  animation: pulse 2s infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

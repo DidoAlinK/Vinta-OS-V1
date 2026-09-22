@@ -1,0 +1,486 @@
+"""
+Vinta School OS — Student Service
+Enrollment, status derivation (paid/due/overdue/unpaid/no_plan), CRUD ops.
+The group owns the plan (Class billing config, reached via the primary
+enrollment); the subscription records what money actually moved. Status is
+never derived from the legacy PaymentPlan/StudentBilling tables.
+"""
+import uuid
+from datetime import date, timedelta
+from sqlalchemy import desc, func, or_
+from app.extensions import db
+from app.models.student import Student, Guardian, Enrollment
+from app.models.billing import StudentBilling, StudentSubscription
+from app.models.class_room import Class
+from app.models.audit import ActivityLog
+
+
+def list_students(
+    academy_id: str, page: int = 1, per_page: int = 50, q: str | None = None
+) -> dict:
+    """List all students for an academy with computed status fields.
+
+    ``q`` optionally filters case-insensitively on name and phone fields.
+    """
+    query = Student.query.filter_by(academy_id=academy_id, is_active=True)
+
+    if q and q.strip():
+        needle = f"%{q.strip()}%"
+        query = query.filter(
+            or_(
+                Student.first_name.ilike(needle),
+                Student.last_name.ilike(needle),
+                # "first last" typed in one go, e.g. "yacine testman"
+                Student.first_name.concat(" ").concat(Student.last_name).ilike(needle),
+                Student.phone.ilike(needle),
+                Student.parent_phone.ilike(needle),
+            )
+        )
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    students = []
+    for student in pagination.items:
+        student_data = _enrich_student(student)
+        students.append(student_data)
+
+    return {
+        "students": students,
+        "total": pagination.total,
+        "page": page,
+        "per_page": per_page,
+        "pages": pagination.pages,
+    }
+
+
+def get_student(student_id: str, academy_id: str) -> dict | None:
+    """Get a single student with all related data."""
+    student = Student.query.filter_by(id=student_id, academy_id=academy_id, is_active=True).first()
+    if not student:
+        return None
+
+    data = _enrich_student(student)
+    data["guardians"] = [
+        {
+            "id": g.id,
+            "name": g.name,
+            "relationship": g.relationship_type,
+            "phone": g.phone,
+            "is_emergency": g.is_emergency,
+        }
+        for g in student.guardians
+    ]
+    data["enrollments"] = [
+        {
+            "id": e.id,
+            "class_id": e.class_id,
+            "class_name": e.class_.name if e.class_ else None,
+            "status": e.status,
+            "enrolled_at": e.enrolled_at.isoformat() if e.enrolled_at else None,
+        }
+        for e in student.enrollments.filter_by(status="active").all()
+    ]
+    data["billing_calendar"] = _get_billing_calendar(student.id)
+
+    return data
+
+
+def create_student(academy_id: str, data: dict, created_by: str) -> Student:
+    """Create a new student with a default guardian.
+
+    No billing/subscription record is created: a new student has no plan until
+    staff record a payment against a course group.
+    """
+    student = Student(
+        id=str(uuid.uuid4()),
+        academy_id=academy_id,
+        first_name=data["first_name"],
+        last_name=data["last_name"],
+        phone=data.get("phone"),
+        parent_phone=data.get("parent_phone"),
+        notes=data.get("notes"),
+    )
+    db.session.add(student)
+    db.session.flush()
+
+    # Default guardian
+    guardian = Guardian(
+        id=str(uuid.uuid4()),
+        student_id=student.id,
+        name="Parent",
+        relationship_type="Parent",
+        phone=data.get("parent_phone", ""),
+        is_emergency=True,
+    )
+    db.session.add(guardian)
+
+    # Audit log
+    log = ActivityLog(
+        id=str(uuid.uuid4()),
+        academy_id=academy_id,
+        user_id=created_by,
+        entity_type="student",
+        entity_id=student.id,
+        action="created",
+        description=f"New student enrolled — {student.first_name} {student.last_name}",
+    )
+    db.session.add(log)
+    db.session.flush()
+
+    return student
+
+
+def update_student(student_id: str, academy_id: str, data: dict) -> Student | None:
+    """Update student profile fields."""
+    student = Student.query.filter_by(id=student_id, academy_id=academy_id).first()
+    if not student:
+        return None
+
+    for field in ("first_name", "last_name", "phone", "parent_phone", "notes"):
+        if field in data:
+            setattr(student, field, data[field])
+
+    db.session.flush()
+    return student
+
+
+def delete_student(student_id: str, academy_id: str, deleted_by: str) -> bool:
+    """Soft-delete student and cascade withdraw enrollments."""
+    student = Student.query.filter_by(id=student_id, academy_id=academy_id).first()
+    if not student:
+        return False
+
+    # Withdraw all active enrollments
+    enrollments = Enrollment.query.filter_by(student_id=student_id, status="active").all()
+    for enrollment in enrollments:
+        enrollment.status = "withdrawn"
+
+    # Soft delete: deactivate instead of removing
+    student.is_active = False
+
+    # Audit log
+    log = ActivityLog(
+        id=str(uuid.uuid4()),
+        academy_id=academy_id,
+        user_id=deleted_by,
+        entity_type="student",
+        entity_id=student_id,
+        action="deleted",
+        description=f"Student profile removed — {student.first_name} {student.last_name}",
+    )
+    db.session.add(log)
+
+    db.session.flush()
+    return True
+
+
+def enroll_student(student_id: str, class_id: str, academy_id: str, enrolled_by: str) -> Enrollment:
+    """Enroll a student in a class."""
+    # Verify student exists and is active
+    student = Student.query.filter_by(id=student_id, academy_id=academy_id, is_active=True).first()
+    if not student:
+        raise ValueError("Student not found or inactive")
+
+    # Check if already enrolled
+    existing = Enrollment.query.filter_by(
+        student_id=student_id, class_id=class_id, status="active"
+    ).first()
+    if existing:
+        return existing
+
+    # Check class capacity
+    from app.models.class_room import Class
+    class_ = db.session.get(Class, class_id)
+    if not class_:
+        raise ValueError("Class not found")
+
+    enrolled_count = db.session.query(func.count()).select_from(Enrollment).filter(
+        Enrollment.class_id == class_id,
+        Enrollment.status == "active"
+    ).scalar()
+    if enrolled_count >= class_.capacity:
+        raise ValueError("Class is at full capacity")
+
+    enrollment = Enrollment(
+        id=str(uuid.uuid4()),
+        student_id=student_id,
+        class_id=class_id,
+        status="active",
+    )
+    db.session.add(enrollment)
+
+    log = ActivityLog(
+        id=str(uuid.uuid4()),
+        academy_id=academy_id,
+        user_id=enrolled_by,
+        entity_type="student",
+        entity_id=student_id,
+        action="enrolled",
+        description="Student enrolled in class",
+    )
+    db.session.add(log)
+    db.session.flush()
+
+    return enrollment
+
+
+def get_student_stats(academy_id: str) -> dict:
+    """Get aggregate student statistics for the stats rail.
+
+    Counts mirror the per-student ``status``: ``unpaid`` (enrolled, never paid)
+    and ``no_plan`` (enrolled in nothing) count only in ``total``.
+    """
+    total = Student.query.filter_by(academy_id=academy_id, is_active=True).count()
+
+    paid = 0
+    overdue = 0
+    due = 0
+    students = Student.query.filter_by(academy_id=academy_id, is_active=True).all()
+    for student in students:
+        status = _resolve_primary_billing(student.id)["status"]
+        if status == "paid":
+            paid += 1
+        elif status == "overdue":
+            overdue += 1
+        elif status == "due":
+            due += 1
+        # "unpaid" / "no_plan" students are counted in `total` only.
+
+    return {"total": total, "paid": paid, "overdue": overdue, "due": due}
+
+
+# --- Private Helpers ---
+
+def _enrich_student(student: Student) -> dict:
+    """Enrich a student with computed fields derived from the money model."""
+    billing = _resolve_primary_billing(student.id)
+    sub = billing["subscription"]
+    group = billing["group"]
+    cycle_end = billing["cycle_end"]
+
+    # Sessions come from the group's credit config, not from the student.
+    sessions = None
+    sessions_per_month = None
+    if (
+        group is not None
+        and group.billing_model == "CREDIT_BASED"
+        and group.credits_per_cycle is not None
+    ):
+        sessions_per_month = int(group.credits_per_cycle)
+        sessions = f"{sessions_per_month} / month"
+
+    # Plan label and price come from the group the student is on: the
+    # subscription's group if money was recorded, else their enrolled group.
+    plan = None
+    plan_amount = None
+    group_name = None
+    if group is not None:
+        kind = {"CREDIT_BASED": "Credit", "TIME_BASED": "Time"}.get(
+            group.billing_model, group.billing_model
+        )
+        plan_amount = int(group.price_da or 0)
+        plan = f"{kind} — {plan_amount:,} DA"
+        # group.group_name is the sub-group letter; fall back to the class name
+        # so it never reads null beside a populated `classes` string.
+        group_name = group.group_name or group.name
+
+    # Enrolled classes
+    enrollments = Enrollment.query.filter_by(student_id=student.id, status="active").all()
+    classes_str = ", ".join([e.class_.name for e in enrollments if e.class_])
+
+    active_enrollment = next((e for e in enrollments if e.status == "active"), None)
+
+    return {
+        "id": student.id,
+        "first_name": student.first_name,
+        "last_name": student.last_name,
+        "full_name": student.full_name,
+        "phone": student.phone,
+        "parent_phone": student.parent_phone,
+        "notes": student.notes,
+        "status": billing["status"],
+        "sessions": sessions,
+        "sessions_per_month": sessions_per_month,
+        "classes": classes_str,
+        "plan": plan,
+        "plan_amount": plan_amount,
+        "billing_model": group.billing_model if group is not None else None,
+        "group_name": group_name,
+        "remaining_credits": sub.remaining_credits if sub is not None else None,
+        "total_credits": sub.total_credits if sub is not None else None,
+        "subscription_id": sub.id if sub is not None else None,
+        "renews": cycle_end.isoformat() if cycle_end is not None else None,
+        "created_at": student.created_at.isoformat() if student.created_at else None,
+        "enrollment_status": active_enrollment.status if active_enrollment else "not_enrolled",
+    }
+
+
+def _get_primary_subscription(student_id: str) -> StudentSubscription | None:
+    """Most recent ACTIVE subscription, else the most recent of any status."""
+    query = StudentSubscription.query.filter_by(student_id=student_id)
+
+    active = (
+        query.filter_by(status="ACTIVE")
+        .order_by(desc(StudentSubscription.created_at))
+        .first()
+    )
+    if active is not None:
+        return active
+
+    return query.order_by(desc(StudentSubscription.created_at)).first()
+
+
+def _cycle_end_date(
+    sub: StudentSubscription | None, group: Class | None
+) -> date | None:
+    """End of the subscription's current cycle.
+
+    ``cycle_deadline`` is only written when the group sets ``cycle_week_limit``
+    (and that column is nullable with no default), so fall back to the access
+    window and finally to ``start + group.access_duration_weeks``.
+    """
+    if sub is None:
+        return None
+    if sub.cycle_deadline is not None:
+        return sub.cycle_deadline
+    if sub.access_end_date is not None:
+        return sub.access_end_date
+    if group is not None and group.access_duration_weeks:
+        start = sub.cycle_start_date or sub.access_start_date
+        if start is not None:
+            return start + timedelta(weeks=int(group.access_duration_weeks))
+    return None
+
+
+def _covers_today(sub: StudentSubscription, cycle_end: date | None) -> bool:
+    """True when the subscription's window includes today (or is open-ended)."""
+    today = date.today()
+    start = sub.cycle_start_date or sub.access_start_date
+    if start is not None and start > today:
+        return False
+    if cycle_end is not None and cycle_end < today:
+        return False
+    return True
+
+
+def _derive_status(
+    sub: StudentSubscription | None, cycle_end: date | None, enrolled: bool
+) -> str:
+    """Honest paid/due/overdue/unpaid/no_plan for a student.
+
+    ``enrolled`` is only consulted when there is no subscription: an enrolled
+    student does have a plan (their group's), no money has just been recorded
+    against it yet.
+    """
+    if sub is None:
+        return "unpaid" if enrolled else "no_plan"
+    if sub.status == "SUSPENDED":
+        return "overdue"
+    if sub.status in ("EXPIRED", "DEPLETED"):
+        return "due"
+    if sub.status == "ACTIVE" and _covers_today(sub, cycle_end):
+        return "paid"
+    # ACTIVE but its cycle window has closed, or an unrecognised status.
+    return "due"
+
+
+def _primary_enrollment_group(student_id: str) -> Class | None:
+    """Group of the student's most recent active enrollment."""
+    enrollment = (
+        Enrollment.query.filter_by(student_id=student_id, status="active")
+        .order_by(desc(Enrollment.enrolled_at))
+        .first()
+    )
+    if enrollment is None:
+        return None
+    return enrollment.class_
+
+
+def _resolve_primary_billing(student_id: str) -> dict:
+    """Primary subscription with its group, cycle end and honest status.
+
+    The group is the plan source, and takes precedence as: the subscription's
+    group when money has been recorded, else the group the student is enrolled
+    in, else None.
+    """
+    sub = _get_primary_subscription(student_id)
+
+    if sub is None:
+        group = _primary_enrollment_group(student_id)
+        return {
+            "subscription": None,
+            "group": group,
+            "cycle_end": None,
+            "status": _derive_status(None, None, enrolled=group is not None),
+        }
+
+    group = db.session.get(Class, sub.group_id)
+    cycle_end = _cycle_end_date(sub, group)
+    return {
+        "subscription": sub,
+        "group": group,
+        "cycle_end": cycle_end,
+        "status": _derive_status(sub, cycle_end, enrolled=group is not None),
+    }
+
+
+def _calendar_status(derived_status: str, amount_da: int, paid_amount: int) -> str:
+    """Mirror the honest status, but never claim 'paid' on a 0 DA / 0 paid row."""
+    if derived_status == "overdue":
+        return "overdue"
+    if derived_status == "paid" and (amount_da > 0 or paid_amount > 0):
+        return "paid"
+    return "due"
+
+
+def _get_billing_calendar(student_id: str) -> list:
+    """Current cycle from the primary subscription, legacy rows as fallback."""
+    billing = _resolve_primary_billing(student_id)
+    sub = billing["subscription"]
+
+    if sub is not None:
+        group = billing["group"]
+        cycle_end = billing["cycle_end"]
+        amount_da = int(group.price_da or 0) if group is not None else 0
+        paid_amount = int(sub.amount_paid_da or 0)
+        start = sub.cycle_start_date or sub.access_start_date
+
+        return [
+            {
+                "id": sub.id,
+                "status": _calendar_status(billing["status"], amount_da, paid_amount),
+                "cycle_start": start.isoformat() if start is not None else None,
+                "cycle_end": cycle_end.isoformat() if cycle_end is not None else None,
+                "amount_da": amount_da,
+                "paid_amount": paid_amount,
+            }
+        ]
+
+    # Legacy fallback: rows that carry a cycle start inside the last 4 weeks.
+    four_weeks_ago = date.today() - timedelta(weeks=4)
+    billings = (
+        StudentBilling.query.filter(
+            StudentBilling.student_id == student_id,
+            StudentBilling.cycle_start >= four_weeks_ago,
+        )
+        .order_by(StudentBilling.cycle_start)
+        .all()
+    )
+
+    calendar = []
+    for b in billings:
+        status = b.status
+        # The planted 0 DA / 0 paid row claimed "paid": label it honestly.
+        if status == "paid" and int(b.amount_da or 0) == 0 and int(b.paid_amount or 0) == 0:
+            status = "due"
+        calendar.append(
+            {
+                "id": b.id,
+                "status": status,
+                "cycle_start": b.cycle_start.isoformat() if b.cycle_start is not None else None,
+                "cycle_end": b.cycle_end.isoformat() if b.cycle_end is not None else None,
+                "amount_da": b.amount_da,
+                "paid_amount": b.paid_amount,
+            }
+        )
+    return calendar

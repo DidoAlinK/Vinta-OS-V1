@@ -1,0 +1,334 @@
+"""
+Vinta School OS — Payroll Service
+Hourly vs. Per-student contract calculations, monthly payroll generation.
+"""
+import uuid
+from datetime import date, datetime, timedelta
+from sqlalchemy import func, desc
+from app.extensions import db
+from app.models.teacher import Teacher, TeacherPayroll, TeacherHoursLog
+from app.models.student import Student, Enrollment
+from app.models.scheduling import Session
+from app.models.audit import ActivityLog
+
+
+def calculate_teacher_payroll(teacher_id: str, period_start: date, period_end: date) -> dict:
+    """
+    Calculate payroll for a teacher for a given period.
+    Hourly: total_hours × hourly_rate
+    Per-student: active_students × per_student_rate
+    """
+    teacher = db.session.get(Teacher, teacher_id)
+    if not teacher:
+        return None
+
+    if teacher.contract_type == "hourly":
+        total_hours = (
+            db.session.query(func.sum(TeacherHoursLog.hours))
+            .filter(
+                TeacherHoursLog.teacher_id == teacher_id,
+                TeacherHoursLog.created_at >= datetime.combine(period_start, datetime.min.time()),
+                TeacherHoursLog.created_at < datetime.combine(period_end + timedelta(days=1), datetime.min.time()),
+            )
+            .scalar() or 0
+        )
+        rate = teacher.hourly_rate or 0
+        calculated_amount = int(float(total_hours) * rate)
+
+        return {
+            "teacher_id": teacher_id,
+            "contract_type": "hourly",
+            "total_hours": float(total_hours),
+            "total_students": 0,
+            "rate_applied": rate,
+            "calculated_amount": calculated_amount,
+        }
+    else:
+        # Per-student: count active enrollments in classes taught by this teacher
+        active_students = (
+            db.session.query(func.count(func.distinct(Enrollment.student_id)))
+            .join(Student, Enrollment.student_id == Student.id)
+            .filter(
+                Student.academy_id == teacher.academy_id,
+                Enrollment.status == "active",
+                Enrollment.class_id.in_(
+                    db.session.query(Session.class_id).filter(
+                        Session.teacher_id == teacher_id
+                    ).distinct()
+                ),
+            )
+            .scalar() or 0
+        )
+        rate = teacher.per_student_rate or 0
+        calculated_amount = int(active_students * rate)
+
+        return {
+            "teacher_id": teacher_id,
+            "contract_type": "per_student",
+            "total_hours": 0,
+            "total_students": active_students,
+            "rate_applied": rate,
+            "calculated_amount": calculated_amount,
+        }
+
+
+def generate_monthly_payroll(academy_id: str, year: int, month: int) -> int:
+    """
+    Generate payroll records for all teachers in an academy for a given month.
+    Returns count of payroll records created.
+    """
+    period_start = date(year, month, 1)
+    if month == 12:
+        period_end = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        period_end = date(year, month + 1, 1) - timedelta(days=1)
+
+    teachers = Teacher.query.filter_by(academy_id=academy_id).all()
+    count = 0
+
+    for teacher in teachers:
+        # Skip if payroll already exists for this period
+        existing = TeacherPayroll.query.filter_by(
+            teacher_id=teacher.id,
+            period_start=period_start,
+        ).first()
+        if existing:
+            continue
+
+        calc = calculate_teacher_payroll(teacher.id, period_start, period_end)
+        if not calc:
+            continue
+
+        payroll = TeacherPayroll(
+            id=str(uuid.uuid4()),
+            teacher_id=teacher.id,
+            period_start=period_start,
+            period_end=period_end,
+            total_hours=calc["total_hours"],
+            total_students=calc["total_students"],
+            rate_applied=calc["rate_applied"],
+            calculated_amount=calc["calculated_amount"],
+            status="pending",
+        )
+        db.session.add(payroll)
+        count += 1
+
+    if count > 0:
+        db.session.flush()
+
+    return count
+
+
+def settle_payroll(payroll_id: str, academy_id: str, settled_by: str) -> bool:
+    """Mark a payroll record as settled (paid)."""
+    payroll = db.session.get(TeacherPayroll, payroll_id)
+    if not payroll:
+        return False
+
+    teacher = db.session.get(Teacher, payroll.teacher_id)
+    if not teacher or teacher.academy_id != academy_id:
+        return False
+
+    payroll.status = "settled"
+    payroll.paid_date = date.today()
+
+    log = ActivityLog(
+        id=str(uuid.uuid4()),
+        academy_id=academy_id,
+        user_id=settled_by,
+        entity_type="teacher",
+        entity_id=payroll.teacher_id,
+        action="payment_received",
+        description=f"Payroll settled — {teacher.full_name}",
+        metadata={"amount": payroll.calculated_amount, "period": str(payroll.period_start)},
+    )
+    db.session.add(log)
+    db.session.flush()
+
+    return True
+
+
+def log_teacher_hours(
+    teacher_id: str, session_id: str, hours: float, logged_by: str
+) -> TeacherHoursLog:
+    """Log hours for a teacher's session."""
+    log_entry = TeacherHoursLog(
+        id=str(uuid.uuid4()),
+        teacher_id=teacher_id,
+        session_id=session_id,
+        hours=hours,
+        logged_by=logged_by,
+    )
+    db.session.add(log_entry)
+    db.session.flush()
+
+    return log_entry
+
+
+def list_teacher_payrolls(academy_id: str, teacher_id: str = None) -> list:
+    """List payroll records for a teacher or all teachers in an academy."""
+    query = TeacherPayroll.query.join(Teacher).filter(Teacher.academy_id == academy_id)
+
+    if teacher_id:
+        query = query.filter(TeacherPayroll.teacher_id == teacher_id)
+
+    payrolls = query.order_by(desc(TeacherPayroll.period_start)).all()
+
+    return [
+        {
+            "id": p.id,
+            "teacher_id": p.teacher_id,
+            "teacher_name": p.teacher.full_name if p.teacher else None,
+            "period_start": p.period_start.isoformat(),
+            "period_end": p.period_end.isoformat(),
+            "total_hours": float(p.total_hours),
+            "total_students": p.total_students,
+            "rate_applied": p.rate_applied,
+            "calculated_amount": p.calculated_amount,
+            "status": p.status,
+            "paid_date": p.paid_date.isoformat() if p.paid_date else None,
+        }
+        for p in payrolls
+    ]
+
+
+def get_teacher_summary(teacher_id: str, academy_id: str) -> dict:
+    """Get payroll summary for a teacher profile drawer."""
+    teacher = db.session.get(Teacher, teacher_id)
+    if not teacher or teacher.academy_id != academy_id:
+        return None
+
+    # Current month payroll
+    today = date.today()
+    current_month_start = today.replace(day=1)
+    current = TeacherPayroll.query.filter_by(
+        teacher_id=teacher_id, period_start=current_month_start
+    ).first()
+
+    # This week's hours
+    week_start = today - timedelta(days=today.weekday() + 1)  # Sunday
+    week_hours = (
+        db.session.query(func.sum(TeacherHoursLog.hours))
+        .filter(
+            TeacherHoursLog.teacher_id == teacher_id,
+            TeacherHoursLog.created_at >= week_start,
+        )
+        .scalar() or 0
+    )
+
+    # Active students count (for per-student contracts)
+    active_students = 0
+    if teacher.contract_type == "per_student":
+        teacher_class_ids = db.session.query(Session.class_id).filter(
+            Session.teacher_id == teacher_id
+        ).distinct().subquery()
+
+        active_students = db.session.query(func.count()).select_from(Enrollment).filter(
+            Enrollment.class_id.in_(db.session.query(teacher_class_ids)),
+            Enrollment.status == "active",
+        ).scalar() or 0
+
+    return {
+        "teacher_id": teacher_id,
+        "contract_type": teacher.contract_type,
+        "hourly_rate": teacher.hourly_rate,
+        "per_student_rate": teacher.per_student_rate,
+        "current_payroll": {
+            "calculated_amount": current.calculated_amount if current else 0,
+            "status": current.status if current else "pending",
+            "total_hours": float(current.total_hours) if current else 0,
+            "total_students": current.total_students if current else 0,
+        },
+        "hours_this_week": float(week_hours),
+        "active_students": active_students,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# VINTA SCHOOL OS — Session Payout Helpers (money model)
+# Thin wrappers over billing_service.finalize_session / PayoutRecord
+# queries. Legacy TeacherPayroll functions above are untouched.
+# Owner PIN verification happens at the route layer; staff attribution
+# flows through recorded_by_staff_id / paid_by_staff_id params.
+# All money is integer DZD.
+# ═══════════════════════════════════════════════════════════════════
+
+def calculate_payout_for_session(
+    session_id: str, academy_id: str, staff_id: str,
+    conducted: bool = True,
+) -> dict:
+    """Compute (or re-fetch) the payout for a session.
+
+    Delegates to ``billing_service.finalize_session``: conducted sessions
+    yield a PENDING ``PayoutRecord`` with gross/cut snapshots; cancelled
+    sessions yield no payout. Idempotent — re-running returns the stored
+    payout instead of duplicating it.
+    """
+    from app.services import billing_service as _billing
+
+    return _billing.finalize_session(
+        session_id=session_id,
+        conducted=conducted,
+        academy_id=academy_id,
+        staff_id=staff_id,
+    )
+
+
+def list_payouts(
+    academy_id: str, teacher_id: str = None, status: str = None,
+) -> list:
+    """List session payout records (delegates to billing_service)."""
+    from app.services import billing_service as _billing
+
+    return _billing.list_payouts(academy_id, teacher_id, status)
+
+
+def mark_paid(payout_id: str, academy_id: str, staff_id: str) -> dict | None:
+    """Mark a payout PAID (delegates to billing_service.mark_payout_paid).
+
+    Owner PIN is verified at the route layer; ``staff_id`` records who
+    performed the payout (stored on ``paid_by_staff_id``).
+    """
+    from app.services import billing_service as _billing
+
+    return _billing.mark_payout_paid(payout_id, academy_id, staff_id)
+
+
+def get_teacher_payout_dashboard(teacher_id: str, academy_id: str) -> dict | None:
+    """Teacher dashboard totals: gross vs cut, pending vs paid.
+
+    Aggregates ``PayoutRecord`` rows (session money model) alongside the
+    legacy monthly ``TeacherPayroll`` summary from
+    :func:`get_teacher_summary`.
+    """
+    teacher = db.session.get(Teacher, teacher_id)
+    if not teacher or teacher.academy_id != academy_id:
+        return None
+
+    from app.models.billing import PayoutRecord
+
+    payouts = PayoutRecord.query.filter_by(
+        teacher_id=teacher_id, academy_id=academy_id
+    ).all()
+
+    gross_total = sum(int(p.gross_revenue_da or 0) for p in payouts)
+    cut_total = sum(int(p.teacher_cut_da or 0) for p in payouts)
+    pending = [p for p in payouts if p.status == "PENDING"]
+    paid = [p for p in payouts if p.status == "PAID"]
+    pending_total = sum(int(p.teacher_cut_da or 0) for p in pending)
+    paid_total = sum(int(p.teacher_cut_da or 0) for p in paid)
+
+    legacy = get_teacher_summary(teacher_id, academy_id) or {}
+
+    return {
+        "teacher_id": teacher_id,
+        "teacher_name": teacher.full_name,
+        "gross_revenue_da": gross_total,
+        "teacher_cut_da": cut_total,
+        "pending_da": pending_total,
+        "paid_da": paid_total,
+        "pending_count": len(pending),
+        "paid_count": len(paid),
+        "session_count": len(payouts),
+        "legacy_payroll": legacy.get("current_payroll"),
+    }

@@ -1,0 +1,78 @@
+
+# ============================================================
+# Vinta School OS — repository ignore rules
+# ============================================================
+
+# ------------------------------------------------------------
+# Secrets — NEVER commit
+# ------------------------------------------------------------
+.env
+.env.*
+*.env
+!*.env.example
+Backend/vinta-academy-backend/.env
+vinta-school-os/.env
+
+# Captured auth session: holds a live JWT access+refresh pair.
+# Verified present at repo root on 2026-09-22 (1119 bytes).
+login.json
+**/login.json
+
+# ------------------------------------------------------------
+# Databases & runtime state
+# ------------------------------------------------------------
+*.db
+*.sqlite3
+*.db-journal
+instance/
+
+# ------------------------------------------------------------
+# Python
+# ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+migrations/versions/*.pyc
+
+# ------------------------------------------------------------
+# Node / frontend
+# ------------------------------------------------------------
+node_modules/
+dist-ssr/
+.vite/
+*.local
+
+# ------------------------------------------------------------
+# Local tooling & scratch
+# ------------------------------------------------------------
+.claude/
+.tmp-*/
+.tmp-verify/
+.tmp-relprobe/
+
+# ------------------------------------------------------------
+# Editor / OS
+# ------------------------------------------------------------
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
