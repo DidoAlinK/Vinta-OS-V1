@@ -7,7 +7,7 @@ from flask_smorest import Blueprint
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
-from app.utils.decorators import tenant_required
+from app.utils.decorators import tenant_required, verify_staff_pin
 from app.utils.audit import log_activity
 from app.services import scheduling_service
 from app.schemas.calendar import (
@@ -214,6 +214,46 @@ def start_session(session_id):
         "already_started": already,
         "roster_created": len(created),
         "is_free_session": bool(session.is_free_session),
+    }), 200
+
+
+@calendar_bp.route("/sessions/<session_id>/end", methods=["POST"])
+@jwt_required()
+@tenant_required
+@verify_staff_pin
+def end_session(session_id):
+    """
+    Finalise a class: IN_PROGRESS -> CONDUCTED, and close the register.
+
+    This is the step that settles money — everyone marked ABSENT is charged
+    according to the academy's Billing Rules — which is why it is PIN-gated
+    and starting a class is not.
+
+    Body: { pin }
+
+    Idempotent: ending an already-finished class returns 200 with
+    ``already_ended: true`` rather than charging anyone a second time.
+    """
+    from flask import g
+    from app.services import session_lifecycle_service as lifecycle
+
+    try:
+        session, summary, already = lifecycle.end_session(
+            session_id, g.current_academy_id, g.current_user.id
+        )
+    except lifecycle.LifecycleError as exc:
+        return jsonify({"error": exc.message}), exc.status
+
+    db.session.commit()
+    return jsonify({
+        "message": "Class already finished" if already else "Class finished",
+        "session_id": session.id,
+        "status": session.status,
+        "actual_end_time": (
+            session.actual_end_time.isoformat() if session.actual_end_time else None
+        ),
+        "already_ended": already,
+        **summary,
     }), 200
 
 

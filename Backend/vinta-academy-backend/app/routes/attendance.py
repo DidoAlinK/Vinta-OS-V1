@@ -166,7 +166,7 @@ def auto_checkout():
         return jsonify({"error": "session_id is required"}), 400
 
     count = attendance_service.auto_checkout_session(
-        data["session_id"], g.current_academy_id
+        data["session_id"], g.current_academy_id, g.current_user.id
     )
     db.session.commit()
 

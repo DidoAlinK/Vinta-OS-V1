@@ -85,7 +85,11 @@ def check_in_student(
     log = ActivityLog(
         id=str(uuid.uuid4()),
         academy_id=academy_id,
-        user_id=checked_in_by or "system",
+        # None, never the string "system": user_id is a foreign key to
+        # users.id and SQLite enforces it, so a sentinel that is not a real
+        # user raises IntegrityError. NULL means "no human did this" and the
+        # activity-log reader renders it as "System".
+        user_id=checked_in_by or None,
         entity_type="session",
         entity_id=session_id,
         action="checked_in",
@@ -130,7 +134,10 @@ def check_out_student(
     log = ActivityLog(
         id=str(uuid.uuid4()),
         academy_id=academy_id,
-        user_id=record.checked_in_by or "system",
+        # NULL, not "system" — see the note on check_in_student. This one is
+        # reachable: a free session's register is auto-filled PRESENT with no
+        # checked-in-by, so checking such a row out used to raise.
+        user_id=record.checked_in_by or None,
         entity_type="session",
         entity_id=session_id,
         action="checked_out",
@@ -142,10 +149,18 @@ def check_out_student(
     return record
 
 
-def auto_checkout_session(session_id: str, academy_id: str) -> int:
+def auto_checkout_session(
+    session_id: str, academy_id: str, staff_id: str | None = None
+) -> int:
     """
     Auto check-out all present students when session ends.
     Returns count of students checked out.
+
+    ``staff_id`` is the person who caused this — the staff member who ended
+    the class, or the one who hit the auto-checkout route. An automatic
+    check-out is still attributable to whoever triggered it, so it is logged
+    against them; it falls back to NULL (rendered as "System") only when
+    nothing human triggered it, as in the cron sweep.
     """
     now = datetime.now(timezone.utc)
     records = SessionStudent.query.filter_by(
@@ -161,7 +176,11 @@ def auto_checkout_session(session_id: str, academy_id: str) -> int:
         log = ActivityLog(
             id=str(uuid.uuid4()),
             academy_id=academy_id,
-            user_id="system",
+            # NULL, never the string "system" — user_id is a foreign key to
+            # users.id and SQLite enforces it. The sentinel raised
+            # IntegrityError here on every call that had anyone to check out,
+            # which is why this path never once succeeded.
+            user_id=staff_id or None,
             entity_type="session",
             entity_id=session_id,
             action="checked_out",

@@ -138,7 +138,11 @@ def check_overdue_billings(academy_id: str) -> int:
         log = ActivityLog(
             id=str(uuid.uuid4()),
             academy_id=academy_id,
-            user_id="system",
+            # NULL, never the string "system": user_id is a foreign key to
+            # users.id and SQLite enforces it, so the sentinel made this
+            # sweep raise IntegrityError whenever it found an overdue row.
+            # Nobody acted on an individual billing here — the sweep did.
+            user_id=None,
             entity_type="billing",
             entity_id=billing.id,
             action="payment_overdue",
@@ -785,15 +789,22 @@ def record_checkin_billing_side_effects(
     """Apply billing side effects after an attendance record is created.
 
     Called by ``attendance_service.check_in_student`` (which owns the
-    ``SessionStudent`` row); this function only touches money state.
+    ``SessionStudent`` row) and by the finalise step for students who did not
+    turn up; this function only touches money state.
+
+    Two academy policies are consulted first, because both can mean "charge
+    nothing here":
+
+    * a free session bills nothing at all — no credit, no revenue;
+    * with ``absence_consumes_credit`` off, an ABSENT student spends nothing
+      and the seat they did not use earns nothing.
 
     CREDIT_BASED: the level subscription
-    (``teacher_id`` + ``subject`` + ``academic_level``) is decremented by 1
-    — even when ``status`` is ABSENT. When the group allows makeups and the
-    student is ABSENT, a ``makeup_credits`` flag is incremented so the
-    absence can be made up later. When ``remaining`` hits 0 the
-    subscription becomes DEPLETED. A ``RevenueEntry`` of
-    ``group.price_da`` (integer DZD) is recorded.
+    (``teacher_id`` + ``subject`` + ``academic_level``) is decremented by 1.
+    When the group allows makeups and the student is ABSENT, a
+    ``makeup_credits`` flag is incremented so the absence can be made up
+    later. When ``remaining`` hits 0 the subscription becomes DEPLETED. A
+    ``RevenueEntry`` of ``group.price_da`` (integer DZD) is recorded.
     TIME_BASED: no decrement. When the group enforces attendance the
     attended/conducted ratio is recomputed and the subscription becomes
     SUSPENDED below the group's threshold.
@@ -809,6 +820,25 @@ def record_checkin_billing_side_effects(
     result = {"billing_model": group.billing_model, "actions": []}
     status = (status or "PRESENT").upper()
 
+    # A free session records attendance for the register and bills nothing:
+    # no credit is consumed and no revenue is written. Checked here rather
+    # than at each call site so a manual check-in on a free session cannot
+    # slip past it.
+    if session.is_free_session:
+        result["actions"].append("free session: no credit consumed, no revenue")
+        return result
+
+    # Whether an absence spends a credit is the academy's policy, read now
+    # (never cached) rather than baked in. With the toggle off, only PRESENT
+    # spends a credit — an absence is a free retry, and the seat it did not
+    # use earns nothing.
+    from app.services.academy_rules import absence_consumes_credit
+    if status == "ABSENT" and not absence_consumes_credit(academy_id):
+        result["actions"].append(
+            "absence does not consume a credit (absence_consumes_credit=False)"
+        )
+        return result
+
     if group.billing_model == "CREDIT_BASED":
         # Level-based lookup: any group with same teacher + subject +
         # academic_level shares the credit pool (covers group swaps).
@@ -820,7 +850,12 @@ def record_checkin_billing_side_effects(
             sub = find_active_subscription(student_id, group.id)
 
         if sub and (sub.remaining_credits or 0) > 0:
-            # Decrement even when ABSENT (credit is consumed by the seat).
+            # The seat is consumed by the booking, not by the arrival — an
+            # ABSENT student still spends a credit, which is the academy's
+            # default. The toggle that can change that
+            # (``absence_consumes_credit``) was already consulted above and
+            # returned early, so by the time control reaches here a decrement
+            # is always the intended outcome.
             sub.remaining_credits = int(sub.remaining_credits or 0) - 1
             result["subscription_id"] = sub.id
             result["actions"].append(f"credits decremented to {sub.remaining_credits}")

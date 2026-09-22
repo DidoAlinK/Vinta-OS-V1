@@ -22,12 +22,15 @@ import uuid
 from datetime import datetime, timezone
 
 from app.extensions import db
-from app.models.academy import AcademySettings
 from app.models.attendance import SessionStudent
 from app.models.audit import ActivityLog
 from app.models.class_room import Class
 from app.models.scheduling import Session
 from app.models.student import Enrollment
+from app.services.academy_rules import (
+    free_session_auto_present,
+    settings_for,
+)
 
 # Lifecycle states
 SCHEDULED = "scheduled"
@@ -47,36 +50,6 @@ class LifecycleError(Exception):
         super().__init__(message)
         self.message = message
         self.status = status
-
-
-# ---------------------------------------------------------------------------
-# Academy toggles — read at decision time
-# ---------------------------------------------------------------------------
-
-def _settings(academy_id: str) -> AcademySettings | None:
-    return AcademySettings.query.filter_by(academy_id=academy_id).first()
-
-
-def absence_consumes_credit(academy_id: str) -> bool:
-    """
-    Toggle 1 — does a missed session still spend a credit?
-
-    Defaults to True, matching the model default, so an academy that has
-    never opened Settings still behaves as documented.
-    """
-    settings = _settings(academy_id)
-    return True if settings is None else bool(settings.absence_consumes_credit)
-
-
-def free_session_auto_present(academy_id: str) -> bool:
-    """
-    Toggle 6 — auto-mark everyone PRESENT for a free session?
-
-    Defaults to True. A free session has no money attached, so tracking
-    who turned up earns nothing and the register is filled in for you.
-    """
-    settings = _settings(academy_id)
-    return True if settings is None else bool(settings.free_session_auto_present)
 
 
 def is_finished(status: str | None) -> bool:
@@ -154,7 +127,11 @@ def _log(academy_id: str, staff_id: str | None, session_id: str, action: str, de
     db.session.add(ActivityLog(
         id=str(uuid.uuid4()),
         academy_id=academy_id,
-        user_id=staff_id or "system",
+        # staff_id straight through, never a "system" fallback: user_id is a
+        # foreign key to users.id and SQLite enforces it, so a sentinel that
+        # is not a real user raises IntegrityError and takes the request with
+        # it. NULL is the honest "no human" and reads back as "System".
+        user_id=staff_id or None,
         entity_type="session",
         entity_id=session_id,
         action=action,
@@ -171,7 +148,10 @@ def start_session(
     Returns ``(session, created_rows, already_started)``. Starting an
     already-started class is not an error — a double-click or a retried
     request must not restart the clock or duplicate the register — so it
-    returns the existing state with ``already_started=True``.
+    returns the existing state with ``already_started=True``. It still
+    ensures the register exists, so a class that somehow reached
+    ``in_progress`` without one is repaired rather than left to finalise
+    against nothing.
     """
     session = db.session.get(Session, session_id)
     if not session or session.academy_id != academy_id:
@@ -180,7 +160,18 @@ def start_session(
     current = session.status or SCHEDULED
 
     if current == IN_PROGRESS:
-        return session, [], True
+        # Already started, so the clock is not reset and no second log line is
+        # written — but the invariant "a started class has a register" is
+        # still enforced. A class can be in_progress with no rows (started
+        # before this service existed, or by a path that did not open the
+        # register), and leaving it that way would silently finalise a class
+        # that charged nobody. materialize_roster only adds missing rows, so
+        # this cannot disturb attendance anyone already recorded.
+        group = db.session.get(Class, session.class_id)
+        auto_present = bool(session.is_free_session) and free_session_auto_present(academy_id)
+        created = materialize_roster(session, mark_present=auto_present)
+        db.session.flush()
+        return session, created, True
 
     if current != SCHEDULED:
         raise LifecycleError(
@@ -205,3 +196,108 @@ def start_session(
 
     db.session.flush()
     return session, created, False
+
+
+def settle_absences(
+    session: Session, academy_id: str, staff_id: str | None
+) -> dict:
+    """
+    Charge the students who did not turn up, per the academy's policy.
+
+    Only ABSENT rows are settled. Students who attended were already charged
+    when they were checked in, so charging the whole register here would bill
+    every attendee twice.
+
+    The two policy decisions this depends on — whether a free session bills
+    at all, and whether an absence spends a credit — are made inside the
+    billing service, which owns them. They are deliberately not repeated
+    here; two copies of a money rule is how they drift apart.
+    """
+    from app.services.billing_service import record_checkin_billing_side_effects
+
+    rows = db.session.query(SessionStudent).filter_by(session_id=session.id).all()
+    summary = {"present": 0, "absent": 0, "charged_absences": 0, "skipped": 0}
+
+    for row in rows:
+        if row.is_present:
+            summary["present"] += 1
+            continue
+
+        summary["absent"] += 1
+        result = record_checkin_billing_side_effects(
+            session_id=session.id,
+            student_id=row.student_id,
+            status="ABSENT",
+            is_group_swap=bool(row.is_group_swap),
+            checked_in_by=staff_id,
+            academy_id=academy_id,
+        )
+        actions = result.get("actions", [])
+        if any("credits decremented" in action for action in actions):
+            summary["charged_absences"] += 1
+        else:
+            summary["skipped"] += 1
+
+    return summary
+
+
+def end_session(
+    session_id: str, academy_id: str, staff_id: str | None
+) -> tuple[Session, dict, bool]:
+    """
+    IN_PROGRESS -> CONDUCTED, and close the register.
+
+    This is the step that settles money: the desk confirms the class is over,
+    absences are charged according to the academy's rules, and the register
+    is closed. It is PIN-gated at the route layer for exactly that reason.
+
+    Returns ``(session, summary, already_ended)``. Ending an already-finished
+    class is not an error — it reports the existing state without charging
+    anyone a second time.
+    """
+    session = db.session.get(Session, session_id)
+    if not session or session.academy_id != academy_id:
+        raise LifecycleError("Session not found", 404)
+
+    if is_finished(session.status):
+        return session, {
+            "present": 0, "absent": 0, "charged_absences": 0,
+            "skipped": 0, "checked_out": 0,
+        }, True
+
+    if session.status != IN_PROGRESS:
+        raise LifecycleError(
+            "Cannot end a class that has not started "
+            f"(status is {session.status or 'unknown'})",
+            409,
+        )
+
+    summary = settle_absences(session, academy_id, staff_id)
+
+    session.status = CONDUCTED
+    session.actual_end_time = datetime.now(timezone.utc)
+    session.ended_by_staff_id = staff_id
+
+    # Auto check-out is a preference rather than a rule — the desk may want
+    # to close the register by hand.
+    settings = settings_for(academy_id)
+    if settings is None or settings.auto_checkout_enabled:
+        from app.services.attendance_service import auto_checkout_session
+        # Attributed to whoever ended the class — the check-out is automatic
+        # but it did not happen on its own, and an audit line naming nobody
+        # when somebody pressed the button would be a worse answer than one
+        # naming the person who did.
+        summary["checked_out"] = auto_checkout_session(
+            session.id, academy_id, staff_id
+        )
+    else:
+        summary["checked_out"] = 0
+
+    _log(
+        academy_id, staff_id, session_id, "ended",
+        f"Class finished — {summary['present']} present, {summary['absent']} absent "
+        f"({summary['charged_absences']} charged)",
+    )
+
+    db.session.flush()
+    return session, summary, False
