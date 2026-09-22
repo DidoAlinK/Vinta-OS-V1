@@ -73,6 +73,71 @@ def get_day():
     }), 200
 
 
+@calendar_bp.route("/sessions", methods=["GET"])
+@jwt_required()
+@tenant_required
+def list_sessions():
+    """
+    List one group's sessions, soonest first.
+
+    Query params:
+      class_id  required — the group whose sessions to read
+      from      ISO date, default today
+      to        ISO date, optional upper bound
+      status    one status, or several comma-separated
+      limit     default 50, capped at 200
+
+    ``/calendar/week`` and ``/calendar/day`` answer "what is on this date";
+    a group's card has to answer "when does this group next meet", which no
+    date-scoped view can. ``class_id`` is required rather than optional
+    because that group-scoped question is the whole point of the route.
+
+    A group in another academy returns an empty list rather than a 404 —
+    the query is scoped by academy, so there is nothing to distinguish
+    "yours but empty" from "not yours", and no reason to say which.
+    """
+    from flask import g
+
+    def _iso_date(name: str, fallback: date | None = None) -> date | None:
+        raw = request.args.get(name)
+        if not raw:
+            return fallback
+        try:
+            return date.fromisoformat(raw)
+        except (ValueError, TypeError):
+            raise ValueError(f"{name} must be an ISO date (YYYY-MM-DD)")
+
+    class_id = request.args.get("class_id")
+    if not class_id:
+        return jsonify({"error": "class_id is required"}), 400
+
+    try:
+        date_from = _iso_date("from", date.today())
+        date_to = _iso_date("to")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    statuses = [
+        s.strip() for s in (request.args.get("status") or "").split(",") if s.strip()
+    ]
+
+    try:
+        limit = int(request.args.get("limit", 50))
+    except (TypeError, ValueError):
+        return jsonify({"error": "limit must be a number"}), 400
+    limit = max(1, min(limit, 200))
+
+    sessions = scheduling_service.get_class_sessions(
+        g.current_academy_id,
+        class_id,
+        date_from=date_from,
+        date_to=date_to,
+        statuses=statuses or None,
+        limit=limit,
+    )
+    return jsonify({"sessions": sessions, "total": len(sessions)}), 200
+
+
 @calendar_bp.route("/sessions", methods=["POST"])
 @jwt_required()
 @tenant_required

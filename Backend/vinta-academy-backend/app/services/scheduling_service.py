@@ -54,6 +54,45 @@ def get_day_sessions(academy_id: str, target_date: date) -> list:
     return [_serialize_session(s) for s in sessions]
 
 
+def get_class_sessions(
+    academy_id: str,
+    class_id: str,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    statuses: list[str] | None = None,
+    limit: int = 50,
+) -> list:
+    """
+    Get one group's sessions, soonest first.
+
+    A group's page needs its own sessions rather than a week of everyone's:
+    the week and day views answer "what is happening on this date", but a
+    card for Group A has to answer "when does Group A next meet", which no
+    date-scoped view can. Ordered by date then start time so the first row
+    is the next class to run.
+
+    ``date_from`` defaults to today — a group's card is about what is
+    coming, not its history — and can be moved back explicitly to read past
+    sessions.
+    """
+    query = Session.query.filter(
+        Session.academy_id == academy_id,
+        Session.class_id == class_id,
+    )
+
+    if date_from is not None:
+        query = query.filter(Session.date >= date_from)
+    if date_to is not None:
+        query = query.filter(Session.date <= date_to)
+    if statuses:
+        query = query.filter(Session.status.in_(statuses))
+
+    sessions = (
+        query.order_by(Session.date, Session.start_time).limit(limit).all()
+    )
+    return [_serialize_session(s) for s in sessions]
+
+
 def create_session(academy_id: str, data: dict, created_by: str) -> Session:
     """Create a new session (from drag-to-create or manual form)."""
     start_time = _parse_time(data["start_time"])
@@ -205,7 +244,16 @@ def _parse_time(time_str: str) -> time:
 
 
 def _serialize_session(session: Session) -> dict:
-    """Serialize a session to a dict for API response."""
+    """
+    Serialize a session to a dict for API response.
+
+    The lifecycle fields are part of this shape deliberately. Whether a class
+    has actually started or finished is a fact the server owns — it is what
+    decides who gets charged — so the client has to be able to read it back.
+    Without these the UI had to keep its own started-time in localStorage,
+    which meant two answers to one question: reloading the browser forgot a
+    class had begun, and the register the server had opened went with it.
+    """
     return {
         "id": session.id,
         "class_id": session.class_id,
@@ -219,4 +267,18 @@ def _serialize_session(session: Session) -> dict:
         "subject": session.subject,
         "status": session.status,
         "color": session.class_.color if session.class_ else None,
+        # Lifecycle — see the docstring.
+        "schedule_id": session.schedule_id,
+        "is_free_session": bool(session.is_free_session),
+        "actual_start_time": (
+            session.actual_start_time.isoformat()
+            if session.actual_start_time else None
+        ),
+        "actual_end_time": (
+            session.actual_end_time.isoformat()
+            if session.actual_end_time else None
+        ),
+        "started_by_staff_id": session.started_by_staff_id,
+        "ended_by_staff_id": session.ended_by_staff_id,
+        "cancelled_reason": session.cancelled_reason,
     }
