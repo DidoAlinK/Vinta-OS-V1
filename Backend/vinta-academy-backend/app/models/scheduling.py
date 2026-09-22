@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     String, Integer, ForeignKey, DateTime, Date, Time,
+    Boolean,
     Enum as SAEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -83,8 +84,56 @@ class Session(db.Model):
             name="session_status_enum",
         ),
         default="scheduled",
-        comment="New code uses scheduled/conducted/cancelled; in_progress/completed kept as legacy",
+        comment=(
+            "Lifecycle: scheduled -> in_progress -> conducted. Either of the "
+            "first two may go to cancelled. 'completed' is legacy for conducted."
+        ),
     )
+
+    # ------------------------------------------------------------------
+    # Lifecycle — "a class does not exist until it starts".
+    #
+    # SCHEDULED is locked: no attendance, no money, no actions. The clock
+    # starts when the session moves to IN_PROGRESS, which is what freezes
+    # the actual times below next to the planned ones so lateness and
+    # overruns are measurable rather than inferred.
+    # ------------------------------------------------------------------
+
+    actual_start_time: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True,
+        comment="Set when the class is started (toast or manual early start)",
+    )
+    actual_end_time: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True,
+        comment="Set when the class is ended and confirmed done",
+    )
+    started_by_staff_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True,
+        comment="PIN-verified staff member who started the class",
+    )
+    ended_by_staff_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True,
+        comment="PIN-verified staff member who confirmed the class done",
+    )
+
+    # A free session records attendance for the register but bills nothing:
+    # no credit is consumed and no revenue is written.
+    is_free_session: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False,
+    )
+
+    # Why a session was cancelled. TEACHER_ABSENT carries the extra meaning
+    # that today's remaining sessions for this teacher are cancelled too, and
+    # that credits may be restored (academy toggle).
+    cancelled_reason: Mapped[str | None] = mapped_column(
+        SAEnum(
+            "TEACHER_ABSENT", "CANCELLED_BY_STAFF", "OTHER",
+            name="session_cancel_reason_enum",
+        ),
+        nullable=True,
+        comment="Only meaningful when status == 'cancelled'",
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

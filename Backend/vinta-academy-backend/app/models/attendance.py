@@ -1,6 +1,12 @@
 """
 Vinta School OS — Attendance Model
-SessionStudent: tracks check-in/out, payment snapshot per session per student.
+SessionStudent: tracks check-in/out per session per student.
+
+A roster row is created for every enrolled student the moment a session
+starts, defaulting to ABSENT ("false until true"). The desk flips students
+to PRESENT as they arrive. There is deliberately no payment snapshot here:
+whether a student is paid is owned by their subscription, and a second copy
+of that fact on this row could only ever drift from it.
 """
 
 import uuid
@@ -10,7 +16,6 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     DateTime,
-    Enum as SAEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.extensions import db
@@ -44,9 +49,14 @@ class SessionStudent(db.Model):
     )
     status: Mapped[str] = mapped_column(
         String(20),
-        default="PRESENT",
+        default="ABSENT",
+        server_default="ABSENT",
         nullable=False,
-        comment="PRESENT|ABSENT (kept in sync with is_present)",
+        comment=(
+            "PRESENT|ABSENT, kept in sync with is_present. Defaults to ABSENT: a "
+            "roster is a blank slate of absences and the desk flips students to "
+            "PRESENT as they arrive. These two columns must never disagree."
+        ),
     )
     is_group_swap: Mapped[bool] = mapped_column(
         Boolean,
@@ -56,13 +66,12 @@ class SessionStudent(db.Model):
     )
     timestamp: Mapped[datetime | None] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        comment="When attendance was recorded",
-    )
-    payment_status: Mapped[str] = mapped_column(
-        SAEnum("paid", "due", "overdue", name="session_payment_status_enum"),
-        default="paid",
-        comment="Denormalized snapshot for this session",
+        nullable=True,
+        comment=(
+            "When attendance was actually recorded. Null means the row exists but "
+            "nobody has acted on it yet — the normal state for every student at "
+            "the moment a class starts."
+        ),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)

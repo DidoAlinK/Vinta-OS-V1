@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     String, Integer, Text, ForeignKey, DateTime,
-    Enum as SAEnum, Numeric, Date,
+    Enum as SAEnum, Numeric, Date, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.extensions import db
@@ -26,6 +26,21 @@ class Teacher(db.Model):
     first_name: Mapped[str] = mapped_column(String(255), nullable=False)
     last_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(30))
+    email: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment=(
+            "Required and format-validated at the API layer; nullable here so "
+            "existing rows survive the additive ALTER. Unique per academy."
+        ),
+    )
+    status: Mapped[str] = mapped_column(
+        SAEnum("ACTIVE", "INACTIVE", name="teacher_status_enum"),
+        default="ACTIVE",
+        server_default="ACTIVE",
+        nullable=False,
+        comment="INACTIVE teachers are hidden from assignment pickers, kept for history",
+    )
     avatar: Mapped[str | None] = mapped_column(
         String(500), nullable=True, comment="Avatar URL or path (nullable)"
     )
@@ -62,6 +77,10 @@ class Teacher(db.Model):
         DateTime,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("academy_id", "email", name="uq_teacher_email_per_academy"),
     )
 
     # Relationships

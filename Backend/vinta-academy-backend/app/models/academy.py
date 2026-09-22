@@ -85,6 +85,57 @@ class AcademySettings(db.Model):
     default_credits_per_cycle: Mapped[int] = mapped_column(Integer, default=4)
     allow_rollover_default: Mapped[bool] = mapped_column(Boolean, default=False)
     allow_makeups_default: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # ------------------------------------------------------------------
+    # Billing Rules — per-academy edge-case toggles.
+    #
+    # These are read-only configuration values consulted at decision points
+    # in the billing flow, never at startup. Changing one mid-day takes
+    # effect on the very next attendance check-in: no restart, no cache
+    # invalidation, no migration. Each toggle is independent and has a
+    # sensible default, so an academy that never opens Settings still runs.
+    #
+    # `server_default` is set alongside the Python `default` so the additive
+    # ALTER TABLE that introduces these columns can backfill existing rows.
+    # ------------------------------------------------------------------
+
+    # Toggle 1 — charge for missed sessions. True: an ABSENT student still
+    # spends a credit. False: only PRESENT spends one; absences are free retries.
+    absence_consumes_credit: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="1", nullable=False
+    )
+
+    # Toggle 2 — count sessions missed during a payment gap. True: sessions
+    # missed while overdue are retroactively charged against the NEXT
+    # subscription. False: a new payment always starts a clean cycle.
+    count_gap_sessions: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
+
+    # Toggle 5 — restore credits when a class is cancelled AFTER students were
+    # already checked in and charged. False = the academy keeps the money.
+    restore_credits_on_cancellation: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
+
+    # Toggle 6 — auto-mark everyone PRESENT for a FREE session. True: no
+    # attendance tracking on free sessions (there is no money to justify it).
+    free_session_auto_present: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="1", nullable=False
+    )
+
+    # Toggle 7 — one subscription covers every group of the same subject.
+    # False: each group needs its own subscription (the common, simpler policy).
+    share_credits_across_groups: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
+
+    # Toggle 8 — prompt for renewal as soon as extra sessions drain the credits,
+    # rather than waiting for the natural cycle end date.
+    early_payment_on_extra_sessions: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="1", nullable=False
+    )
+
     default_access_weeks: Mapped[int | None] = mapped_column(Integer, nullable=True)
     default_max_groups: Mapped[int] = mapped_column(Integer, default=1)
     default_plan_duration: Mapped[int] = mapped_column(Integer, default=30)
