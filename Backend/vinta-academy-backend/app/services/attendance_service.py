@@ -24,9 +24,10 @@ def check_in_student(
         checked_in_by: staff user id recording the check-in — PIN
             attribution (``@verify_staff_pin``) is enforced at the route
             layer; the id is stored on ``checked_in_by``.
-        status: PRESENT | ABSENT. ABSENT rows still consume a credit for
-            CREDIT_BASED groups (the seat is taken); with ``allow_makeups``
-            a makeup credit is flagged instead of refunding.
+        status: PRESENT | ABSENT. Defaults to ABSENT — a roster is a blank
+            slate of absences, so an unspecified status must never silently
+            mark someone present. Whether an absence still consumes a credit
+            is the academy's ``absence_consumes_credit`` toggle.
         is_group_swap: True for guest check-ins into a different group —
             billing resolves the level-based subscription.
         apply_billing: run billing side effects inline (default True).
@@ -38,9 +39,9 @@ def check_in_student(
     ``billing_service.record_checkin_billing_side_effects`` (imported
     lazily to avoid a circular import).
     """
-    status = (status or "PRESENT").upper()
+    status = (status or "ABSENT").upper()
     if status not in ("PRESENT", "ABSENT"):
-        status = "PRESENT"
+        status = "ABSENT"
 
     record = SessionStudent.query.filter_by(
         session_id=session_id, student_id=student_id
@@ -68,7 +69,6 @@ def check_in_student(
             timestamp=now,
             checked_in_at=now if status == "PRESENT" else None,
             checked_in_by=checked_in_by,
-            payment_status="paid",
         )
         db.session.add(record)
 
@@ -185,7 +185,7 @@ def get_session_roster(session_id: str) -> list:
             "checked_in_at": record.checked_in_at.isoformat() if record.checked_in_at else None,
             "checked_out_at": record.checked_out_at.isoformat() if record.checked_out_at else None,
             "checked_in_by": record.checked_in_by,
-            "payment_status": record.payment_status,
+            "timestamp": record.timestamp.isoformat() if record.timestamp else None,
         })
 
     return roster
@@ -244,7 +244,14 @@ def get_session_roster_with_badges(session_id: str) -> list:
             ).join(Session, SessionStudent.session_id == Session.id).filter(
                 Session.class_id == group.id
             ).count()
-            if total > 0 and (attended / total) < float(group.attendance_threshold):
+            # The value is stored under two conventions: a fraction (0.75, the
+            # model default) and a percentage (75, what the class form writes).
+            # Normalise before comparing — read raw, `ratio < 75` is true for
+            # every student and the warning never clears.
+            threshold = float(group.attendance_threshold)
+            if threshold > 1:
+                threshold = threshold / 100.0
+            if total > 0 and (attended / total) < threshold:
                 badges.append("ATTENDANCE_WARNING")
 
         entry["badges"] = badges
@@ -267,7 +274,8 @@ def add_student_to_session(
         session_id=session_id,
         student_id=student_id,
         is_present=False,
-        payment_status="paid",
+        status="ABSENT",
+        timestamp=datetime.now(timezone.utc),
     )
     db.session.add(record)
 

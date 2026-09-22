@@ -13,11 +13,11 @@ import {
   Lock,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
-import { formatTime12, formatDateFull, getStatusColor, getStatusBg } from '../../lib/formatters'
-import { SESSION_STATUS_LABELS, PAYMENT_STATUS_LABELS } from '../../lib/constants'
+import { formatTime12, formatDateFull } from '../../lib/formatters'
+import { SESSION_STATUS_LABELS } from '../../lib/constants'
 import { isSessionFree } from '../../lib/freeSessions'
 import { getSessionOrigin } from '../../lib/scheduleDefs'
-import type { Session } from '../../types/class'
+import type { RosterBadge, Session } from '../../types/class'
 import SessionActions from './SessionActions'
 import SessionMenu from './SessionMenu'
 import {
@@ -32,8 +32,15 @@ export interface RosterStudent {
   student_id: string
   student_name: string
   is_present: boolean
-  payment_status: 'paid' | 'due' | 'overdue'
   phone?: string
+  /**
+   * Subscription signal, derived by the server from the student's
+   * subscription. Read-only: the UI renders it and never mutates it.
+   * Whether a student has paid is owned by their subscription.
+   */
+  remaining_credits?: number | null
+  access_end?: string | null
+  badges?: RosterBadge[]
 }
 
 export interface SessionDetailProps extends HTMLAttributes<HTMLDivElement> {
@@ -41,7 +48,6 @@ export interface SessionDetailProps extends HTMLAttributes<HTMLDivElement> {
   students?: RosterStudent[]
   onClose: () => void
   onTogglePresence: (studentId: string) => void
-  onCyclePayment: (studentId: string) => void
   /** T1 lifecycle: refresh parent sessions after Start so status flips live */
   onSessionStarted?: (session: Session) => void
   /** T1 lifecycle: parent opens the PIN finalize modal (Class Done) */
@@ -98,10 +104,52 @@ function InfoChip({ icon, label }: InfoChipProps) {
 interface StudentRowProps {
   student: RosterStudent
   onTogglePresence: (studentId: string) => void
-  onCyclePayment: (studentId: string) => void
 }
 
-function StudentRow({ student, onTogglePresence, onCyclePayment }: StudentRowProps) {
+/**
+ * The student's money signal for this session, as the server computed it
+ * from their subscription. Display-only — there is no client-side payment
+ * state to cycle, because payment truth lives on the subscription and a
+ * local copy could only drift from it.
+ */
+function SubscriptionChip({ student }: { student: RosterStudent }) {
+  const badges = student.badges ?? []
+  const needsRenewal = badges.includes('RENEW_REQUIRED')
+  const lowAttendance = badges.includes('ATTENDANCE_WARNING')
+  const credits = student.remaining_credits
+
+  if (!needsRenewal && !lowAttendance && credits == null) return null
+
+  const [tone, label, title] = needsRenewal
+    ? [
+        'bg-red-soft text-red',
+        'Renew',
+        'No active subscription, or its credits are used up',
+      ]
+    : lowAttendance
+      ? [
+          'bg-gold-soft text-gold',
+          'Low attendance',
+          'Attendance is below this group’s threshold',
+        ]
+      : [
+          'bg-emerald-soft text-emerald',
+          `${credits} left`,
+          `${credits} session credit${credits === 1 ? '' : 's'} remaining`,
+        ]
+
+  return (
+    <span
+      className={cn('shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold', tone)}
+      style={{ borderRadius: 100 }}
+      title={title}
+    >
+      {label}
+    </span>
+  )
+}
+
+function StudentRow({ student, onTogglePresence }: StudentRowProps) {
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[var(--input-bg)]/60 transition-colors group">
       {/* Presence checkbox */}
@@ -130,22 +178,7 @@ function StudentRow({ student, onTogglePresence, onCyclePayment }: StudentRowPro
         {student.student_name}
       </span>
 
-      {/* Payment badge */}
-      <button
-        type="button"
-        onClick={() => onCyclePayment(student.student_id)}
-        className={cn(
-          'shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold',
-          'transition-all duration-150 cursor-pointer',
-          'hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]',
-          getStatusBg(student.payment_status),
-          getStatusColor(student.payment_status),
-        )}
-        style={{ borderRadius: 100 }}
-        title="Click to cycle payment status"
-      >
-        {PAYMENT_STATUS_LABELS[student.payment_status]}
-      </button>
+      <SubscriptionChip student={student} />
     </div>
   )
 }
@@ -159,7 +192,6 @@ export const SessionDetail = forwardRef<HTMLDivElement, SessionDetailProps>(
       students = [],
       onClose,
       onTogglePresence,
-      onCyclePayment,
       onSessionStarted,
       onFinishRequest,
       onChanged,
@@ -360,7 +392,6 @@ export const SessionDetail = forwardRef<HTMLDivElement, SessionDetailProps>(
                     key={s.student_id}
                     student={s}
                     onTogglePresence={onTogglePresence}
-                    onCyclePayment={onCyclePayment}
                   />
                 ))}
               </div>

@@ -323,16 +323,11 @@ export function DashboardPage() {
     }
   }, [selectedSession, students])
 
-  const handleCyclePayment = useCallback(async (studentId: string) => {
-    if (!selectedSession) return
-    const next = (cur: string) => cur === 'paid' ? 'due' : cur === 'due' ? 'overdue' : 'paid'
-    // Payment status is local-only for now (no backend endpoint)
-    setStudents(prev => prev.map(s =>
-      s.student_id === studentId
-        ? { ...s, payment_status: next(s.payment_status) as RosterStudent['payment_status'] }
-        : s
-    ))
-  }, [selectedSession])
+  // Payment status is deliberately NOT cycled here. It was previously a
+  // local-only invention with no backend behind it — clicking the pill
+  // changed a number that persisted nowhere and disagreed with the
+  // subscription that actually owns payment truth. The roster now renders
+  // the server-derived badge (remaining_credits / RENEW_REQUIRED) instead.
 
   const handleToggleView = useCallback(() => {
     setViewMode(v => v === 'week' ? 'day' : 'week')
@@ -471,7 +466,6 @@ export function DashboardPage() {
               students={students}
               onClose={handleCloseDetail}
               onTogglePresence={handleTogglePresence}
-              onCyclePayment={handleCyclePayment}
               onSessionStarted={handleSessionStarted}
               onFinishRequest={handleFinishRequest}
               onChanged={() => { bumpLifecycle(); void refetchSessions() }}

@@ -177,9 +177,26 @@ def cancel_session(session_id):
 @jwt_required()
 @tenant_required
 def get_session_roster(session_id):
-    """Get the student roster for a session."""
-    from app.services.attendance_service import get_session_roster
-    roster = get_session_roster(session_id)
+    """
+    Get the student roster for a session, enriched with each student's
+    subscription signal (remaining_credits / access_end / badges).
+
+    This delegates to the same implementation as
+    GET /attendance/roster/<session_id> so the two endpoints cannot drift —
+    the dashboard reads this one, and it previously returned a bare roster,
+    which is why the UI grew a fabricated client-side payment pill to fill
+    the gap. The academy check is mandatory: without it any authenticated
+    user could read another academy's roster by guessing a session id.
+    """
+    from flask import g
+    from app.models.scheduling import Session
+    from app.services.attendance_service import get_session_roster_with_badges
+
+    session = db.session.get(Session, session_id)
+    if not session or session.academy_id != g.current_academy_id:
+        return jsonify({"error": "Session not found"}), 404
+
+    roster = get_session_roster_with_badges(session_id)
     return jsonify({"roster": roster}), 200
 
 

@@ -76,10 +76,19 @@ class RosterEntrySchema(Schema):
     student_id = fields.String(metadata={"description": "Student ID"})
     student_name = fields.String(metadata={"description": "Student full name"})
     is_present = fields.Boolean(metadata={"description": "Attendance status"})
+    status = fields.String(metadata={"description": "PRESENT | ABSENT, mirrors is_present"})
+    is_group_swap = fields.Boolean(
+        metadata={"description": "True when this attendance counts for another group (swap/makeup)"}
+    )
     checked_in_at = fields.String(metadata={"description": "Check-in timestamp (ISO 8601)"})
     checked_out_at = fields.String(metadata={"description": "Check-out timestamp (ISO 8601)"})
     checked_in_by = fields.String(metadata={"description": "User ID who performed check-in"})
-    payment_status = fields.String(metadata={"description": "paid / unpaid / partial"})
+    timestamp = fields.String(
+        metadata={"description": "When attendance was recorded; null until someone acts"}
+    )
+    # NOTE: there is deliberately no payment_status here. Whether a student has
+    # paid is owned by their subscription and reported via remaining_credits /
+    # access_end / badges below — a second copy on this row could only drift.
     remaining_credits = fields.Integer(metadata={"description": "Remaining credits (if tracked)"})
     access_end = fields.String(metadata={"description": "Access end date (ISO 8601)"})
     badges = fields.List(fields.String, metadata={"description": "RENEW_REQUIRED / ATTENDANCE_WARNING badges"})

@@ -91,21 +91,12 @@ export const SESSION_STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelled',
 }
 
-// ============================================
-// Payment Status
-// ============================================
+// Payment-status labels and colours used to live here. They described a
+// per-roster-row payment flag that no endpoint ever computed — a local
+// invention that could disagree with the subscription owning that fact.
+// Whether a student has paid is now reported per student by the roster
+// endpoint (remaining_credits / badges) and rendered from that.
 
-export const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  paid: 'emerald',
-  due: 'gold',
-  overdue: 'red',
-}
-
-export const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  paid: 'Paid',
-  due: 'Due',
-  overdue: 'Overdue',
-}
 
 // ============================================
 // Calendar Constants

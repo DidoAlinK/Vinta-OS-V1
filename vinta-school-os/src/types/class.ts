@@ -146,14 +146,28 @@ export interface SessionStudent {
   is_present: boolean
   /** New door check-in status */
   attendance_status?: AttendanceStatus
+  /** PRESENT | ABSENT — mirrors is_present, owned by the server */
+  status?: 'PRESENT' | 'ABSENT'
   /** True when this student is a guest swapped in from another group */
   is_group_swap?: boolean
   checked_in_at?: string
   checked_out_at?: string
   checked_in_by?: string
-  payment_status: 'paid' | 'due' | 'overdue'
+  /** When attendance was recorded; null until someone acts on the row */
+  timestamp?: string | null
   created_at: string
+
+  // ── Subscription signal ──────────────────────────────────────────────
+  // Whether a student has paid is owned by their subscription, never by
+  // this row. The server derives these per student; the UI only renders
+  // them. There is deliberately no client-side payment status to mutate.
+  remaining_credits?: number | null
+  access_end?: string | null
+  badges?: RosterBadge[]
 }
+
+/** Derived per-student warnings; read-only, computed by the server. */
+export type RosterBadge = 'RENEW_REQUIRED' | 'ATTENDANCE_WARNING'
 
 // ============================================
 // Class Requests

@@ -360,7 +360,6 @@ export default function SessionCheckInModal({
         is_present: true,
         attendance_status: 'PRESENT',
         is_group_swap: true,
-        payment_status: 'paid',
         created_at: new Date().toISOString(),
         is_guest_added: true,
       } as RosterEntry]
