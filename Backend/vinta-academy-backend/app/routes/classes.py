@@ -262,8 +262,14 @@ def list_class_students(class_id):
         return jsonify({"error": "Class not found"}), 404
 
     enrollments = Enrollment.query.filter_by(class_id=class_id, status="active").all()
-    student_ids = [e.student_id for e in enrollments]
-    students = Student.query.filter(Student.id.in_(student_ids)).all() if student_ids else []
+    # Keyed by student: the roster is per-enrollment, so the enrollment is what
+    # carries the status and the id the client needs. Looked up once here rather
+    # than by a nested scan inside the comprehension.
+    by_student = {e.student_id: e for e in enrollments}
+    students = (
+        Student.query.filter(Student.id.in_(list(by_student))).all()
+        if by_student else []
+    )
 
     return jsonify({
         "students": [
@@ -273,8 +279,16 @@ def list_class_students(class_id):
                 "first_name": s.first_name,
                 "last_name": s.last_name,
                 "phone": s.phone,
-                "status": s.status,
-                "enrollment_id": next((e.id for e in enrollments if e.student_id == s.id), None),
+                # The enrollment's status, not the student's — `Student` has no
+                # status column at all, and reading `s.status` here raised
+                # AttributeError, which 500'd this route and left the roster
+                # rendering empty even though the enrollment had succeeded.
+                # Note this is the lowercase Enrollment vocabulary ('active'),
+                # not StudentSubscription's uppercase one; the Classrooms roster
+                # reads exactly this value to choose between "Paid" and a raw
+                # label.
+                "status": by_student[s.id].status,
+                "enrollment_id": by_student[s.id].id,
             }
             for s in students
         ],
