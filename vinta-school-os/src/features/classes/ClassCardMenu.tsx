@@ -14,6 +14,11 @@
  * The lookup is per card and local to the card. A group's sessions belong to
  * that group alone, and when the menu changes one it is this card that has to
  * reload — a page-wide cache would only add a way to go stale.
+ *
+ * That read is also why the running lamp lives here rather than on the card
+ * itself: "is this group live right now" is a fact about its sessions, and
+ * this is the only part of a Classrooms card that has them. One fetch feeds
+ * both the lamp and the menu, so the two cannot tell different stories.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -47,6 +52,20 @@ function serverMessage(err: unknown, fallback: string): string {
   const data = (err as { response?: { data?: { error?: string; message?: string } } })
     ?.response?.data
   return data?.error || data?.message || fallback
+}
+
+/**
+ * Is this group running right now?
+ *
+ * `in_progress` and nothing else. A `scheduled` class is one that is expected,
+ * and counting that would leave the lamp green from the moment a group has any
+ * class on the books — which is every group.
+ *
+ * The menu picks its session with this same predicate, so a card can never
+ * show a green lamp beside a menu that offers "Start Class".
+ */
+function isRunning(session: Session): boolean {
+  return getEffectiveStatus(session) === 'in_progress'
 }
 
 export interface ClassCardMenuProps {
@@ -128,27 +147,38 @@ export function ClassCardMenu({
    * answer — but a class started early is still filed under the time it was
    * scheduled for, and the desk should get the live one, not the later plan.
    */
-  const next =
-    sessions?.find((s) => s.status === 'in_progress') ?? sessions?.[0] ?? null
+  const next = sessions?.find(isRunning) ?? sessions?.[0] ?? null
+
+  // `unknown` is not the same as `idle`, and it is worth the third colour:
+  // flashing red on a running class while its first read is still in flight
+  // would be a claim this card has no basis for.
+  const light: RunningLightState =
+    sessions === null || failed ? 'unknown' : sessions.some(isRunning) ? 'running' : 'idle'
 
   return (
     <>
-      {next ? (
-        <SessionMenu
-          session={next}
-          status={getEffectiveStatus(next)}
-          sessions={sessions ?? undefined}
-          onStart={handleStart}
-          onFinish={setPinFor}
-          onChanged={handleChanged}
-        />
-      ) : (
-        <NoSessionTrigger
-          loading={sessions === null}
-          failed={failed}
-          onOpenGroup={onOpenGroup}
-        />
-      )}
+      {/* The card's top-right corner. The lamp sits left of the ☰ because both
+          are fed by the fetch above — wherever the corner goes, they go. */}
+      <div className="flex items-center gap-1.5">
+        <RunningLight state={light} />
+
+        {next ? (
+          <SessionMenu
+            session={next}
+            status={getEffectiveStatus(next)}
+            sessions={sessions ?? undefined}
+            onStart={handleStart}
+            onFinish={setPinFor}
+            onChanged={handleChanged}
+          />
+        ) : (
+          <NoSessionTrigger
+            loading={sessions === null}
+            failed={failed}
+            onOpenGroup={onOpenGroup}
+          />
+        )}
+      </div>
 
       {pinFor && (
         <EndClassModal
@@ -161,6 +191,51 @@ export function ClassCardMenu({
         />
       )}
     </>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   The running lamp
+   ═══════════════════════════════════════════════════════ */
+
+type RunningLightState = 'running' | 'idle' | 'unknown'
+
+/**
+ * Green while a class of this group is in progress, red when none is.
+ *
+ * Red reads as a fault and it is not one — a group that meets on Thursday is
+ * simply not running on Tuesday, which is the ordinary state of most cards at
+ * any moment. It is the colour asked for, and next to a ☰ that offers "Start
+ * Class" it reads as "nothing live here yet" rather than as a problem.
+ *
+ * Grey is the third state and exists so the lamp never has to guess: until the
+ * first read lands there is no answer, and a lamp that showed one anyway would
+ * be inventing it.
+ */
+function RunningLight({ state }: { state: RunningLightState }) {
+  const dot =
+    state === 'running'
+      ? 'bg-[var(--emerald)] ring-2 ring-[var(--emerald)]/25 animate-pulse'
+      : state === 'idle'
+        ? 'bg-[var(--red)]'
+        : 'bg-[var(--muted)]/40'
+
+  const label =
+    state === 'running'
+      ? 'A class of this group is in progress'
+      : state === 'idle'
+        ? 'No class of this group is running'
+        : 'Checking whether this group is running…'
+
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      // ring-2 plus the 2px dot is 6px of paint; `shrink-0` keeps the flex row
+      // from eating into the gap between it and the ☰ on a long class name.
+      className={cn('w-2 h-2 rounded-full shrink-0 transition-colors duration-200', dot)}
+    />
   )
 }
 

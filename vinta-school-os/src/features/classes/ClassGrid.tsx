@@ -198,10 +198,12 @@ function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
         />
 
         <div className="p-4">
-          {/* Header: class name + status dot. The `pr-7` reserves the corner
-              for the ☰, which is mounted outside this button — the dot moves
-              left rather than sitting underneath it. */}
-          <div className="flex items-start justify-between gap-2 mb-2 pr-7">
+          {/* Header: class name + status dot. The `pr-10` reserves the corner
+              for the ☰ and its running lamp, which are mounted outside this
+              button — the dot moves left rather than sitting underneath them.
+              40px is their width plus the gap between: 8px lamp + 4px ring,
+              6px gap, 20px ☰. */}
+          <div className="flex items-start justify-between gap-2 mb-2 pr-10">
             <h3
               className="text-sm font-bold text-[var(--text)] leading-tight truncate"
               style={{ fontFamily: 'var(--font-heading)' }}
