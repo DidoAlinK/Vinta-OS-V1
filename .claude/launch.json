@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vinta-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--host", "--port", "5137"],
+      "cwd": "vinta-school-os",
+      "port": 5137,
+      "autoPort": false
+    }
+  ]
+}
