@@ -1,8 +1,19 @@
 /**
- * Vinta School OS — T1 Session Lifecycle Lock (frontend-only)
- * Backend frozen: no start endpoint exists.
- * Canonical states: SCHEDULED -> IN_PROGRESS -> CONDUCTED, SCHEDULED -> CANCELLED.
- * CANCELLED NEVER from IN_PROGRESS (enforced here; T7 owns void/cancel UI).
+ * Vinta School OS — T1 Session Lifecycle
+ *
+ * Canonical states: SCHEDULED -> IN_PROGRESS -> CONDUCTED, SCHEDULED ->
+ * CANCELLED. CANCELLED never from IN_PROGRESS.
+ *
+ * Which state a class is in is the SERVER's answer, not this file's. It is
+ * what decides who gets charged, and it is the only answer that survives a
+ * reload, a second device, and a cleared browser. So the backend status is
+ * authoritative and this module only folds its spellings together — see
+ * normalizeBackendStatus.
+ *
+ * What is genuinely client-side here is the toast UX: whether the "class is
+ * starting" nudge has been shown, whether it was snoozed, and how many
+ * minutes late the desk said a class was running. Those are preferences about
+ * when to be interrupted, not facts about the class.
  */
 
 import type { Session } from '../types/class'
@@ -10,8 +21,13 @@ import type { Session } from '../types/class'
 export type LifecycleStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
 
 export interface LifecycleRecord {
-  /** ISO timestamp recorded on first successful Start click */
-  actualStartTime?: string
+  /**
+   * There is deliberately no `actualStartTime` here. A class's start time is
+   * `session.actual_start_time`, and a client-side copy of it could only ever
+   * disagree with the server — the version that existed for a build did
+   * exactly that, and won, which is why a class the server had as `scheduled`
+   * could show as running in a browser that had once been clicked.
+   */
   /** ISO timestamp — start toast snoozed until this time */
   snoozedUntil?: string
   /** Extra minutes added via "Running Late +10min" (T1) / "Extend +30" (T3) */
@@ -20,7 +36,15 @@ export interface LifecycleRecord {
   endNotified?: boolean
 }
 
-const STORAGE_KEY = 'vinta:session-lifecycle:v1'
+/**
+ * Bumped from v1 to retire records written by the previous build, which
+ * stored a client-side start time. Those records claimed classes were running
+ * that the server still had as `scheduled`, and the claim could not be cleared
+ * — see getEffectiveStatus. Changing the key drops them in one step, which is
+ * the only safe way to do it: after the fact, nothing can tell a legitimate
+ * old record from a stale one.
+ */
+const STORAGE_KEY = 'vinta:session-lifecycle:v2'
 
 /** T6: per-group flag id — teacher says NEXT session is free (teacher pays). */
 const FREE_KEY = 'vinta:session-free-next:v1'
@@ -66,22 +90,24 @@ export function normalizeBackendStatus(status: Session['status'] | string | unde
 }
 
 /**
- * Effective lifecycle status = backend status overlaid with frontend start record.
- * - backend completed/conducted/cancelled always win (terminal, frozen)
- * - frontend actualStartTime promotes SCHEDULED -> IN_PROGRESS
- * - backend in_progress stays IN_PROGRESS even without a local record
+ * Effective lifecycle status — a fold of the backend spelling, nothing more.
+ *
+ * This used to promote SCHEDULED -> IN_PROGRESS whenever a local
+ * `actualStartTime` existed, which made a stale record self-perpetuating: the
+ * browser would insist a class was running, `canStart` would refuse to start
+ * it, and the record saying so could never be cleared — because the server was
+ * never asked, so it never answered. Two sources of truth for one fact, and
+ * the wrong one won.
+ *
+ * The server is the only party that knows, so it is the only party asked.
+ * `is_finalized` stays as a fallback for payloads that predate the lifecycle
+ * columns.
  */
 export function getEffectiveStatus(session: Session): LifecycleStatus {
   const backend = normalizeBackendStatus(session?.status)
   if (backend === 'completed' || backend === 'cancelled') return backend
   if (session?.is_finalized) return 'completed'
-  const rec = getLifecycleRecord(session.id)
-  if (backend === 'in_progress' || rec.actualStartTime) return 'in_progress'
-  return 'scheduled'
-}
-
-export function getActualStartTime(sessionId: string): string | null {
-  return getLifecycleRecord(sessionId).actualStartTime ?? null
+  return backend
 }
 
 /** Attendance grid may open ONLY while IN_PROGRESS. */

@@ -17,7 +17,7 @@ import {
 } from './sessionLifecycle'
 
 export interface SessionNotifierHooks {
-  /** Start flow (hamburger early-start path): record actualStartTime + init attendance */
+  /** Start flow (hamburger early-start path): POST /sessions/<id>/start */
   onStartClass: (session: Session) => void
   /** End flow: open FinalizeSessionModal (PIN) -> CONDUCTED + payout + freeze */
   onFinishClass: (session: Session) => void

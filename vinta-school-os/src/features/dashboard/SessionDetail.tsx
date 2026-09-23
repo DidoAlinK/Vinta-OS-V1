@@ -20,11 +20,7 @@ import { getSessionOrigin } from '../../lib/scheduleDefs'
 import type { RosterBadge, Session } from '../../types/class'
 import SessionActions from './SessionActions'
 import SessionMenu from './SessionMenu'
-import {
-  canOpenAttendance,
-  getActualStartTime,
-  getEffectiveStatus,
-} from '../../lib/sessionLifecycle'
+import { canOpenAttendance, getEffectiveStatus } from '../../lib/sessionLifecycle'
 
 /* ─── Types ─── */
 
@@ -60,9 +56,17 @@ export interface SessionDetailProps extends HTMLAttributes<HTMLDivElement> {
 
 /* ─── Helpers ─── */
 
+/**
+ * Keyed by every member of `Session['status']`, which is why `conducted` is
+ * here even though `completed` reads the same: the server writes `conducted`
+ * for a finished class, and an unlisted status indexes to undefined — the
+ * badge then renders with no background and an empty label rather than
+ * failing where anyone would notice.
+ */
 const STATUS_BADGE_CLASSES: Record<Session['status'], string> = {
   scheduled: 'bg-[var(--gold-soft)] text-[var(--gold)]',
   in_progress: 'bg-[var(--emerald-soft)] text-[var(--emerald)]',
+  conducted: 'bg-[var(--glass)] text-[var(--muted)] border border-[var(--glass-border)]',
   completed: 'bg-[var(--glass)] text-[var(--muted)] border border-[var(--glass-border)]',
   cancelled: 'bg-[var(--red-soft)] text-[var(--red)]',
 }
@@ -216,7 +220,10 @@ export const SessionDetail = forwardRef<HTMLDivElement, SessionDetailProps>(
     // ── T1 lifecycle lock: attendance grid opens ONLY while IN_PROGRESS ──
     const lifecycleStatus = getEffectiveStatus(session)
     const attendanceLocked = !canOpenAttendance(lifecycleStatus)
-    const actualStart = getActualStartTime(session.id)
+    // The server's own start stamp. This used to read a localStorage record,
+    // which meant a reloaded browser forgot that the class had begun — while
+    // the register the server had opened stayed open.
+    const actualStart = session.actual_start_time ?? null
 
     return (
       <div

@@ -1,7 +1,7 @@
 /**
  * Vinta School OS — T1 Session Lifecycle Actions
- * Start Class (greys + disabled on first click, records actualStartTime,
- * idempotent attendance init keyed by UNIQUE(studentId, sessionId)).
+ * Start Class POSTs /sessions/:id/start — the backend owns the clock and the
+ * register (it materialises one ABSENT row per enrolled student, idempotently).
  * Finish ("Class Done") opens the PIN finalize flow owned by the parent.
  */
 
@@ -14,7 +14,6 @@ import type { Session } from '../../types/class'
 import {
   canFinish,
   canStart,
-  updateLifecycleRecord,
   type LifecycleStatus,
 } from '../../lib/sessionLifecycle'
 
@@ -30,36 +29,26 @@ export function SessionActions({ session, status, onStarted, onFinishRequest }: 
   const started = !canStart(status)
 
   const handleStart = useCallback(async () => {
-    // Guard: double-click creates 1 row per student (button disables first).
+    // Guard: the button disables on first click; the endpoint is idempotent
+    // anyway (a repeat POST returns already_started and does not restart).
     if (starting || started) return
     setStarting(true)
     try {
-      // 1. Record actualStartTime (frontend lifecycle record; backend frozen).
-      updateLifecycleRecord(session.id, {
-        actualStartTime: new Date().toISOString(),
-      })
-
-      // 2. Idempotent attendance init — one row per enrolled student.
-      //    Backend add_student_to_session returns (record, is_new): existing
-      //    rows are returned without duplication = UNIQUE(studentId, sessionId).
-      try {
-        const { data } = await api.get(`/classes/${session.class_id}/students`)
-        const enrolled: Array<{ id: string }> = data.students ?? []
-        await Promise.all(
-          enrolled.map((s) =>
-            api.post('/attendance/add-to-session', {
-              session_id: session.id,
-              student_id: s.id,
-            }).catch(() => null),
-          ),
-        )
-      } catch {
-        // T2 owns the attendance grid + Retry UX; Start must not fail here.
-        toast.warning('Class started, roster pending', 'Attendance rows will retry when the grid opens.')
-      }
-
+      // Server owns Start: it stamps actual_start_time and materialises the
+      // attendance register (one ABSENT row per enrolled student). The
+      // frontend no longer seeds the roster — that was a second pass.
+      await api.post(`/sessions/${session.id}/start`)
       toast.success('Class started', `${session.class_name} is now in progress.`)
       onStarted?.(session)
+    } catch (err: any) {
+      // 404 = session not in this academy; 409 = already conducted/cancelled.
+      const backend = err?.response?.data?.error
+      toast.error(
+        'Could not start class',
+        typeof backend === 'string' && backend
+          ? backend
+          : 'The class was not started. Please try again.',
+      )
     } finally {
       setStarting(false)
     }

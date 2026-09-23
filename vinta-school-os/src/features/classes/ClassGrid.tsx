@@ -4,7 +4,7 @@
  * Each card shows subject color bar, class name, teacher, and enrollment.
  */
 
-import { useMemo } from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '../../lib/cn'
 import { SUBJECT_COLORS } from '../../lib/constants'
 import type { Class } from '../../types/class'
@@ -17,6 +17,20 @@ export interface ClassGridProps {
   classes: Class[]
   onSelect: (cls: Class) => void
   isLoading?: boolean
+  /**
+   * Rendered in the card's top-right corner.
+   *
+   * A render prop rather than something the card builds itself, because what
+   * belongs there is the session menu — and a session menu needs the group's
+   * next session, which is a fetch the grid has no business making.
+   *
+   * Whatever it returns is mounted as a SIBLING of the card, not inside it.
+   * That is not a style choice: the card is `overflow-hidden` and scales on
+   * hover, so a `position: fixed` dropdown nested inside it would be clipped
+   * by the first and re-anchored to the card by the second, which is exactly
+   * how SessionMenu's coordinates stop meaning the viewport.
+   */
+  cardMenu?: (cls: Class) => ReactNode
 }
 
 // ============================================
@@ -86,6 +100,7 @@ export default function ClassGrid({
   classes,
   onSelect,
   isLoading = false,
+  cardMenu,
 }: ClassGridProps) {
   // ── Loading state ─────────────────────────────
 
@@ -130,6 +145,7 @@ export default function ClassGrid({
           cls={cls}
           index={index}
           onClick={() => onSelect(cls)}
+          menu={cardMenu?.(cls)}
         />
       ))}
     </div>
@@ -144,108 +160,129 @@ interface ClassCardProps {
   cls: Class
   index: number
   onClick: () => void
+  menu?: ReactNode
 }
 
-function ClassCard({ cls, index, onClick }: ClassCardProps) {
+function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
   const color = resolveColor(cls)
   const isFull = cls.status === 'full'
   const isEmpty = cls.status === 'empty'
 
+  // `relative flex` on the wrapper, not just `relative`: the card used to be
+  // the grid item and stretched to the row height, and moving it inside a
+  // wrapper would otherwise leave the cards at their natural heights and the
+  // row ragged. As a flex item the card stretches again.
+  //
+  // No z-index here on purpose. `z-10` would make this wrapper a stacking
+  // context, which would trap SessionMenu's `z-50` dropdown inside it —
+  // leaving the menu painted under anything above z-10 on the page, the
+  // drawer included. A positioned element already paints over the static
+  // card without help.
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'glass rounded-[var(--radius-md)] overflow-hidden text-left w-full',
-        'group hover:scale-[1.02] active:scale-[0.98]',
-        'transition-transform duration-150',
-        'focus:outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
-        'animate-fade-in',
-      )}
-      style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'both' }}
-    >
-      {/* Subject color bar */}
-      <div
-        className="h-1 transition-all duration-200 group-hover:h-1.5"
-        style={{ backgroundColor: color }}
-      />
-
-      <div className="p-4">
-        {/* Header: class name + status dot */}
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3
-            className="text-sm font-bold text-[var(--text)] leading-tight truncate"
-            style={{ fontFamily: 'var(--font-heading)' }}
-          >
-            {cls.name}
-          </h3>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span
-              className={cn('w-2 h-2 rounded-full', statusDotColor(cls.status))}
-            />
-          </div>
-        </div>
-
-        {/* Subject badge */}
-        <div className="mb-2">
-          <span
-            className={cn(
-              'inline-block px-2 py-0.5 rounded-md text-[10px] font-medium',
-            )}
-            style={{
-              backgroundColor: `${color}18`,
-              color: color,
-            }}
-          >
-            {cls.subject}
-          </span>
-        </div>
-
-        {/* Teacher name */}
-        {cls.teacher_name && (
-          <p className="text-xs text-[var(--muted)] mb-2 truncate">
-            {cls.teacher_name}
-          </p>
+    <div className="relative flex">
+      <button
+        onClick={onClick}
+        className={cn(
+          'glass rounded-[var(--radius-md)] overflow-hidden text-left w-full',
+          'group hover:scale-[1.02] active:scale-[0.98]',
+          'transition-transform duration-150',
+          'focus:outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
+          'animate-fade-in',
         )}
+        style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'both' }}
+      >
+        {/* Subject color bar */}
+        <div
+          className="h-1 transition-all duration-200 group-hover:h-1.5"
+          style={{ backgroundColor: color }}
+        />
 
-        {/* Enrollment bar */}
-        <div className="mt-auto">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-[var(--muted)]">
-              {cls.enrolled_count}/{cls.capacity} enrolled
-            </span>
+        <div className="p-4">
+          {/* Header: class name + status dot. The `pr-7` reserves the corner
+              for the ☰, which is mounted outside this button — the dot moves
+              left rather than sitting underneath it. */}
+          <div className="flex items-start justify-between gap-2 mb-2 pr-7">
+            <h3
+              className="text-sm font-bold text-[var(--text)] leading-tight truncate"
+              style={{ fontFamily: 'var(--font-heading)' }}
+            >
+              {cls.name}
+            </h3>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span
+                className={cn('w-2 h-2 rounded-full', statusDotColor(cls.status))}
+              />
+            </div>
+          </div>
+
+          {/* Subject badge */}
+          <div className="mb-2">
             <span
               className={cn(
-                'text-[10px] font-medium',
-                isFull
-                  ? 'text-[var(--red)]'
-                  : isEmpty
-                    ? 'text-[var(--muted)]'
-                    : 'text-[var(--emerald)]',
+                'inline-block px-2 py-0.5 rounded-md text-[10px] font-medium',
               )}
+              style={{
+                backgroundColor: `${color}18`,
+                color: color,
+              }}
             >
-              {statusLabel(cls.status)}
+              {cls.subject}
             </span>
           </div>
 
-          {/* Progress bar */}
-          <div className="w-full h-1 rounded-full bg-[var(--divider)] overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{
-                width: `${Math.min((cls.enrolled_count / cls.capacity) * 100, 100)}%`,
-                backgroundColor: isFull
-                  ? 'var(--red)'
-                  : isEmpty
-                    ? 'var(--muted)'
-                    : color,
-                opacity: isEmpty ? 0.3 : 1,
-              }}
-            />
+          {/* Teacher name */}
+          {cls.teacher_name && (
+            <p className="text-xs text-[var(--muted)] mb-2 truncate">
+              {cls.teacher_name}
+            </p>
+          )}
+
+          {/* Enrollment bar */}
+          <div className="mt-auto">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-[var(--muted)]">
+                {cls.enrolled_count}/{cls.capacity} enrolled
+              </span>
+              <span
+                className={cn(
+                  'text-[10px] font-medium',
+                  isFull
+                    ? 'text-[var(--red)]'
+                    : isEmpty
+                      ? 'text-[var(--muted)]'
+                      : 'text-[var(--emerald)]',
+                )}
+              >
+                {statusLabel(cls.status)}
+              </span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-full h-1 rounded-full bg-[var(--divider)] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${Math.min((cls.enrolled_count / cls.capacity) * 100, 100)}%`,
+                  backgroundColor: isFull
+                    ? 'var(--red)'
+                    : isEmpty
+                      ? 'var(--muted)'
+                      : color,
+                  opacity: isEmpty ? 0.3 : 1,
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
-    </button>
+      </button>
+
+      {/* The ☰ and its dropdown live here, outside the card's <button> — see
+          the note on `cardMenu` in ClassGridProps. `top-5 right-4` is the
+          card's own padding, so it lands in the corner the header just made
+          room for. */}
+      {menu && <div className="absolute top-5 right-4">{menu}</div>}
+    </div>
   )
 }
 

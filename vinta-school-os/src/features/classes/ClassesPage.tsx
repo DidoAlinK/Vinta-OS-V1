@@ -11,6 +11,7 @@ import { DayPicker } from '../../components/ui/DayPicker'
 import { formatDa } from '../../lib/formatters'
 import { SUBJECT_COLORS } from '../../lib/constants'
 import ClassGrid from './ClassGrid'
+import ClassCardMenu from './ClassCardMenu'
 import ClassDetail from './ClassDetail'
 import type { Class, Classroom, BillingModel } from '../../types/class'
 
@@ -899,7 +900,22 @@ export function ClassesPage() {
 
             {/* Class Grid */}
             <div className="flex-1 overflow-y-auto px-6 pb-6">
-              <ClassGrid classes={classes} onSelect={handleSelectClass} isLoading={isClassLoading} />
+              <ClassGrid
+                classes={classes}
+                onSelect={handleSelectClass}
+                isLoading={isClassLoading}
+                // Each card's ☰ resolves its own group's next session and hosts
+                // the session menu there — the Classrooms tab had no burger
+                // because nothing in this tab is a session. "Open the group" is
+                // the fallback when a group has nothing scheduled to act on.
+                cardMenu={(cls) => (
+                  <ClassCardMenu
+                    cls={cls}
+                    onChanged={fetchClasses}
+                    onOpenGroup={() => handleSelectClass(cls)}
+                  />
+                )}
+              />
             </div>
           </>
         )}

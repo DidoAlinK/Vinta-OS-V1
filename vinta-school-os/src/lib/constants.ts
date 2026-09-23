@@ -80,6 +80,7 @@ export const STATUS_FILTER_PAGES = new Set(['students', 'teachers', 'classes'])
 export const SESSION_STATUS_COLORS: Record<string, string> = {
   scheduled: 'gold',
   in_progress: 'emerald',
+  conducted: 'grey',
   completed: 'grey',
   cancelled: 'red',
 }
@@ -87,6 +88,10 @@ export const SESSION_STATUS_COLORS: Record<string, string> = {
 export const SESSION_STATUS_LABELS: Record<string, string> = {
   scheduled: 'Scheduled',
   in_progress: 'In Progress',
+  // `conducted` is what the server writes for a finished class; `completed`
+  // is the legacy spelling. Both are terminal, and the label has to exist for
+  // both — a missing key renders an empty badge, not a visible error.
+  conducted: 'Conducted',
   completed: 'Completed',
   cancelled: 'Cancelled',
 }

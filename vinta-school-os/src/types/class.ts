@@ -124,9 +124,25 @@ export interface Session {
   date: string // "YYYY-MM-DD"
   start_time: string // "HH:MM"
   end_time: string // "HH:MM"
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+  /**
+   * `conducted` is what the server writes for a finished class; `completed`
+   * is the legacy spelling. Both are terminal and get folded together by
+   * normalizeBackendStatus — but this union has to list what actually arrives
+   * on the wire, because a status→style lookup indexed with an unlisted value
+   * returns undefined and renders a blank badge rather than failing loudly.
+   */
+  status: 'scheduled' | 'in_progress' | 'conducted' | 'completed' | 'cancelled'
   is_finalized?: boolean
   created_at: string
+
+  // Lifecycle — the server owns these, since it is what decides who gets
+  // charged. The client reads them; it does not keep its own copy.
+  is_free_session?: boolean
+  actual_start_time?: string | null
+  actual_end_time?: string | null
+  started_by_staff_id?: string | null
+  ended_by_staff_id?: string | null
+  cancelled_reason?: string | null
 
   // Computed
   start_hour: number

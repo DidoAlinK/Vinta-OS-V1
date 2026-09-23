@@ -202,6 +202,24 @@ export function DashboardPage() {
   // Bump tick -> roster effect + notifier re-evaluate with fresh lifecycle records.
   const bumpLifecycle = useCallback(() => setLifecycleTick(t => t + 1), [])
 
+  // T1: the server owns Start — it stamps actual_start_time and materialises
+  // the attendance register. Idempotent, so the old "only if not already
+  // started" guard is no longer needed for correctness. Never rejects.
+  const postSessionStart = useCallback(async (session: Session) => {
+    try {
+      await api.post(`/sessions/${session.id}/start`)
+    } catch (err: any) {
+      // 404 = session not in this academy; 409 = already conducted/cancelled.
+      const backend = err?.response?.data?.error
+      toast.error(
+        'Could not start class',
+        typeof backend === 'string' && backend
+          ? backend
+          : 'The class was not started. Please try again.',
+      )
+    }
+  }, [])
+
   const refetchSessions = useCallback(async () => {
     try {
       const endpoint = viewMode === 'week' ? '/calendar/week' : '/calendar/day'
@@ -232,16 +250,14 @@ export function DashboardPage() {
   // T1: Start-Class scheduler — start toast at scheduledStartTime,
   // end toast at scheduledEndTime. Runs every 30s + on session load.
   const handleStartFromToast = useCallback((session: Session) => {
-    // Mirror the hamburger early-start: record actualStartTime now.
-    // Idempotent: keep the FIRST start time if the user already started.
-    const rec = getLifecycleRecord(session.id)
-    if (!rec.actualStartTime) {
-      updateLifecycleRecord(session.id, { actualStartTime: new Date().toISOString() })
-    }
+    // Same server Start as the ☰ menu and the card button — no local start
+    // time any more. POST first, then refetch: status is server-derived, so
+    // the card/grid only flip once the fresh row arrives.
     setSelectedSession(session)
     setCheckInSession(session)
     bumpLifecycle()
-  }, [bumpLifecycle])
+    void postSessionStart(session).then(() => refetchSessions())
+  }, [postSessionStart, bumpLifecycle, refetchSessions])
 
   const handleFinishRequest = useCallback((session: Session) => {
     // T1: Yes (PIN) -> CONDUCTED + payout calc + freeze. Modal owns the PIN call.
@@ -279,15 +295,11 @@ export function DashboardPage() {
 
   // T3 hamburger: Start Class from the ☰ menu = same early-start path.
   const handleStartFromMenu = useCallback((session: Session) => {
-    const rec = getLifecycleRecord(session.id)
-    if (!rec.actualStartTime) {
-      updateLifecycleRecord(session.id, { actualStartTime: new Date().toISOString() })
-    }
     setSelectedSession(session)
     setCheckInSession(session)
     bumpLifecycle()
-    void refetchSessions()
-  }, [bumpLifecycle, refetchSessions])
+    void postSessionStart(session).then(() => refetchSessions())
+  }, [postSessionStart, bumpLifecycle, refetchSessions])
 
   const handleFinalizeSuccess = useCallback(() => {
     setFinalizeSession(null)
