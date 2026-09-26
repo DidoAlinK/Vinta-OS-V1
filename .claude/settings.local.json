@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(cd vinta-school-os/src && wc -l lib/billingRules.ts lib/grossProfit.ts lib/api.ts types/settings.ts 2>/dev/null; echo \"=== university grep ===\"; grep -rn \"university\\\\|University\" --include=*.tsx --include=*.ts --include=*.py .. 2>/dev/null | grep -v node_modules | head -20)",
+      "Bash(cd vinta-school-os/src && grep -rn \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\\\\|stub\\\\|not implemented\\\\|NotImplemented\\\\|placeholder\\\\|coming soon\\\\|Coming Soon\" --include=*.tsx --include=*.ts features/teachers features/settings lib/teacherEmails.ts lib/billingRules.ts lib/grossProfit.ts 2>/dev/null | head -40; echo \"=== backend ===\"; cd ../../Backend/vinta-academy-backend && grep -rn \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\" --include=*.py app/routes/teachers.py app/routes/settings.py app/models/teacher.py 2>/dev/null | head -20)",
+      "Bash(cd vinta-school-os/src && grep -rn \"Subscription\" --include=*.tsx . | grep -v \"features/settings/Subscription.tsx\" | head; echo \"=== HANDOFF teachers/settings sections ===\"; cd ../.. && grep -n \"email\\\\|teacher\\\\|Teacher\\\\|Billing Rules\\\\|owner_only\\\\|settings\" HANDOFF.md | head -60)",
+      "Bash(python -c ' *)",
+      "Bash(py -c ' *)",
+      "Bash(awk '{printf \"%d\\\\t%s\\\\n\", $1+119, substr\\($0, index\\($0,$2\\)\\)}')",
+      "Bash(ls -la \"F:/\" 2>&1; echo \"---\"; ls -la \"F:/Vinta-School-OS-patch-1.5.1.1-main\" 2>&1 | head)",
+      "Read(//f//**)"
     ]
   }
 }

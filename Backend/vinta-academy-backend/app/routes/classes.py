@@ -168,15 +168,42 @@ def list_classes():
 
     classes = Class.query.filter_by(academy_id=g.current_academy_id).all()
 
+    # Which groups have a time on the books at all.
+    #
+    # "Active" used to mean "somebody is enrolled", and that is true of every
+    # group that exists for a reason — so every card carried the same green dot
+    # and the same word, and the state told the desk nothing. A group with no
+    # schedule is the case that actually needs saying: it can never run. It has
+    # students, so it is not Empty; it is waiting for a time, which is a
+    # different thing from being ready to teach, and the difference is worth a
+    # colour because it is the one the desk can act on.
+    #
+    # Read in one query rather than one per class: this endpoint already walks
+    # every group, and a per-group existence check would double that.
+    scheduled_class_ids = {
+        class_id
+        for (class_id,) in db.session.query(Schedule.class_id)
+        .filter(Schedule.class_id.in_([c.id for c in classes]))
+        .distinct()
+        .all()
+    }
+
     result = []
     for cls in classes:
         enrolled_count = Enrollment.query.filter_by(
             class_id=cls.id, status="active"
         ).count()
 
-        # Status dot logic: Red=full, Green=has students, Grey=empty
+        # Status dot logic: Red=full, Amber=has students but no time set,
+        # Green=has students and meets, Grey=empty.
+        #
+        # Full outranks unscheduled: both can be true, and the room being at
+        # capacity is the fact about this group that is not going to change by
+        # adding a slot.
         if enrolled_count >= cls.capacity and cls.capacity > 0:
             status_color = "red"
+        elif enrolled_count > 0 and cls.id not in scheduled_class_ids:
+            status_color = "amber"
         elif enrolled_count > 0:
             status_color = "green"
         else:
@@ -583,6 +610,46 @@ def list_group_subscriptions(class_id):
 
 # ── Schedules (within a class) ──────────────────────────────────────
 
+@classes_bp.route("/classes/<class_id>/schedules", methods=["GET"])
+@jwt_required()
+@tenant_required
+def list_class_schedules(class_id):
+    """
+    The slots a group meets on, soonest weekday first.
+
+    Two screens already fetched this path and got a 405: the Weekly Schedule
+    block in the class drawer, and the group edit panel's time fields. Both
+    fell back to "Schedule Not set" / an empty time for every group, because
+    `GET /classes` does not carry `schedules` — only `GET /classes/<id>` does,
+    and neither screen is handed a detail payload. The path existed for POST
+    only, so the read was a 405 rather than a 404: easy to mistake for a
+    permissions problem, and easy to leave in place.
+    """
+    from flask import g
+
+    cls = Class.query.filter_by(id=class_id, academy_id=g.current_academy_id).first()
+    if not cls:
+        return jsonify({"error": "Class not found"}), 404
+
+    schedules = Schedule.query.filter_by(class_id=cls.id).order_by(
+        Schedule.day_of_week, Schedule.start_time
+    ).all()
+    return jsonify({
+        "schedules": [
+            {
+                "id": s.id,
+                "class_id": s.class_id,
+                "day_of_week": s.day_of_week,
+                "start_time": s.start_time.strftime("%H:%M"),
+                "end_time": s.end_time.strftime("%H:%M"),
+                "classroom_id": s.classroom_id,
+                "classroom_name": s.classroom.name if s.classroom else None,
+            }
+            for s in schedules
+        ]
+    }), 200
+
+
 @classes_bp.route("/classes/<class_id>/schedules", methods=["POST"])
 @jwt_required()
 @tenant_required
@@ -607,13 +674,63 @@ def create_schedule(class_id):
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
+    # A group with nobody teaching it cannot have a calendar.
+    #
+    # Session.teacher_id is NOT NULL, so generate_sessions_from_schedule below
+    # dies on the first INSERT — and because it flushes mid-request, the desk
+    # saw an HTML 500 with the schedule row already committed behind it. An
+    # assignment is a precondition of the sessions, not an afterthought, so it
+    # is refused here where the sentence can say what is actually missing.
+    if not cls.teacher_id:
+        return jsonify(
+            {
+                "error": (
+                    f"Assign a teacher to {cls.name} first — its sessions "
+                    "cannot be created without one."
+                )
+            }
+        ), 400
+
+    start_time = snap_time_obj(scheduling_service._parse_time(data["start_time"]))
+    end_time = snap_time_obj(scheduling_service._parse_time(data["end_time"]))
+
+    # A block that already exists is refused rather than added again.
+    #
+    # Adding one calls generate_sessions_from_schedule, which mints 12 weeks of
+    # sessions, so a form submitted twice — or a save button pressed twice —
+    # used to produce two identical classes on every date of the series, each
+    # with its own register. Nothing downstream collapses them, so they show up
+    # as duplicate rows the desk has to reason about.
+    #
+    # Scoped to the room as well: the same hours in a different room is a real
+    # second block, not a duplicate.
+    existing = Schedule.query.filter_by(
+        class_id=class_id,
+        classroom_id=data.get("classroom_id"),
+        day_of_week=data["day_of_week"],
+        start_time=start_time,
+        end_time=end_time,
+    ).first()
+    if existing is not None:
+        return jsonify(
+            {
+                "error": (
+                    "This group already meets then. "
+                    f"{existing.start_time.strftime('%H:%M')}–"
+                    f"{existing.end_time.strftime('%H:%M')} is already on its calendar."
+                ),
+                "id": existing.id,
+                "duplicate": True,
+            }
+        ), 409
+
     schedule = Schedule(
         id=str(uuid.uuid4()),
         class_id=class_id,
         classroom_id=data.get("classroom_id"),
         day_of_week=data["day_of_week"],
-        start_time=snap_time_obj(scheduling_service._parse_time(data["start_time"])),
-        end_time=snap_time_obj(scheduling_service._parse_time(data["end_time"])),
+        start_time=start_time,
+        end_time=end_time,
     )
     db.session.add(schedule)
     db.session.commit()

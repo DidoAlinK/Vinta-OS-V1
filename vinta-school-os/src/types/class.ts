@@ -73,8 +73,19 @@ export interface Class {
   // ── Per-view billing snapshot (filled by detail/subscription fetch) ──
   billing_info?: ClassBillingInfo | null
 
-  // Computed
-  status: 'full' | 'active' | 'empty'
+  /**
+   * The enrollment dot the server decided, from the same count and the same
+   * capacity guard: red = full, green = has students, grey = empty.
+   */
+  status_color?: 'red' | 'amber' | 'green' | 'grey'
+
+  /**
+   * Not sent by the API — nothing computes it. It was declared here as a
+   * required field, which is what let the screens read it and render an
+   * invisible dot and a blank label without TypeScript noticing. Read
+   * `classStateOf(cls)` from `lib/classState` instead.
+   */
+  status?: 'full' | 'active' | 'empty'
   schedules: Schedule[]
 }
 

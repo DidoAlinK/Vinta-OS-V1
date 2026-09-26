@@ -5,6 +5,7 @@
 
 import { create } from 'zustand'
 import api, { tokenStorage } from '../lib/api'
+import { hydrateBillingRules } from '../lib/billingRules'
 import type {
   User,
   Profile,
@@ -13,6 +14,25 @@ import type {
   VerifyPinResponse,
   CreateProfileRequest,
 } from '../types/auth'
+
+/**
+ * Warm the billing-rules cache, once per sign-in.
+ *
+ * Several money screens read a rule synchronously at the point where the answer
+ * is printed — "ABSENT consumes 1" is text on a button, and the void flow has to
+ * know which rows were charged before it acts. Filling the cache only when
+ * Settings is opened would leave every other screen reading the documented
+ * defaults and presenting them as this academy's rules, which is the exact
+ * confusion that moved these rules onto the server in the first place.
+ *
+ * The read is owner-only, so staff get a 403 every time. That is expected, not
+ * an error: they cannot read the row, and the defaults are the honest answer
+ * for someone who cannot. So the rejection is swallowed here — nothing about
+ * opening the app should depend on a settings read.
+ */
+function primeBillingRules(): void {
+  void hydrateBillingRules().catch(() => {})
+}
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -61,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
 
       await get().loadAcademy()
+      primeBillingRules()
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } } }
       throw new Error(err.response?.data?.error || 'Login failed')
@@ -122,6 +143,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
 
       await get().loadAcademy()
+      primeBillingRules()
 
       return { academy_id, name }
     } catch (error: unknown) {
@@ -275,6 +297,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Fire-and-forget: the academy name is non-critical, and a failure here
       // must never disturb an already-established session.
       void get().loadAcademy()
+      primeBillingRules()
     } catch {
       tokenStorage.clear()
       set({

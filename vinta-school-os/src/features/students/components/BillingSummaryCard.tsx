@@ -128,6 +128,12 @@ interface SummaryRow {
   hint: string | null
   value: React.ReactNode
   unknown: boolean
+  /**
+   * Overrides the default ink colour. `undefined` keeps the usual rule: muted
+   * while the value is unknown, `--text` once it is real. Only "credits left"
+   * uses it, to turn a spent balance red rather than leaving it looking paid.
+   */
+  tone?: 'red' | 'text'
 }
 
 export function BillingSummaryCard({ student, loading = false }: BillingSummaryCardProps) {
@@ -135,6 +141,10 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
   const planAmount = student.plan_amount
   const sessions = student.sessions_per_month
   const renews = parseISODate(student.renews)
+  // Both are null together when there is no subscription; either may be null
+  // on its own for a subscription that never set a cycle.
+  const creditsRemaining = student.remaining_credits ?? null
+  const creditsTotal = student.total_credits ?? null
 
   // The backend's `plan` is already "Credit — 3,300 DA", so only add the amount
   // as a separate line when the plan text does not already carry it.
@@ -160,6 +170,23 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
       // 0 is a real value; only null/undefined is unknown.
       value: sessions != null ? String(sessions) : DASH,
       unknown: sessions == null,
+    },
+    {
+      // The number the desk actually acts on: how many sessions this student
+      // still has paid for. It has been on the wire since the beginning
+      // (student_service._enrich_student sends remaining_credits/total_credits)
+      // and nothing rendered it, so a depleted student looked like a paid one
+      // until the next check-in refused them.
+      //
+      // Only shown when a subscription exists: `null` means "no subscription",
+      // which is a different fact from "none left", and 0 is a real value.
+      label: 'Credits left',
+      hint: creditsTotal != null && creditsRemaining != null ? `of ${creditsTotal}` : null,
+      value: creditsRemaining != null ? String(creditsRemaining) : DASH,
+      unknown: creditsRemaining == null,
+      // Credited colour follows the same rule as everywhere else: 0 left is
+      // money owed, so it reads red rather than as a quiet zero.
+      tone: creditsRemaining == null ? undefined : creditsRemaining <= 0 ? 'red' : 'text',
     },
     {
       label: 'Renews on',
@@ -212,7 +239,13 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
             </dt>
             <dd
               className="m-0 text-sm text-right min-w-0"
-              style={{ color: row.unknown ? 'var(--muted)' : 'var(--text)' }}
+              style={{
+                color: row.unknown
+                  ? 'var(--muted)'
+                  : row.tone === 'red'
+                    ? 'var(--red)'
+                    : 'var(--text)',
+              }}
             >
               {row.value}
             </dd>

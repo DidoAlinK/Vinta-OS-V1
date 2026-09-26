@@ -1,11 +1,13 @@
 import { useAuthStore } from '../../stores/authStore'
 import { useUIStore } from '../../stores/uiStore'
 import { getInitials } from '../../lib/formatters'
-import { Search, Bell, Menu } from 'lucide-react'
+import { Menu } from 'lucide-react'
+import { NotificationBell } from './NotificationBell'
+import { GlobalSearch } from './GlobalSearch'
 
 export function Topbar() {
   const user = useAuthStore(s => s.user)
-  const { searchQuery, setSearchQuery, setMobileSidebarOpen } = useUIStore()
+  const setMobileSidebarOpen = useUIStore(s => s.setMobileSidebarOpen)
 
   return (
     <header
@@ -21,33 +23,18 @@ export function Topbar() {
         <Menu size={20} />
       </button>
 
-      {/* Search */}
-      <div
-        className="flex items-center gap-2 px-3 py-2 rounded-xl w-full max-w-[300px]"
-        style={{ background: 'var(--input-bg)', border: '1px solid var(--glass-border)' }}
-      >
-        <Search size={16} style={{ color: 'var(--muted)' }} />
-        <input
-          type="text"
-          placeholder="Search..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="bg-transparent border-none outline-none text-[13px] w-full"
-          style={{ color: 'var(--text)' }}
-        />
-      </div>
+      {/* Search — owns its own state, and actually queries. It used to write
+          `searchQuery` into the UI store, which nothing in the app read. */}
+      <GlobalSearch />
 
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Notifications */}
-      <button className="relative p-2 rounded-full" style={{ color: 'var(--muted)' }}>
-        <Bell size={18} />
-        <span
-          className="absolute top-1 right-1 w-2 h-2 rounded-full"
-          style={{ background: 'var(--red)' }}
-        />
-      </button>
+      {/* Notifications. The dot inside is real — it tracks the server's unread
+          count, so its absence is information too. It used to be an
+          unconditional red `<span>`: always on, never clickable, and reading
+          the same whether the academy had nine alerts or none. */}
+      <NotificationBell />
 
       {/* User pill */}
       <button

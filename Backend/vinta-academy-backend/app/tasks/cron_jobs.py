@@ -4,23 +4,54 @@ Automated check-outs, overdue status checks, renewal triggers.
 Runs via APScheduler on a configurable schedule.
 """
 import logging
-from datetime import datetime, timezone
-from app.extensions import db, socketio
+from datetime import datetime
+from app.extensions import db
 from app.models.academy import Academy
 from app.models.scheduling import Session
 from app.models.billing import StudentBilling
 from app.services import attendance_service, billing_service
-from app.services.scheduling_service import auto_checkout_session
 
 logger = logging.getLogger(__name__)
 
 
 def auto_checkout_expired_sessions():
     """
-    Check all in-progress sessions whose end_time has passed.
-    If auto_checkout_enabled in AcademySettings, auto check-out all present students.
+    Check all in-progress sessions whose end_time has passed and auto check-out
+    any students still marked present.
+
+    Deliberately does NOT end the class.
+
+    This job used to set ``session.status = "completed"`` the moment the clock
+    passed ``end_time``. That is the one thing it must never do. Ending a class
+    is what settles money — ``session_lifecycle_service.end_session`` runs
+    ``settle_absences``, writes ``conducted``, and stamps ``actual_end_time``
+    and ``ended_by_staff_id`` behind a staff PIN. A timer cannot consent to that,
+    and the terminal status also drops the session out of the
+    ``status IN ('scheduled','in_progress')`` query the Classrooms tab uses, so
+    the desk lost the Finish / Extend / Void choices entirely.
+
+    So the class is left IN_PROGRESS and the desk is told it is over (the
+    client derives "overdue" from ``end_time`` and raises the prompt). This job
+    only tidies the register: a student left checked in overnight should not
+    stay checked in forever.
+
+    Two bugs used to stop this function before it did anything at all:
+
+    * ``import auto_checkout_session`` was pulled from ``scheduling_service``,
+      which has never defined it — an ImportError that made this whole module
+      unimportable. It lives in ``attendance_service``.
+    * ``datetime.now(timezone.utc)`` (aware) was compared against
+      ``datetime.combine(date, time)`` (always naive), so the first expired
+      session raised ``TypeError: can't compare offset-naive and offset-aware
+      datetimes`` and the sweep died there.
+
+    On the comparison: ``Session.date`` and ``Session.end_time`` are stored as
+    local wall-clock values, not UTC — the frontend reads them back through
+    ``lib/sessionTime.ts`` and formats them as local time. So the comparison
+    here is local-against-local on purpose. Do not "fix" this to UTC without
+    also migrating the stored columns.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
     from app.models.academy import AcademySettings
 
     academies = Academy.query.all()
@@ -31,32 +62,48 @@ def auto_checkout_expired_sessions():
         if not settings or not settings.auto_checkout_enabled:
             continue
 
-        # Find sessions that have ended but have students still checked in
+        # IN_PROGRESS only. A ``scheduled`` class has nobody checked in to
+        # check out, and a class that was never started is the desk's to
+        # cancel — not this job's.
         expired_sessions = Session.query.filter(
-            Session.academy_id ==academy.id,
-            Session.status.in_(["scheduled", "in_progress"]),
+            Session.academy_id == academy.id,
+            Session.status == "in_progress",
         ).all()
 
         for session in expired_sessions:
             session_end = datetime.combine(session.date, session.end_time)
             if now > session_end:
                 count = attendance_service.auto_checkout_session(session.id, academy.id)
-                total_checkout_count += count
-
-                # Mark session as completed
-                session.status = "completed"
-
-                # Emit WebSocket event for real-time UI update
-                socketio.emit("session:completed", {
-                    "session_id": session.id,
-                    "academy_id": academy.id,
-                }, room=academy.id)
-
-                logger.info(f"Auto checkout: session {session.id} — {count} students")
+                if count > 0:
+                    total_checkout_count += count
+                    logger.info(
+                        "Auto checkout: session %s — %s students", session.id, count
+                    )
 
     if total_checkout_count > 0:
         db.session.commit()
-        logger.info(f"Total auto checkouts across all academies: {total_checkout_count}")
+        logger.info(
+            "Total auto checkouts across all academies: %s", total_checkout_count
+        )
+
+
+def close_past_temporary_sessions():
+    """
+    Close out one-off classes whose day passed without ever being started.
+
+    The rule and the reasoning live in
+    ``session_lifecycle_service.close_past_temporary_sessions`` — this is only
+    the schedule and the log line. Kept thin on purpose: the lifecycle service
+    owns session status, and a second copy of the rule here is how the two
+    would drift apart.
+    """
+    from app.services.session_lifecycle_service import (
+        close_past_temporary_sessions as _close,
+    )
+
+    closed = _close()
+    if closed:
+        logger.info("Closed %s unstarted one-off session(s)", closed)
 
 
 def check_overdue_payments():
@@ -152,6 +199,16 @@ CRON_JOBS = [
         "trigger": "interval",
         "minutes": 5,
         "description": "Auto check-out expired sessions every 5 minutes",
+    },
+    {
+        "id": "close_past_temporary",
+        "func": close_past_temporary_sessions,
+        "trigger": "cron",
+        "hour": 0,
+        "minute": 30,
+        "description": (
+            "Close one-off classes whose day passed unstarted, daily at 0:30"
+        ),
     },
     {
         "id": "check_overdue",

@@ -6,6 +6,11 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite", "--port", "5173", "--host"],
       "port": 5173
+    },
+    {
+      "name": "dev-running",
+      "url": "http://localhost:5137",
+      "port": 5137
     }
   ]
 }

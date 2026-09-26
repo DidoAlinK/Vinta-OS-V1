@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { cn } from '../../lib/cn'
 import { Card, CardHeader, CardBody } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -8,30 +8,75 @@ import { useAuthStore } from '../../stores/authStore'
 import { toast } from '../../stores/uiStore'
 import api from '../../lib/api'
 import {
-  FINAL_TOGGLE_DEFAULTS,
-  getAbsenceConsumesCredit,
-  getFinalToggle,
-  getLatestFinal,
-  getLatestSwapWindow,
-  getLatestToggle6,
-  getLatestToggleVersion,
-  getPendingFinal,
-  getPendingSwapWindow,
-  getPendingToggle6,
-  getPendingToggleVersions,
+  BILLING_RULE_DEFAULTS,
+  BILLING_RULE_FIELDS,
   getSwapWindow,
-  getToggle6,
-  setAbsenceConsumesCredit,
-  setFinalToggle,
+  hydrateBillingRules,
+  setBillingRule,
   setSwapWindow,
-  setToggle6,
-  type FinalToggleKey,
+  snapshotBillingRules,
+  type BillingRuleField,
   type SwapLinkWindow,
 } from '../../lib/billingRules'
 import { Toggle } from '../../components/ui/Toggle'
 import { GROSS_PROFIT_LABEL } from '../../lib/constants'
 import { isGrossProfitEnabled, setGrossProfitEnabled } from '../../lib/grossProfit'
-import { Save, Plus, X, Trash2, Coins, Clock, Users, CalendarClock, Lock } from 'lucide-react'
+import { Save, Plus, X, Trash2, Coins, Clock, Users, Lock, RefreshCw } from 'lucide-react'
+
+/* ─── The Billing Rules, and the question each one answers ─── */
+
+/**
+ * Every rule the server stores, in the order the desk meets them.
+ *
+ * Data rather than seven hand-written blocks: they are identical in shape and
+ * the only thing that varies is the sentence. The old markup repeated the
+ * switch three times and the three copies had already drifted — one said its
+ * change applied "next Monday" while the server had no such notion.
+ */
+const RULE_ROWS: Array<{ field: BillingRuleField; label: string; hint: string }> = [
+  {
+    field: 'absence_consumes_credit',
+    label: 'Charge for missed sessions?',
+    hint: 'ON: a student who did not turn up still spends a credit at End Class. OFF: only the students who came are charged, and an absence costs nothing.',
+  },
+  {
+    field: 'allow_makeups_default',
+    label: 'Allow makeups?',
+    hint: 'ON: an absence banks a makeup credit instead of burning the seat. This is the default for new groups, and each group can be set differently.',
+  },
+  {
+    field: 'count_gap_sessions',
+    label: 'Charge sessions missed while overdue?',
+    hint: 'ON: classes missed during a payment gap are charged against the next plan. OFF: a new payment always starts a clean cycle.',
+  },
+  {
+    field: 'restore_credits_on_cancellation',
+    label: 'Give a credit back when a class is cancelled?',
+    hint: 'ON: cancelling a class that already charged returns the credit. OFF: the academy keeps it.',
+  },
+  {
+    field: 'free_session_auto_present',
+    label: 'Free sessions fill their own register?',
+    hint: 'ON: a free session marks everyone present and skips tracking — there is no money on it, so the register earns nothing. OFF: you mark it yourself for the record. Billing is 0 either way.',
+  },
+  {
+    field: 'share_credits_across_groups',
+    label: 'Share credits across groups?',
+    hint: 'ON: one credit pool covers every group of the same subject. OFF: each group needs its own subscription.',
+  },
+  {
+    field: 'early_payment_on_extra_sessions',
+    label: 'Ask for renewal early?',
+    hint: 'ON: the desk is prompted as soon as extra sessions drain the credits, rather than waiting for the cycle to end.',
+  },
+]
+
+/** The server's own words when it refuses a write. */
+function serverMessage(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: { error?: string; message?: string } } })
+    ?.response?.data
+  return data?.error || data?.message || fallback
+}
 
 /* ─── Props ─── */
 
@@ -114,10 +159,32 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
   // Academy gross-profit opt-in (frontend registry, OFF by default)
   const [grossAcademy, setGrossAcademy] = useState(() => isGrossProfitEnabled())
 
-  // T5 Toggle 1: absenceConsumesCredit (default true, effective next Monday)
-  const [toggle1, setToggle1] = useState(() => getAbsenceConsumesCredit(new Date()))
-  const [toggle1Version, setToggle1Version] = useState(() => getLatestToggleVersion())
-  const [toggle1Pending, setToggle1Pending] = useState(() => getPendingToggleVersions(new Date()))
+  /* ── The Billing Rules, read from and written to the server ──
+   *
+   * These were localStorage preferences with a Monday version log, which
+   * meant the screen agreed with itself and disagreed with the columns that
+   * actually decide who is charged. See lib/billingRules.ts. The values here
+   * mirror the last answer the server gave; every change is a PUT.
+   */
+  const [rules, setRules] = useState(() => snapshotBillingRules())
+  const [rulesLoaded, setRulesLoaded] = useState(false)
+  const [rulesError, setRulesError] = useState<string | null>(null)
+  const [savingRule, setSavingRule] = useState<BillingRuleField | null>(null)
+
+  const loadRules = useCallback(async () => {
+    setRulesError(null)
+    try {
+      setRules(await hydrateBillingRules())
+      setRulesLoaded(true)
+    } catch (err) {
+      // 403 here means a staff login on an owner-only endpoint. Saying
+      // "defaults" is honest; showing the defaults as if they were the
+      // academy's own rules would not be.
+      setRulesError(serverMessage(err, 'Could not read the rules from the server.'))
+    }
+  }, [])
+
+  useEffect(() => { void loadRules() }, [loadRules])
 
   // Persist presets whenever they change (but not on first render)
   const [initialized, setInitialized] = useState(false)
@@ -169,105 +236,66 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
     }
   }
 
-  const handleToggle1 = () => {
-    if (!guardOwner()) return
-    // Flip the LATEST staged value (or current effective when nothing staged).
-    const current = toggle1Version?.value ?? toggle1
-    const version = setAbsenceConsumesCredit(!current, new Date())
-    setToggle1Version(version)
-    setToggle1Pending(getPendingToggleVersions(new Date()))
-    // Current week still runs the previous value — toggle takes effect Monday.
-  }
-
-  // T6 Toggle 6: freeSessionAutoPresent (default true, effective next Monday)
-  const [toggle6, setToggle6Val] = useState(() => getToggle6(new Date()))
-  const [toggle6Version, setToggle6Version] = useState(() => getLatestToggle6())
-  const [toggle6Pending, setToggle6Pending] = useState(() => getPendingToggle6(new Date()))
-
-  const handleToggle6 = () => {
-    if (!guardOwner()) return
-    const current = toggle6Version?.value ?? toggle6
-    const version = setToggle6(!current, new Date())
-    setToggle6Version(version)
-    setToggle6Pending(getPendingToggle6(new Date()))
-  }
-
-  // ── T10 final list (Owner PIN only; staged → next Monday, never deleted) ──
+  // ── Owner PIN gate ──
   const userRole = useAuthStore((s) => s.user?.role ?? 'staff')
   const [pinOpen, setPinOpen] = useState(false)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState<string | null>(null)
   const [pinChecking, setPinChecking] = useState(false)
   const [pinOk, setPinOk] = useState(false)
-  // Pending flip requested before PIN entry.
-  const [pendingFlip, setPendingFlip] = useState<null | { kind: 'final'; key: FinalToggleKey } | { kind: 'swap'; value: SwapLinkWindow }>(null)
+  /** The rule whose flip is waiting on the PIN. */
+  const [pendingField, setPendingField] = useState<BillingRuleField | null>(null)
 
-  const [finalState, setFinalState] = useState<Record<FinalToggleKey, { eff: boolean; staged: boolean | null; pending: boolean }>>(() => ({
-    allowMakeups: { eff: getFinalToggle('allowMakeups'), staged: getLatestFinal('allowMakeups')?.value ?? null, pending: getPendingFinal('allowMakeups').length > 0 },
-    shareCreditsAcrossGroups: { eff: getFinalToggle('shareCreditsAcrossGroups'), staged: getLatestFinal('shareCreditsAcrossGroups')?.value ?? null, pending: getPendingFinal('shareCreditsAcrossGroups').length > 0 },
-    earlyPaymentOnExtraSessions: { eff: getFinalToggle('earlyPaymentOnExtraSessions'), staged: getLatestFinal('earlyPaymentOnExtraSessions')?.value ?? null, pending: getPendingFinal('earlyPaymentOnExtraSessions').length > 0 },
-  }))
-  const [swapState, setSwapState] = useState(() => ({
-    eff: getSwapWindow(),
-    staged: getLatestSwapWindow()?.value ?? null as SwapLinkWindow | null,
-    pending: getPendingSwapWindow().length > 0,
-    version: getLatestSwapWindow(),
-  }))
+  const [swapWindow, setSwapWindowState] = useState<SwapLinkWindow>(() => getSwapWindow())
 
-  const refreshFinal = () => {
-    setFinalState({
-      allowMakeups: { eff: getFinalToggle('allowMakeups'), staged: getLatestFinal('allowMakeups')?.value ?? null, pending: getPendingFinal('allowMakeups').length > 0 },
-      shareCreditsAcrossGroups: { eff: getFinalToggle('shareCreditsAcrossGroups'), staged: getLatestFinal('shareCreditsAcrossGroups')?.value ?? null, pending: getPendingFinal('shareCreditsAcrossGroups').length > 0 },
-      earlyPaymentOnExtraSessions: { eff: getFinalToggle('earlyPaymentOnExtraSessions'), staged: getLatestFinal('earlyPaymentOnExtraSessions')?.value ?? null, pending: getPendingFinal('earlyPaymentOnExtraSessions').length > 0 },
-    })
-    setSwapState({
-      eff: getSwapWindow(),
-      staged: getLatestSwapWindow()?.value ?? null,
-      pending: getPendingSwapWindow().length > 0,
-      version: getLatestSwapWindow(),
-    })
-  }
-
-  /** Owner gate: role must be owner, then PIN verified before any T10 flip. */
-  const guardOwner = (): boolean => {
-    if (userRole !== 'owner') {
-      toast.error('Owner PIN only', 'Billing rules require the owner role.')
-      return false
-    }
-    if (!pinOk) {
-      toast.error('Owner PIN required', 'Verify the owner PIN first.')
-      return false
-    }
-    return true
-  }
-
-  const requestFlip = (flip: NonNullable<typeof pendingFlip>) => {
+  /**
+   * Write one rule to the server.
+   *
+   * The server is owner-only on this endpoint as well, so a refusal is shown
+   * rather than swallowed: a flip that silently did nothing would leave this
+   * screen claiming a change the money paths never heard about — which is the
+   * bug this replaced.
+   *
+   * This is the write, not the gate. The PIN is checked by the caller before it
+   * gets here: `requestFlip` for a direct press, `handleVerifyPin` for the flip
+   * that was waiting on the modal. Reading `pinOk` here instead would have been
+   * a closure bug — the flip that follows a successful verify runs in the render
+   * where the PIN was still unverified, so the gate would have refused the very
+   * change it was opened to allow.
+   */
+  const flipRule = useCallback(async (field: BillingRuleField) => {
     if (userRole !== 'owner') {
       toast.error('Owner PIN only', 'Billing rules require the owner role.')
       return
     }
-    setPendingFlip(flip)
-    setPin('')
-    setPinError(null)
+    setSavingRule(field)
+    try {
+      await setBillingRule(field, !snapshotBillingRules()[field])
+      setRules(snapshotBillingRules())
+      const label = RULE_ROWS.find((r) => r.field === field)?.label ?? field
+      toast.success('Rule updated', `${label} — applies from the next class, not retroactively.`)
+    } catch (err) {
+      toast.error('Could not change the rule', serverMessage(err, 'The server refused the change.'))
+    } finally {
+      setSavingRule(null)
+    }
+  }, [userRole])
+
+  const requestFlip = (field: BillingRuleField) => {
+    if (userRole !== 'owner') {
+      toast.error('Owner PIN only', 'Billing rules require the owner role.')
+      return
+    }
     if (pinOk) {
       // Already verified this session — apply immediately.
-      applyFlip(flip)
-      setPendingFlip(null)
-    } else {
-      setPinOpen(true)
+      void flipRule(field)
+      return
     }
-  }
-
-  const applyFlip = (flip: NonNullable<typeof pendingFlip>) => {
-    if (flip.kind === 'final') {
-      const cur = getLatestFinal(flip.key)?.value ?? getFinalToggle(flip.key)
-      setFinalToggle(flip.key, !cur, new Date())
-    } else {
-      setSwapWindow(flip.value, new Date())
-    }
-    refreshFinal()
-    const label = flip.kind === 'final' ? flip.key : `swapLinkWindow → ${flip.value}`
-    toast.success('Rule staged', `${label} takes effect next Monday — not retroactively.`)
+    // Held here until the PIN lands; handleVerifyPin reads it back.
+    setPendingField(field)
+    setPin('')
+    setPinError(null)
+    setPinOpen(true)
   }
 
   const handleVerifyPin = async () => {
@@ -286,9 +314,9 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
       await api.post('/auth/verify-pin', { user_id: owner.id, pin: pin.trim() })
       setPinOk(true)
       setPinOpen(false)
-      if (pendingFlip) {
-        applyFlip(pendingFlip)
-        setPendingFlip(null)
+      if (pendingField) {
+        void flipRule(pendingField)
+        setPendingField(null)
       }
       setPin('')
       toast.success('Owner verified', 'Billing rules unlocked for this session.')
@@ -303,7 +331,9 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
 
   return (
     <div className="flex flex-col gap-5 max-w-xl">
-      {/* T5 Toggle 1 — Charge for missed sessions? (absenceConsumesCredit) */}
+      {/* The money rules, as the server holds them. Every one of these is a
+          column on academy_settings that the money paths read live, so this
+          card is a view onto that row and nothing else. */}
       <Card>
         <CardHeader title="Billing Rules" />
         <CardBody>
@@ -323,159 +353,129 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
               onCheckedChange={(v) => { setGrossProfitEnabled(v); setGrossAcademy(v) }}
             />
           </div>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[var(--text)]">
-                Charge for missed sessions?
-              </p>
-              <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
-                When ON, ABSENT consumes 1 credit at End Class finalization unless
-                auto-linked in window. When OFF, ABSENT never consumes. Owner PIN only.
-              </p>
-              <p className="text-[11px] text-[var(--muted)] mt-1.5 flex items-center gap-1.5">
-                <CalendarClock size={11} className="shrink-0" />
-                {toggle1Pending.length > 0 && toggle1Version
-                  ? `Takes effect Mon ${new Date(toggle1Version.effectiveFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — this week keeps ${toggle1 ? 'ON' : 'OFF'}.`
-                  : `Effective now: ${toggle1 ? 'ON' : 'OFF'} — changes apply next Monday, not retroactively.`}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggle1}
-              className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium shrink-0',
-                'border transition-all duration-150',
-                (toggle1Version?.value ?? toggle1)
-                  ? 'bg-[var(--emerald-soft)] border-[var(--emerald)]/30 text-[var(--emerald)]'
-                  : 'bg-[var(--input-bg)] border-[var(--glass-border)] text-[var(--muted)]',
-              )}
-              title="absenceConsumesCredit — staged for next Monday"
-            >
-              <span className={cn(
-                'w-8 h-4 rounded-full relative transition-colors duration-200',
-                (toggle1Version?.value ?? toggle1) ? 'bg-[var(--emerald)]' : 'bg-[var(--muted)]/30',
-              )}>
-                <span className={cn(
-                  'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200',
-                  (toggle1Version?.value ?? toggle1) ? 'left-4.5' : 'left-0.5',
-                )} />
+
+          {/* Every rule the server stores, written straight to it. Owner PIN only. */}
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wider">
+              Academy rules · owner only
+            </p>
+            {pinOk ? (
+              <span className="text-[10px] font-semibold text-[var(--emerald)] bg-[var(--emerald-soft)] px-2 py-0.5 rounded-full">
+                Owner verified
               </span>
-              {(toggle1Version?.value ?? toggle1) ? 'On' : 'Off'}
-            </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setPendingField(null); setPin(''); setPinError(null); setPinOpen(true) }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--gold)] hover:underline"
+              >
+                <Lock size={11} />
+                Verify owner PIN
+              </button>
+            )}
           </div>
 
-          {/* T10 final toggles — Owner PIN only, staged → next Monday */}
-          <div className="mt-4 pt-4 border-t border-[var(--glass-border)] space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wider">
-                Final toggles · owner only
+          {rulesError && (
+            <div className="flex items-start gap-2 rounded-xl bg-[var(--red-soft)]/30 px-3 py-2.5 mb-3">
+              <p className="text-[11px] text-[var(--red)] leading-relaxed flex-1">
+                {rulesError} What you see below is the documented default, not necessarily this
+                academy's rule.
               </p>
-              {pinOk ? (
-                <span className="text-[10px] font-semibold text-[var(--emerald)] bg-[var(--emerald-soft)] px-2 py-0.5 rounded-full">
-                  Owner verified
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => { setPendingFlip(null); setPin(''); setPinError(null); setPinOpen(true) }}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--gold)] hover:underline"
-                >
-                  <Lock size={11} />
-                  Verify owner PIN
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => void loadRules()}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--gold)] hover:underline shrink-0"
+              >
+                <RefreshCw size={11} />
+                Retry
+              </button>
             </div>
+          )}
 
-            {([
-              { key: 'allowMakeups', label: 'Allow makeups?', hint: 'ABSENT with Toggle 1 ON banks a makeup credit instead of burning the seat.' },
-              { key: 'shareCreditsAcrossGroups', label: 'Share credits across groups?', hint: 'One credit pool spans groups of the same level (teacher + subject + level).' },
-              { key: 'earlyPaymentOnExtraSessions', label: 'Early payment on extra sessions?', hint: 'Guest/extra visits prompt payment before check-in when no credit covers them.' },
-            ] as Array<{ key: FinalToggleKey; label: string; hint: string }>).map((row) => {
-              const st = finalState[row.key]
-              const shown = st.staged ?? st.eff
-              const def = FINAL_TOGGLE_DEFAULTS[row.key]
+          <div className="space-y-3">
+            {RULE_ROWS.map((row) => {
+              const on = rules[row.field]
+              const busy = savingRule === row.field
               return (
-                <div key={row.key} className="flex items-start justify-between gap-3">
+                <div key={row.field} className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-[var(--text)]">{row.label}</p>
                     <p className="text-xs text-[var(--muted)] mt-0.5 leading-relaxed">{row.hint}</p>
                     <p className="text-[11px] text-[var(--muted)] mt-1">
-                      {st.pending
-                        ? `Staged → Mon (this week keeps ${st.eff ? 'ON' : 'OFF'}).`
-                        : `Effective now: ${st.eff ? 'ON' : 'OFF'}${st.staged == null ? ` (default ${def ? 'ON' : 'OFF'})` : ''}.`}
+                      {busy
+                        ? 'Saving…'
+                        : rulesLoaded
+                          ? `Currently ${on ? 'ON' : 'OFF'} — stored on the server.`
+                          : `Showing the default (${on ? 'ON' : 'OFF'}) — not read from the server yet.`}
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => requestFlip({ kind: 'final', key: row.key })}
+                    onClick={() => requestFlip(row.field)}
+                    disabled={busy}
                     className={cn(
                       'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium shrink-0',
-                      'border transition-all duration-150',
-                      shown
+                      'border transition-all duration-150 disabled:opacity-50',
+                      on
                         ? 'bg-[var(--emerald-soft)] border-[var(--emerald)]/30 text-[var(--emerald)]'
                         : 'bg-[var(--input-bg)] border-[var(--glass-border)] text-[var(--muted)]',
                     )}
-                    title={`${row.key} — staged for next Monday, owner PIN`}
+                    title={`${row.field} — stored on the server, owner PIN`}
                   >
                     <span className={cn(
                       'w-8 h-4 rounded-full relative transition-colors duration-200',
-                      shown ? 'bg-[var(--emerald)]' : 'bg-[var(--muted)]/30',
+                      on ? 'bg-[var(--emerald)]' : 'bg-[var(--muted)]/30',
                     )}>
                       <span className={cn(
                         'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200',
-                        shown ? 'left-4.5' : 'left-0.5',
+                        on ? 'left-4.5' : 'left-0.5',
                       )} />
                     </span>
-                    {shown ? 'On' : 'Off'}
+                    {on ? 'On' : 'Off'}
                   </button>
                 </div>
               )
             })}
+          </div>
 
-            {/* swapLinkWindow: SAME_DAY (default) vs OPEN */}
-            <div className="flex items-start justify-between gap-3 pt-3 border-t border-[var(--glass-border)]">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[var(--text)]">Guest swap window?</p>
-                <p className="text-xs text-[var(--muted)] mt-0.5 leading-relaxed">
-                  SAME_DAY: link within the same calendar day (Algiers). OPEN: 7-day rolling,
-                  closes on payout PAID, hard cap 30d.
-                </p>
-                <p className="text-[11px] text-[var(--muted)] mt-1">
-                  {swapState.pending && swapState.version
-                    ? `Staged → Mon ${new Date(swapState.version.effectiveFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (this week keeps ${swapState.eff}).`
-                    : `Effective now: ${swapState.eff}.`}
-                </p>
-              </div>
-            </div>
-            <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)]">
-              {(['SAME_DAY', 'OPEN'] as const).map((v) => {
-                const shown = swapState.staged ?? swapState.eff
-                return (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => { if (v !== shown) requestFlip({ kind: 'swap', value: v }) }}
-                    className={cn(
-                      'flex-1 py-2 text-xs font-semibold transition-all duration-150',
-                      shown === v
-                        ? 'bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] text-white'
-                        : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
-                    )}
-                    title={`swapLinkWindow → ${v} — staged for next Monday, owner PIN`}
-                  >
-                    {v === 'SAME_DAY' ? 'Same day' : 'Open 7d'}
-                  </button>
-                )
-              })}
+          <p className="text-[11px] text-[var(--muted)] mt-3 leading-relaxed">
+            A rule is read at the moment a class is finalised, so a change applies from the next
+            class and never rewrites one that has already been paid out.
+          </p>
+
+          {/* Guest swap window — the server has no column for this one. */}
+          <div className="mt-4 pt-4 border-t border-[var(--glass-border)]">
+            <p className="text-sm font-semibold text-[var(--text)]">Guest swap window?</p>
+            <p className="text-xs text-[var(--muted)] mt-0.5 leading-relaxed">
+              SAME_DAY: a guest links only to a session on the same calendar day. OPEN: a 7-day
+              rolling window. Saved in this browser — the server keeps no field for it, so it does
+              not follow the academy onto another machine.
+            </p>
+            <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)] mt-2">
+              {(['SAME_DAY', 'OPEN'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => { setSwapWindow(v); setSwapWindowState(v) }}
+                  className={cn(
+                    'flex-1 py-2 text-xs font-semibold transition-all duration-150',
+                    swapWindow === v
+                      ? 'bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] text-white'
+                      : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
+                  )}
+                >
+                  {v === 'SAME_DAY' ? 'Same day' : 'Open 7d'}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* T10 Owner PIN gate */}
+          {/* Owner PIN gate */}
           {pinOpen && (
             <div
               className="fixed inset-0 z-[80] flex items-center justify-center"
               style={{ background: 'rgba(10,10,10,.6)', backdropFilter: 'blur(8px)' }}
-              onClick={(e) => { if (e.target === e.currentTarget) { setPinOpen(false); setPendingFlip(null) } }}
+              onClick={(e) => { if (e.target === e.currentTarget) { setPinOpen(false); setPendingField(null) } }}
             >
               <div className="w-full max-w-xs mx-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--glass-border)] shadow-2xl p-5">
                 <p className="text-sm font-bold text-[var(--text)] mb-1">Owner PIN required</p>
@@ -501,48 +501,6 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
               </div>
             </div>
           )}
-
-          {/* T6 Toggle 6 — freeSessionAutoPresent (default true) */}
-          <div className="flex items-start justify-between gap-3 mt-4 pt-4 border-t border-[var(--glass-border)]">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[var(--text)]">
-                Free sessions auto-present?
-              </p>
-              <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
-                When ON, a FREE session auto-marks PRESENT and skips tracking.
-                When OFF, rows track normally for records (billing stays 0).
-              </p>
-              <p className="text-[11px] text-[var(--muted)] mt-1.5 flex items-center gap-1.5">
-                <CalendarClock size={11} className="shrink-0" />
-                {toggle6Pending.length > 0 && toggle6Version
-                  ? `Takes effect Mon ${new Date(toggle6Version.effectiveFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — this week keeps ${toggle6 ? 'ON' : 'OFF'}.`
-                  : `Effective now: ${toggle6 ? 'ON' : 'OFF'} — changes apply next Monday, not retroactively.`}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggle6}
-              className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium shrink-0',
-                'border transition-all duration-150',
-                (toggle6Version?.value ?? toggle6)
-                  ? 'bg-[var(--emerald-soft)] border-[var(--emerald)]/30 text-[var(--emerald)]'
-                  : 'bg-[var(--input-bg)] border-[var(--glass-border)] text-[var(--muted)]',
-              )}
-              title="freeSessionAutoPresent — staged for next Monday"
-            >
-              <span className={cn(
-                'w-8 h-4 rounded-full relative transition-colors duration-200',
-                (toggle6Version?.value ?? toggle6) ? 'bg-[var(--emerald)]' : 'bg-[var(--muted)]/30',
-              )}>
-                <span className={cn(
-                  'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200',
-                  (toggle6Version?.value ?? toggle6) ? 'left-4.5' : 'left-0.5',
-                )} />
-              </span>
-              {(toggle6Version?.value ?? toggle6) ? 'On' : 'Off'}
-            </button>
-          </div>
         </CardBody>
       </Card>
 

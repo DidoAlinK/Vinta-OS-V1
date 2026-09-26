@@ -9,6 +9,7 @@ import { Plus, Trash2, BookOpen } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { toast } from '../../stores/uiStore'
+import { PinConfirmDialog } from '../../components/ui/PinConfirmDialog'
 
 // ============================================
 // Types
@@ -40,6 +41,8 @@ export default function SubjectsSettings() {
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(COLOR_PRESETS[0])
   const [creating, setCreating] = useState(false)
+  /** The subject whose trash icon was pressed — the PIN dialog is gated on it. */
+  const [subjectToDelete, setSubjectToDelete] = useState<Subject | null>(null)
 
   /* ── Fetch subjects ── */
   const fetchSubjects = useCallback(async () => {
@@ -79,20 +82,33 @@ export default function SubjectsSettings() {
     }
   }, [newName, newColor])
 
-  /* ── Delete subject ── */
-  const handleDelete = useCallback(async (subject: Subject) => {
+  /* ── Delete subject ──
+     Two steps: the trash icon opens the PIN confirmation, and only an accepted
+     PIN reaches the DELETE. The "derived from a class" guard stays where it
+     was — those rows have no id and no delete button — and is repeated on the
+     way in so a subject that loses its id between render and click cannot slip
+     through to a request against `null`. */
+  const handleDelete = useCallback((subject: Subject) => {
     if (!subject.id) {
       toast.error('Cannot delete', 'This subject is derived from a class and cannot be removed here.')
       return
     }
+    setSubjectToDelete(subject)
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    const subject = subjectToDelete
+    if (!subject?.id) return
     try {
       await api.delete(`/subjects/${subject.id}`)
-      setSubjects(prev => prev.filter(s => s.id !== subject.id))
-      toast.success('Subject deleted', `"${subject.name}" has been removed.`)
     } catch {
-      toast.error('Failed to delete', 'Could not remove the subject.')
+      const msg = 'Could not remove the subject.'
+      toast.error('Failed to delete', msg)
+      throw new Error(msg)
     }
-  }, [])
+    setSubjects(prev => prev.filter(s => s.id !== subject.id))
+    toast.success('Subject deleted', `"${subject.name}" has been removed.`)
+  }, [subjectToDelete])
 
   /* ── Handle Enter key ── */
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -230,6 +246,24 @@ export default function SubjectsSettings() {
           </div>
         )}
       </div>
+
+      {/* Deleting a subject takes it out of the picker for every teacher and
+          class form, so a mis-click is not a small thing to undo. */}
+      <PinConfirmDialog
+        open={!!subjectToDelete}
+        onClose={() => setSubjectToDelete(null)}
+        title="Delete this subject?"
+        confirmLabel="Delete subject"
+        message={
+          subjectToDelete ? (
+            <>
+              <strong className="font-semibold">{subjectToDelete.name}</strong> will be
+              removed from the subject list. Classes already using it keep their name.
+            </>
+          ) : null
+        }
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

@@ -7,6 +7,7 @@ import AgendaBoard from './AgendaBoard'
 import SessionDetail from './SessionDetail'
 import ActivityLog from './ActivityLog'
 import FinalizeSessionModal from '../calendar/FinalizeSessionModal'
+import { VoidModal } from './SessionMenu'
 import SessionCheckInModal from '../calendar/SessionCheckInModal'
 import SchedulingModal from '../calendar/SchedulingModal'
 import { Card, CardBody } from '../../components/ui/Card'
@@ -14,10 +15,18 @@ import { Users, Calendar, StickyNote } from 'lucide-react'
 import {
   canOpenAttendance,
   getEffectiveStatus,
-  getLifecycleRecord,
-  updateLifecycleRecord,
 } from '../../lib/sessionLifecycle'
-import { consumePendingFree, isSessionFree } from '../../lib/freeSessions'
+import { extendSession } from '../../lib/extendSession'
+import {
+  enrichSessions,
+  startOfWeek,
+  toLocalISO,
+  weekRequestDate,
+} from '../../lib/sessionTime'
+import {
+  notifySessionsChanged,
+  subscribeSessionsChanged,
+} from '../../lib/sessionSync'
 import { toast } from '../../stores/uiStore'
 import { checkSessionNotifications } from '../../lib/sessionNotifier'
 
@@ -41,6 +50,33 @@ function isToday(date: Date): boolean {
     date.getMonth() === now.getMonth() &&
     date.getFullYear() === now.getFullYear()
   )
+}
+
+/* ─── Calendar reads ─── */
+
+/**
+ * The endpoint and the date to ask it for — in one place, because two callers
+ * fetch this board's sessions (the mount effect and the post-lifecycle
+ * refetch) and a week asked for two different ways is a board that shows
+ * different classes depending on what you did last.
+ *
+ * The week goes through `weekRequestDate(startOfWeek(...))` rather than the
+ * raw date: the backend derives its week as `target - (weekday + 1)`, which
+ * jumps a whole week backwards when the target *is* a Sunday, so asking with
+ * "today" hid every session on the board one day in seven. The Calendar tab
+ * passes the same pair for the same reason.
+ *
+ * Day strings are local, never UTC — `toISOString()` rolls the day over at
+ * midnight UTC, which in Algeria (UTC+1) asked for yesterday between 00:00
+ * and 01:00.
+ */
+function calendarRequest(
+  viewMode: 'week' | 'day',
+  date: Date,
+): { endpoint: string; date: string } {
+  return viewMode === 'week'
+    ? { endpoint: '/calendar/week', date: weekRequestDate(startOfWeek(date)) }
+    : { endpoint: '/calendar/day', date: toLocalISO(date) }
 }
 
 /* ─── Stat card config ─── */
@@ -72,6 +108,12 @@ export function DashboardPage() {
 
   /* ── T1 lifecycle modals + refresh tick ── */
   const [finalizeSession, setFinalizeSession] = useState<Session | null>(null)
+  /**
+   * The session whose void modal is open — raised by the end-of-class toast's
+   * "Void Class". The modal itself is SessionMenu's, exported so the toast and
+   * the ☰ run the same owner-PIN flow rather than two that drift.
+   */
+  const [voidSession, setVoidSession] = useState<Session | null>(null)
   const [checkInSession, setCheckInSession] = useState<Session | null>(null)
   const [lifecycleTick, setLifecycleTick] = useState(0)
   /* ── T8 scheduling window ── */
@@ -89,23 +131,16 @@ export function DashboardPage() {
     async function load() {
       setIsLoading(true)
       try {
-        const endpoint = viewMode === 'week' ? '/calendar/week' : '/calendar/day'
-        const dateStr = currentDate.toISOString().split('T')[0]
-        const { data } = await api.get(endpoint, {
-          params: { date: dateStr },
-        })
+        const { endpoint, date } = calendarRequest(viewMode, currentDate)
+        const { data } = await api.get(endpoint, { params: { date } })
         if (!cancelled) {
-          const list: Session[] = data.sessions ?? data
-          setSessions(list)
-          // T6: pending NEXT-free flags land on the next created session here.
-          try {
-            const assigned = consumePendingFree(Array.isArray(list) ? list : [])
-            for (const a of assigned) {
-              toast.info('Free session active', `${a.session.class_name} on ${a.session.date} — revenue 0, teacher cut 0.`)
-            }
-          } catch {
-            // Registry unreadable — flag stays pending, billing untouched.
-          }
+          // enrichSessions derives start_hour / end_hour / duration, which no
+          // endpoint sends but every block on this board is positioned by.
+          // Without it `top` is NaN, the whole day piles up at midnight, and
+          // the board's auto-scroll parks them above the fold — which is what
+          // "the sessions in the Calendar never appear here" looked like.
+          // See lib/sessionTime.ts.
+          setSessions(enrichSessions(data.sessions ?? data))
         }
       } catch {
         // Backend unavailable — show empty state
@@ -125,7 +160,7 @@ export function DashboardPage() {
       try {
         const [studentsRes, sessionsRes] = await Promise.all([
           api.get('/students', { params: { limit: 1 } }),
-          api.get('/calendar/day', { params: { date: new Date().toISOString().split('T')[0] } }),
+          api.get('/calendar/day', { params: { date: toLocalISO(new Date()) } }),
         ])
         if (!cancelled) {
           setStudentCount(studentsRes.data.total ?? studentsRes.data.length ?? 0)
@@ -140,12 +175,23 @@ export function DashboardPage() {
     return () => { cancelled = true }
   }, [])
 
-  /* ── Fetch activity log ── */
+  /* ── Fetch activity log ──
+     `limit` asks for the endpoint's own cap rather than its default of 20.
+
+     The panel below has a search box and type filters, and they filter what is
+     on this machine — so the size of this window is the size of the history
+     they can reach. At 20 the box would answer "nothing matches" for anything
+     older than the last few minutes, which reads as a broken search rather than
+     a shallow one. 200 is the server's ceiling; the retention window is what
+     actually bounds the list. */
+  const ACTIVITY_LIMIT = 200
   useEffect(() => {
     let cancelled = false
     async function loadActivities() {
       try {
-        const { data } = await api.get('/settings/activity-log')
+        const { data } = await api.get('/settings/activity-log', {
+          params: { limit: ACTIVITY_LIMIT },
+        })
         if (!cancelled) setActivities(data.activities ?? data ?? [])
       } catch {
         // Backend unavailable
@@ -222,30 +268,47 @@ export function DashboardPage() {
 
   const refetchSessions = useCallback(async () => {
     try {
-      const endpoint = viewMode === 'week' ? '/calendar/week' : '/calendar/day'
-      const dateStr = currentDate.toISOString().split('T')[0]
-      const { data } = await api.get(endpoint, { params: { date: dateStr } })
-      const list: Session[] = data.sessions ?? data
+      const { endpoint, date } = calendarRequest(viewMode, currentDate)
+      const { data } = await api.get(endpoint, { params: { date } })
+      // Enriched for the same reason as the mount load above.
+      const list = enrichSessions(data.sessions ?? data)
       setSessions(list)
-      // T6: refetch is the other consume path (compensatory / Sunday regen).
-      try {
-        const assigned = consumePendingFree(Array.isArray(list) ? list : [])
-        for (const a of assigned) {
-          toast.info('Free session active', `${a.session.class_name} on ${a.session.date} — revenue 0, teacher cut 0.`)
-        }
-      } catch {
-        // Registry unreadable — flag stays pending, billing untouched.
-      }
       // Keep the selected card in sync (backend status may have changed).
       setSelectedSession(prev => {
         if (!prev) return prev
-        const fresh = (data.sessions ?? data ?? []).find((s: Session) => s.id === prev.id)
-        return fresh ?? prev
+        return list.find((s) => s.id === prev.id) ?? prev
       })
     } catch {
       // Backend unavailable — lifecycle records still gate the UI
     }
   }, [viewMode, currentDate])
+
+  /**
+   * Every path that changes a session ends here: bump the tick the roster and
+   * the notifier follow, re-read our own copy, and tell the other pages
+   * (`lib/sessionSync`) the rows moved. One helper, so no caller can start or
+   * cancel a class and leave the Calendar showing the old row — its
+   * subscription is otherwise never made to fire by anything.
+   */
+  const afterSessionChange = useCallback(() => {
+    bumpLifecycle()
+    notifySessionsChanged('dashboard')
+    void refetchSessions()
+  }, [bumpLifecycle, refetchSessions])
+
+  /* ── Stay in step with the Calendar ──
+     The Calendar owns scheduling, this page owns the lifecycle, and both draw
+     the same sessions. A class added or moved there refetches this board; our
+     own changes come back tagged 'dashboard' and are skipped, so the two pages
+     cannot ping-pong. */
+  useEffect(
+    () =>
+      subscribeSessionsChanged((source) => {
+        if (source === 'dashboard') return
+        void refetchSessions()
+      }),
+    [refetchSessions],
+  )
 
   // T1: Start-Class scheduler — start toast at scheduledStartTime,
   // end toast at scheduledEndTime. Runs every 30s + on session load.
@@ -256,8 +319,8 @@ export function DashboardPage() {
     setSelectedSession(session)
     setCheckInSession(session)
     bumpLifecycle()
-    void postSessionStart(session).then(() => refetchSessions())
-  }, [postSessionStart, bumpLifecycle, refetchSessions])
+    void postSessionStart(session).then(afterSessionChange)
+  }, [postSessionStart, bumpLifecycle, afterSessionChange])
 
   const handleFinishRequest = useCallback((session: Session) => {
     // T1: Yes (PIN) -> CONDUCTED + payout calc + freeze. Modal owns the PIN call.
@@ -265,47 +328,65 @@ export function DashboardPage() {
     setFinalizeSession(session)
   }, [])
 
-  const handleRunningLate = useCallback((session: Session) => {
-    const rec = getLifecycleRecord(session.id)
-    updateLifecycleRecord(session.id, {
-      lateMinutes: (rec.lateMinutes ?? 0) + 10,
-      endNotified: false,
-    })
-    bumpLifecycle()
-  }, [bumpLifecycle])
+  // T1: "No, Extend +15" from the end-of-class toast. Same server call the
+  // ☰ menu's Extend makes, because it is the same act — the session's end
+  // time moves, the class log reads the new length, and the toast re-arms
+  // for the new end by itself (sessionNotifier compares `endNotifiedFor`
+  // against `end_time`).
+  const handleExtend = useCallback(async (session: Session) => {
+    try {
+      const result = await extendSession(session)
+      toast.success(
+        'Class extended',
+        `${session.class_name} now ends at ${result.end_time}` +
+          (result.duration_label ? ` · ${result.duration_label}` : ''),
+      )
+      afterSessionChange()
+    } catch (err: any) {
+      // 404 = already finished, cancelled, or the change was refused (an
+      // extension that would shorten the class). Say so — the desk needs to
+      // know the class still ends when it said.
+      const backend = err?.response?.data?.error
+      toast.error(
+        'Could not extend class',
+        typeof backend === 'string' && backend
+          ? backend
+          : 'The end time was not changed. Please try again.',
+      )
+    }
+  }, [afterSessionChange])
 
   useEffect(() => {
     if (sessions.length === 0) return
     const fire = () => checkSessionNotifications(sessionsRef.current, {
       onStartClass: handleStartFromToast,
       onFinishClass: handleFinishRequest,
-      onRunningLate: handleRunningLate,
+      onExtend: handleExtend,
+      onVoid: setVoidSession,
       getStatus: getEffectiveStatus,
     }, new Date())
     fire()
     const id = setInterval(fire, 30_000)
     return () => clearInterval(id)
-  }, [sessions, handleStartFromToast, handleFinishRequest, handleRunningLate])
+  }, [sessions, handleStartFromToast, handleFinishRequest, handleExtend])
 
   const handleSessionStarted = useCallback((_session: Session) => {
     // Start greys + disables on first click; flip grid open immediately.
-    bumpLifecycle()
-    void refetchSessions()
-  }, [bumpLifecycle, refetchSessions])
+    afterSessionChange()
+  }, [afterSessionChange])
 
   // T3 hamburger: Start Class from the ☰ menu = same early-start path.
   const handleStartFromMenu = useCallback((session: Session) => {
     setSelectedSession(session)
     setCheckInSession(session)
     bumpLifecycle()
-    void postSessionStart(session).then(() => refetchSessions())
-  }, [postSessionStart, bumpLifecycle, refetchSessions])
+    void postSessionStart(session).then(afterSessionChange)
+  }, [postSessionStart, bumpLifecycle, afterSessionChange])
 
   const handleFinalizeSuccess = useCallback(() => {
     setFinalizeSession(null)
-    bumpLifecycle()
-    void refetchSessions()
-  }, [bumpLifecycle, refetchSessions])
+    afterSessionChange()
+  }, [afterSessionChange])
 
   const handleTogglePresence = useCallback(async (studentId: string) => {
     if (!selectedSession) return
@@ -440,15 +521,27 @@ export function DashboardPage() {
         isOpen={!!checkInSession}
         session={checkInSession}
         onClose={() => setCheckInSession(null)}
-        onSuccess={() => { setCheckInSession(null); bumpLifecycle(); void refetchSessions() }}
+        onSuccess={() => { setCheckInSession(null); afterSessionChange() }}
       />
+      {/* The end-of-class toast's "Void Class". Owner PIN, roster snapshot and
+          the credit restore all live inside the modal. */}
+      {voidSession && (
+        <VoidModal
+          session={voidSession}
+          onClose={() => setVoidSession(null)}
+          onChanged={() => {
+            setVoidSession(null)
+            afterSessionChange()
+          }}
+        />
+      )}
       {/* ── T8 scheduling window (Weekly vs Temporary) ── */}
       <SchedulingModal
         isOpen={schedOpen}
         sessions={sessions}
         prefillDate={schedPrefill}
         onClose={() => { setSchedOpen(false); setSchedPrefill(null) }}
-        onCreated={() => { bumpLifecycle(); void refetchSessions() }}
+        onCreated={afterSessionChange}
       />
 
       {/* ── Main Content: Agenda + Detail/Activity ── */}
@@ -465,8 +558,9 @@ export function DashboardPage() {
             currentDate={currentDate}
             onStartSession={handleStartFromMenu}
             onFinishSession={handleFinishRequest}
-            onSessionsChanged={() => { bumpLifecycle(); void refetchSessions() }}
+            onSessionsChanged={afterSessionChange}
             onNewClass={(prefillDate) => { setSchedPrefill(prefillDate ?? null); setSchedOpen(true) }}
+            onOpenRegister={(session) => setCheckInSession(session)}
           />
         </div>
 
@@ -480,7 +574,8 @@ export function DashboardPage() {
               onTogglePresence={handleTogglePresence}
               onSessionStarted={handleSessionStarted}
               onFinishRequest={handleFinishRequest}
-              onChanged={() => { bumpLifecycle(); void refetchSessions() }}
+              onChanged={afterSessionChange}
+              onOpenRegister={(session) => setCheckInSession(session)}
               sessions={sessions}
               className="h-full"
             />

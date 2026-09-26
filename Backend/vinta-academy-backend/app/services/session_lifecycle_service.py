@@ -19,7 +19,7 @@ very next class rather than on the next restart.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from app.extensions import db
 from app.models.attendance import SessionStudent
@@ -38,6 +38,12 @@ IN_PROGRESS = "in_progress"
 CONDUCTED = "conducted"
 CANCELLED = "cancelled"
 LEGACY_COMPLETED = "completed"
+
+#: A class that meets once and is never generated again. The counterpart,
+#: ``weekly``, is a recurring slot that keeps producing sessions, so a past
+#: instance of it is not the end of anything. Mirrors
+#: ``class_type_enum`` in app/models/class_room.py.
+TEMPORARY = "temporary"
 
 #: A class that is finished, in either spelling.
 FINISHED = (CONDUCTED, LEGACY_COMPLETED)
@@ -178,6 +184,36 @@ def start_session(
             f"Cannot start a class that is already {current}", 409
         )
 
+    # A class may only be started on its own day.
+    #
+    # This is the guard that makes "a class is not active until the desk
+    # starts it" actually hold. Without it a future-dated class could be
+    # started, and it would then sit IN_PROGRESS indefinitely — a live lamp
+    # on the Classrooms tab for a class weeks away, holding a register of
+    # attendance taken before the class happened. That is exactly how a
+    # session dated 2026-10-06 came to be started on 2026-09-24.
+    #
+    # It also closes the older hole at the other end: a months-old
+    # `scheduled` row could be started today, which stamped
+    # `actual_start_time` as now and materialised a register for a class
+    # nobody ran.
+    #
+    # `session.date` is a local wall-clock date, not UTC — same basis as
+    # `Session.start_time`/`end_time`, which the client reads back through
+    # lib/sessionTime.ts as local. So the comparison is local-against-local
+    # on purpose; do not "fix" this to UTC without migrating the columns.
+    # (`auto_checkout_expired_sessions` carries the same note.)
+    #
+    # Same day rather than "within N hours" deliberately: it explains itself
+    # to the desk without a rule they cannot see, and it survives a late
+    # start, an early start, and a browser whose clock is a little off.
+    if session.date != date.today():
+        raise LifecycleError(
+            "This class can only be started on its own day "
+            f"({session.date:%Y-%m-%d}); today is {date.today():%Y-%m-%d}.",
+            409,
+        )
+
     now = datetime.now(timezone.utc)
     session.status = IN_PROGRESS
     session.actual_start_time = now
@@ -301,3 +337,77 @@ def end_session(
 
     db.session.flush()
     return session, summary, False
+
+
+def close_past_temporary_sessions() -> int:
+    """
+    Close out one-off classes whose day passed without ever being started.
+
+    **Temporary classes only.** A weekly class's past instance is history for
+    a group that is still meeting: the desk may yet want to say what happened
+    to it, and the next session in the series is the one that matters, so it
+    is left as ``scheduled``. A temporary class has no next session, so a past
+    unstarted one is simply over — and leaving it ``scheduled`` forever means
+    it never stops being due and is counted as pending on every screen that
+    lists the register.
+
+    Cancelled, NOT conducted, and that is a money decision rather than a
+    wording one. ``conducted`` is what the payroll and revenue reports read
+    (``billing_service`` scans ``conducted``/``completed`` to total classes
+    taught and teacher payout), so marking a class nobody taught as conducted
+    would count it as taught and pay the teacher for it. ``cancelled`` is
+    terminal, settles nothing, and stays in the session list and the activity
+    log as the record of what happened.
+
+    Only ``scheduled`` rows are touched. A class that WAS started has a
+    register and a real outcome, and ending it — with its absences charged —
+    is the desk's call through the Finish flow, not a timer's. Note that even
+    the cancellation path reaches no money: the register is materialised by
+    ``start_session``, so a class that was never started has no rows for
+    ``settle_absences`` to charge.
+
+    Returns the number of sessions closed.
+    """
+    from app.models.academy import Academy
+    from app.services.scheduling_service import cancel_session
+
+    today = date.today()
+    closed = 0
+
+    for academy in Academy.query.all():
+        rows = (
+            db.session.query(Session)
+            .join(Class, Class.id == Session.class_id)
+            .filter(
+                Session.academy_id == academy.id,
+                Session.status == SCHEDULED,
+                Session.date < today,
+                Class.class_type == TEMPORARY,
+            )
+            .all()
+        )
+
+        for session in rows:
+            # ``cancel_session`` refuses anything outside
+            # CANCELLABLE_STATUSES, which is the guard that keeps a settled
+            # class from being relabelled. Nothing here can reach that state
+            # (the query is SCHEDULED-only), but going through it anyway means
+            # the rule lives in one place rather than two.
+            if cancel_session(session.id, academy.id, reason="OTHER") is None:
+                continue
+
+            closed += 1
+            # staff_id is None: no human did this, and the column is a real
+            # foreign key to users.id, so a sentinel would raise. It reads
+            # back as "System".
+            _log(
+                academy.id, None, session.id, "cancelled",
+                f"Closed automatically — a one-off class dated "
+                f"{session.date:%Y-%m-%d} passed without being started. "
+                f"No register was taken and nothing was charged.",
+            )
+
+    if closed:
+        db.session.commit()
+
+    return closed

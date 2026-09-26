@@ -81,6 +81,10 @@ def get_student(student_id: str, academy_id: str) -> dict | None:
         for e in student.enrollments.filter_by(status="active").all()
     ]
     data["billing_calendar"] = _get_billing_calendar(student.id)
+    # The register, month by month, for every group this student is or was in.
+    data["attendance_calendar"] = _get_attendance_calendar(
+        student.id, student.created_at
+    )
 
     return data
 
@@ -194,12 +198,17 @@ def enroll_student(student_id: str, class_id: str, academy_id: str, enrolled_by:
     if not class_:
         raise ValueError("Class not found")
 
-    enrolled_count = db.session.query(func.count()).select_from(Enrollment).filter(
-        Enrollment.class_id == class_id,
-        Enrollment.status == "active"
-    ).scalar()
-    if enrolled_count >= class_.capacity:
-        raise ValueError("Class is at full capacity")
+    # A capacity of 0 (or no capacity at all) means "not set", not "full".
+    # Class.capacity defaults to 0, so the old `enrolled_count >= capacity`
+    # refused EVERY enrollment in a class nobody had given a capacity to —
+    # which is most of them. Only a positive number is a real limit.
+    if class_.capacity:
+        enrolled_count = db.session.query(func.count()).select_from(Enrollment).filter(
+            Enrollment.class_id == class_id,
+            Enrollment.status == "active"
+        ).scalar()
+        if enrolled_count >= class_.capacity:
+            raise ValueError("Class is at full capacity")
 
     enrollment = Enrollment(
         id=str(uuid.uuid4()),
@@ -352,15 +361,19 @@ def _cycle_end_date(
     return None
 
 
-def _covers_today(sub: StudentSubscription, cycle_end: date | None) -> bool:
-    """True when the subscription's window includes today (or is open-ended)."""
-    today = date.today()
+def _covers_date(sub: StudentSubscription, cycle_end: date | None, day: date) -> bool:
+    """True when the subscription's window includes ``day`` (or is open-ended)."""
     start = sub.cycle_start_date or sub.access_start_date
-    if start is not None and start > today:
+    if start is not None and start > day:
         return False
-    if cycle_end is not None and cycle_end < today:
+    if cycle_end is not None and cycle_end < day:
         return False
     return True
+
+
+def _covers_today(sub: StudentSubscription, cycle_end: date | None) -> bool:
+    """True when the subscription's window includes today (or is open-ended)."""
+    return _covers_date(sub, cycle_end, date.today())
 
 
 def _derive_status(
@@ -484,3 +497,226 @@ def _get_billing_calendar(student_id: str) -> list:
             }
         )
     return calendar
+
+
+# --- Attendance calendar ------------------------------------------------
+#
+# One row per session this student is party to, past and future, with the
+# single honest state for that day already decided here. The month grid is a
+# rendering of this list; it does not derive anything of its own, because a
+# second definition of "did they pay" is a second thing that can be wrong.
+#
+# Where the facts come from:
+#   attendance  SessionStudent.status  — PRESENT/ABSENT, "false until true":
+#               a row exists for every enrolled student the moment a session
+#               starts, defaulting to ABSENT, so a bare ABSENT with no
+#               timestamp means "nobody acted", not "they skipped".
+#   payment     the student's subscriptions, evaluated per day against each
+#               one's own window. A session is "paid" when some subscription
+#               covering that group includes that day.
+#   existence   Enrollment.enrolled_at — per group, so a group joined later
+#               does not colour days before it.
+#
+# Nothing here is cached or stored, and nothing writes: the attendance is the
+# register itself, so it survives every edit except an academy reset.
+
+# How far ahead upcoming sessions are read. The month grid only ever shows a
+# few weeks of grey, and an unbounded read on a group with 12 weeks of
+# generated sessions is work nobody asked for.
+ATTENDANCE_HORIZON_WEEKS = 8
+
+
+def _subscriptions_by_group(student_id: str) -> dict:
+    """Every subscription of this student, keyed by the group it covers.
+
+    A TIME_BASED bundle covers several groups through ``enrolled_group_ids``,
+    so it is filed under each of them. Unlike
+    ``billing_service.find_active_subscription`` this does not resolve "what
+    covers today" and never transitions a status — a calendar is a read, and a
+    read that quietly expires a subscription would be writing.
+    """
+    subs = (
+        StudentSubscription.query.filter_by(student_id=student_id)
+        .order_by(desc(StudentSubscription.created_at))
+        .all()
+    )
+
+    by_group: dict[str, list] = {}
+    for sub in subs:
+        group_ids = {sub.group_id}
+        if sub.billing_model == "TIME_BASED" and isinstance(sub.enrolled_group_ids, list):
+            group_ids.update(g for g in sub.enrolled_group_ids if g)
+        for group_id in group_ids:
+            if group_id:
+                by_group.setdefault(group_id, []).append(sub)
+    return by_group
+
+
+def _paid_on(subs: list, group: Class | None, day: date) -> bool:
+    """Did any of these subscriptions cover ``group`` on ``day``?
+
+    Coverage is a question about *then*, so it is answered from the
+    subscription's own window and not from ``status`` — which is a fact about
+    now, and would mark a session from a fully-paid cycle that has since
+    expired as unpaid.
+
+    A CANCELLED purchase is the one exclusion: it never took effect, so it
+    never covered anything.
+    """
+    for sub in subs:
+        if sub.status == "CANCELLED":
+            continue
+        cycle_end = _cycle_end_date(sub, group)
+        if _covers_date(sub, cycle_end, day):
+            return True
+    return False
+
+
+def _session_state(
+    *,
+    session,
+    attendance: str | None,
+    has_register_row: bool,
+    enrolled_on: date | None,
+    paid: bool,
+    today: date,
+) -> str:
+    """The one honest label for "what happened on this day", in priority order.
+
+    Order matters and is the whole point of keeping this in one place:
+
+    cancelled   the group did not meet, whatever the register says
+    upcoming    it has not happened yet; the register is empty by design
+    not_enrolled  a session of a group this student had not joined yet
+    unrecorded  it is past, and no register was ever taken — the class was
+                never started, so there is no fact about this student to show.
+                Marking it absent would blame them for the desk not running
+                the class.
+    attended / unpaid / absent   the register, plus whether a plan covered
+                the day
+    """
+    if session.status == "cancelled":
+        return "cancelled"
+    if session.date >= today and session.status in ("scheduled", "in_progress"):
+        return "upcoming"
+    if enrolled_on is not None and session.date < enrolled_on:
+        return "not_enrolled"
+    if not has_register_row:
+        return "unrecorded"
+    if attendance == "PRESENT":
+        return "attended" if paid else "unpaid"
+    # ABSENT covers both "the desk marked them away" and "a row exists with
+    # nobody having touched it" — the register defaults every enrolled student
+    # to ABSENT at start, so the two are not distinguishable from the row
+    # alone. Both mean the same thing to the academy: the seat was not used.
+    return "absent"
+
+
+def _get_attendance_calendar(student_id: str, student_created_at=None) -> dict:
+    """Every session this student is party to, past and future, with its state.
+
+    The window runs from the day they joined to ``today + 8 weeks``. Nothing is
+    stored: the register is the history, so this survives every edit and reset
+    except an academy wipe.
+
+    Response::
+
+        {
+          "joined_on": "2026-01-05",   # grid dims days before this
+          "today": "2026-09-24",
+          "entries": [
+            { "date", "session_id", "class_id", "class_name",
+              "start_time", "end_time", "session_status", "is_free_session",
+              "attendance", "covered", "enrolled", "state" }, ...
+          ]
+        }
+    """
+    from app.models.attendance import SessionStudent
+    from app.models.scheduling import Session
+
+    today = date.today()
+
+    # Every enrollment, withdrawn ones included: `get_student` filters to
+    # active for its own list, but a group they left still has sessions they
+    # attended, and dropping it would erase that history from the grid.
+    enrollments = Enrollment.query.filter_by(student_id=student_id).all()
+    enrolled_by_class: dict[str, date] = {}
+    for e in enrollments:
+        if not e.enrolled_at:
+            continue
+        day = e.enrolled_at.date()
+        current = enrolled_by_class.get(e.class_id)
+        if current is None or day < current:
+            enrolled_by_class[e.class_id] = day
+
+    register_rows = SessionStudent.query.filter_by(student_id=student_id).all()
+
+    class_ids = set(enrolled_by_class)
+    # A group swap or a manual add puts the student on a session of a group
+    # they were never enrolled in, and the register row is the only record of
+    # it. Their attendance there still belongs on the calendar.
+    for row in register_rows:
+        session = row.session
+        if session is not None:
+            class_ids.add(session.class_id)
+
+    joined_days = list(enrolled_by_class.values())
+    fallback_join = student_created_at.date() if student_created_at else today
+    joined_on = min(joined_days) if joined_days else fallback_join
+
+    if not class_ids:
+        return {
+            "joined_on": joined_on.isoformat(),
+            "today": today.isoformat(),
+            "entries": [],
+        }
+
+    horizon = today + timedelta(weeks=ATTENDANCE_HORIZON_WEEKS)
+    sessions = (
+        Session.query.filter(
+            Session.class_id.in_(list(class_ids)),
+            Session.date >= joined_on,
+            Session.date <= horizon,
+        )
+        .order_by(Session.date, Session.start_time)
+        .all()
+    )
+
+    attendance_by_session = {row.session_id: row for row in register_rows}
+    subs_by_group = _subscriptions_by_group(student_id)
+    classes = {c.id: c for c in Class.query.filter(Class.id.in_(list(class_ids))).all()}
+
+    entries = []
+    for session in sessions:
+        row = attendance_by_session.get(session.id)
+        enrolled_on = enrolled_by_class.get(session.class_id)
+        group = classes.get(session.class_id)
+        paid = _paid_on(subs_by_group.get(session.class_id, []), group, session.date)
+
+        entries.append({
+            "date": session.date.isoformat(),
+            "session_id": session.id,
+            "class_id": session.class_id,
+            "class_name": group.name if group is not None else None,
+            "start_time": session.start_time.strftime("%H:%M") if session.start_time else None,
+            "end_time": session.end_time.strftime("%H:%M") if session.end_time else None,
+            "session_status": session.status,
+            "is_free_session": bool(session.is_free_session),
+            "attendance": row.status if row is not None else None,
+            "covered": bool(paid),
+            "enrolled": enrolled_on is not None,
+            "state": _session_state(
+                session=session,
+                attendance=row.status if row is not None else None,
+                has_register_row=row is not None,
+                enrolled_on=enrolled_on,
+                paid=paid,
+                today=today,
+            ),
+        })
+
+    return {
+        "joined_on": joined_on.isoformat(),
+        "today": today.isoformat(),
+        "entries": entries,
+    }

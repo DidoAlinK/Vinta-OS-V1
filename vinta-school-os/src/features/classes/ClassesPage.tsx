@@ -6,14 +6,21 @@
 import { useCallback, useState, useEffect } from 'react'
 import { Plus, GraduationCap, X, DoorOpen, Trash2, MapPin, Users } from 'lucide-react'
 import { cn } from '../../lib/cn'
+import { classStateOf } from '../../lib/classState'
 import api from '../../lib/api'
 import { DayPicker } from '../../components/ui/DayPicker'
-import { formatDa } from '../../lib/formatters'
+import { PinConfirmDialog } from '../../components/ui/PinConfirmDialog'
+import { Select } from '../../components/ui/Select'
+import { TimePicker } from '../../components/ui/TimePicker'
+import { Toggle } from '../../components/ui/Toggle'
+import { formatDa, formatDuration } from '../../lib/formatters'
+import { toast, useUIStore } from '../../stores/uiStore'
 import { SUBJECT_COLORS } from '../../lib/constants'
 import ClassGrid from './ClassGrid'
 import ClassCardMenu from './ClassCardMenu'
 import ClassDetail from './ClassDetail'
-import type { Class, Classroom, BillingModel } from '../../types/class'
+import SessionCheckInModal from '../calendar/SessionCheckInModal'
+import type { Class, Classroom, BillingModel, Session } from '../../types/class'
 
 /* ─── Stat chip ─── */
 function StatChip({ label, value, color }: { label: string; value: number; color: string }) {
@@ -91,7 +98,9 @@ function AddCourseGroupModal({
   const [color, setColor] = useState(COLOR_PRESETS[0].color)
   const [notes, setNotes] = useState('')
   const [classType, setClassType] = useState<'weekly' | 'temporary'>('weekly')
-  const [dedicatedTime, setDedicatedTime] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
+  const [error, setError] = useState<string | null>(null)
   // Themed day selection (DayPicker popup): weekly = weekday anchor,
   // temporary = exact one-off date.
   const [dayAnchor, setDayAnchor] = useState('')
@@ -121,12 +130,20 @@ function AddCourseGroupModal({
     async function load() {
       try {
         const [teacherRes, subjectRes] = await Promise.all([
-          api.get('/teachers'),
+          // ?status=ACTIVE: an INACTIVE teacher stays on the roster and on past
+          // sessions, but must not be pickable for a class that has not run yet.
+          api.get('/teachers', { params: { status: 'ACTIVE' } }),
           api.get('/subjects').catch(() => ({ data: { subjects: [] } })),
         ])
         if (!cancelled) {
           const list = teacherRes.data.teachers ?? teacherRes.data ?? []
-          setTeachers(list.map((t: any) => ({ id: t.id, name: t.name })))
+          // The API sends `full_name`; reading `name` off it left every option
+          // in this dropdown blank, so the desk was choosing between three
+          // identical empty rows.
+          setTeachers(list.map((t: any) => ({
+            id: t.id,
+            name: t.full_name || [t.first_name, t.last_name].filter(Boolean).join(' ') || 'Unnamed teacher',
+          })))
           const subs = subjectRes.data.subjects ?? []
           if (subs.length > 0) {
             setSubjectOptions(subs.map((s: any) => s.name))
@@ -146,7 +163,9 @@ function AddCourseGroupModal({
     setColor(COLOR_PRESETS[0].color)
     setNotes('')
     setClassType('weekly')
-    setDedicatedTime('')
+    setStartTime('')
+    setEndTime('')
+    setError(null)
     setDayAnchor('')
     setTempDate('')
     setAcademicLevel('')
@@ -169,10 +188,41 @@ function AddCourseGroupModal({
   }, [onClose, resetAll])
 
   const handleSubmit = useCallback(() => {
-    if (!name.trim()) return
+    if (!name.trim()) {
+      setError('Give the group a name.')
+      return
+    }
+    // A group with no time is a group that can never produce a session, which
+    // is exactly the state every group created through this form used to end
+    // up in. Refusing here is cheaper than a silent empty calendar.
+    if (!startTime || !endTime) {
+      setError('Set when the class starts and ends.')
+      return
+    }
+    if (endTime <= startTime) {
+      setError('End At must be after Start At.')
+      return
+    }
+    if (classType === 'weekly' && !dayAnchor) {
+      setError('Pick the day this group meets each week.')
+      return
+    }
+    // Sessions carry a teacher (sessions.teacher_id is NOT NULL), so a weekly
+    // group without one cannot have a calendar generated. Asking here keeps the
+    // desk from filling in the whole form only to be refused at the last step.
+    if (classType === 'weekly' && !teacherId) {
+      setError('Pick a teacher — a weekly group needs one before its sessions can be created.')
+      return
+    }
+    if (classType === 'temporary' && !tempDate) {
+      setError('Pick the date for this one-off session.')
+      return
+    }
+
     // Day selection feeds the payload: weekly derives day_of_week from the
     // anchor day; temporary passes the exact one-off date.
     const anchorDow = dayAnchor ? new Date(`${dayAnchor}T12:00:00`).getDay() : undefined
+    setError(null)
     onAdd({
       name: name.trim(),
       subject,
@@ -183,7 +233,11 @@ function AddCourseGroupModal({
       class_type: classType,
       day_of_week: classType === 'weekly' && anchorDow != null && !Number.isNaN(anchorDow) ? anchorDow : undefined,
       session_date: classType === 'temporary' && tempDate ? tempDate : undefined,
-      dedicated_time: dedicatedTime.trim() || undefined,
+      // The real times. `dedicated_time` is gone from this payload: it was
+      // never a time, only a sentence about one, and the server stored the
+      // sentence.
+      start_time: startTime,
+      end_time: endTime,
       academic_level: academicLevel.trim() || undefined,
       group_name: groupName.trim() || 'A',
       billing_model: billingModel,
@@ -200,7 +254,7 @@ function AddCourseGroupModal({
     resetAll()
     onClose()
   }, [
-    name, subject, teacherId, capacity, color, notes, classType, dedicatedTime,
+    name, subject, teacherId, capacity, color, notes, classType, startTime, endTime,
     dayAnchor, tempDate,
     academicLevel, groupName, billingModel, priceDa,
     creditsPerCycle, cycleWeekLimit, allowRollover, allowMakeups,
@@ -246,6 +300,13 @@ function AddCourseGroupModal({
         </div>
 
         <div className="space-y-4">
+          {/* Refusals sit above the fold. Every one of them used to be a
+              silent no-op: the Create button did nothing and said nothing. */}
+          {error && (
+            <div className="px-3 py-2 rounded-lg bg-[var(--red-soft)] text-[var(--red)] text-xs font-medium">
+              {error}
+            </div>
+          )}
           {/* ── Basic Info ── */}
           <div>
             <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--gold)' }}>Basic Info</p>
@@ -259,20 +320,31 @@ function AddCourseGroupModal({
               {/* Subject */}
               <div>
                 <label className={labelCls} style={{ color: 'var(--muted)' }}>Subject</label>
-                <select value={subject} onChange={e => setSubject(e.target.value)} className={inputCls}>
-                  {subjectOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <Select
+                  value={subject}
+                  onChange={setSubject}
+                  options={subjectOptions.map(s => ({ value: s, label: s }))}
+                  className={cn(inputCls, 'h-auto')}
+                />
               </div>
 
               {/* Teacher */}
               <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Teacher</label>
-                <select value={teacherId} onChange={e => setTeacherId(e.target.value)} className={inputCls}>
-                  <option value="">— None —</option>
-                  {teachers.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>
+                  Teacher
+                  {/* Required only for a weekly group: a one-off session can be
+                      created without one, but a series cannot. */}
+                  {classType === 'weekly' && <span className="text-[var(--gold)] ml-0.5">*</span>}
+                </label>
+                <Select
+                  value={teacherId}
+                  onChange={setTeacherId}
+                  options={[
+                    { value: '', label: '— None —' },
+                    ...teachers.map(t => ({ value: t.id, label: t.name })),
+                  ]}
+                  className={cn(inputCls, 'h-auto')}
+                />
               </div>
 
               {/* Capacity */}
@@ -335,17 +407,34 @@ function AddCourseGroupModal({
                 )}
               </div>
 
-              {/* Dedicated Time */}
-              <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Dedicated Time</label>
-                <input
-                  type="text"
-                  value={dedicatedTime}
-                  onChange={e => setDedicatedTime(e.target.value)}
-                  placeholder="e.g. Mon/Wed 10:00-12:00"
-                  className={inputCls}
-                />
+              {/* Start / End At — two real times, not one free-text field.
+                  The old "Dedicated Time" box asked for prose like
+                  "Mon/Wed 10:00-12:00" and the server stored it as a string on
+                  the group, so nothing could ever turn it into a session. These
+                  two values are what `POST /classes/:id/schedules` consumes. */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls} style={{ color: 'var(--muted)' }}>Start At</label>
+                  <TimePicker
+                    value={startTime}
+                    onChange={setStartTime}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls} style={{ color: 'var(--muted)' }}>End At</label>
+                  <TimePicker
+                    value={endTime}
+                    onChange={setEndTime}
+                    className={inputCls}
+                  />
+                </div>
               </div>
+              <p className="text-[10px] -mt-2" style={{ color: 'var(--muted)' }}>
+                {startTime && endTime && endTime > startTime
+                  ? `A ${formatDuration(startTime, endTime)} session.`
+                  : 'The class runs from Start At to End At.'}
+              </p>
 
               {/* Color */}
               <div>
@@ -477,24 +566,22 @@ function AddCourseGroupModal({
                   </div>
 
                   <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs" style={{ color: 'var(--muted)' }}>
-                      <input
-                        type="checkbox"
+                    <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)' }}>
+                      <Toggle
                         checked={allowRollover}
-                        onChange={e => setAllowRollover(e.target.checked)}
-                        className="accent-[var(--gold)]"
+                        onCheckedChange={setAllowRollover}
+                        aria-label="Allow Rollover"
                       />
                       Allow Rollover
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs" style={{ color: 'var(--muted)' }}>
-                      <input
-                        type="checkbox"
+                    </div>
+                    <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)' }}>
+                      <Toggle
                         checked={allowMakeups}
-                        onChange={e => setAllowMakeups(e.target.checked)}
-                        className="accent-[var(--gold)]"
+                        onCheckedChange={setAllowMakeups}
+                        aria-label="Allow Makeups"
                       />
                       Allow Makeups
-                    </label>
+                    </div>
                   </div>
                 </>
               )}
@@ -528,15 +615,14 @@ function AddCourseGroupModal({
                 <div />
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer text-xs" style={{ color: 'var(--muted)' }}>
-                <input
-                  type="checkbox"
+              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)' }}>
+                <Toggle
                   checked={enforceAttendance}
-                  onChange={e => setEnforceAttendance(e.target.checked)}
-                  className="accent-[var(--gold)]"
+                  onCheckedChange={setEnforceAttendance}
+                  aria-label="Enforce Attendance"
                 />
                 Enforce Attendance
-              </label>
+              </div>
 
               {enforceAttendance && (
                 <div>
@@ -560,9 +646,11 @@ function AddCourseGroupModal({
         {/* Actions */}
         <div className="flex gap-3 mt-6 sticky bottom-0 bg-[var(--card-bg)] pt-3">
           <button onClick={resetAndClose} className={cancelBtnCls}>Cancel</button>
+          {/* Deliberately not `disabled={!name.trim()}`: a dead button tells the
+              desk nothing, and there are now five things this form needs. Every
+              one of them is refused in the banner above with its own sentence. */}
           <button
             onClick={handleSubmit}
-            disabled={!name.trim()}
             className={submitBtnCls}
           >
             Add Course Group
@@ -668,7 +756,7 @@ function ClassroomList({
 }: {
   classrooms: Classroom[]
   isLoading: boolean
-  onDelete: (id: string) => void
+  onDelete: (room: Classroom) => void
 }) {
   if (isLoading) {
     return (
@@ -717,7 +805,7 @@ function ClassroomList({
             </div>
           </div>
           <button
-            onClick={() => onDelete(room.id)}
+            onClick={() => onDelete(room)}
             title="Delete room"
             className={cn(
               'p-2 rounded-lg shrink-0',
@@ -745,11 +833,41 @@ export function ClassesPage() {
   const [selectedClass, setSelectedClass] = useState<Class | null>(null)
   const [isClassLoading, setIsClassLoading] = useState(true)
   const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false)
+  /**
+   * The live class whose attendance register is open, if any.
+   *
+   * Held here rather than on the card that opened it, and that is not a style
+   * preference: `fetchClasses` below flips `isClassLoading`, and ClassGrid
+   * answers that by rendering skeletons in place of every card. Whatever the
+   * card was holding goes with it. Starting a class reloads the list by
+   * design, so a register owned by the card was torn down in the same breath
+   * as it was opened — the toast said "Register opened" and no register
+   * appeared. The page outlives its own loading state; the card does not.
+   */
+  const [registerFor, setRegisterFor] = useState<Session | null>(null)
 
   /* ── Classrooms ── */
   const [classrooms, setClassrooms] = useState<Classroom[]>([])
   const [isRoomLoading, setIsRoomLoading] = useState(false)
   const [isAddRoomModalOpen, setIsAddRoomModalOpen] = useState(false)
+  /** The room whose trash icon was pressed — the PIN dialog is gated on it. */
+  const [roomToDelete, setRoomToDelete] = useState<Classroom | null>(null)
+
+  /* ── Arriving from the global search ──
+     The search hands the record over and navigates; this is where it lands.
+     Cleared synchronously, before anything else, so a React double-invoke in
+     development cannot open the same group twice. */
+  const focusTarget = useUIStore((s) => s.focusTarget)
+  const clearFocusTarget = useUIStore((s) => s.clearFocusTarget)
+
+  useEffect(() => {
+    if (focusTarget?.kind !== 'class') return
+    clearFocusTarget()
+    // A group lives on the courses tab; landing on rooms and opening nothing
+    // would look like the search had done nothing.
+    setActiveTab('courses')
+    setSelectedClass(focusTarget.cls)
+  }, [focusTarget, clearFocusTarget])
 
   /* ── Fetch classes ── */
   const fetchClasses = useCallback(async () => {
@@ -779,12 +897,21 @@ export function ClassesPage() {
     if (activeTab === 'rooms') fetchClassrooms()
   }, [activeTab, fetchClassrooms])
 
-  /* ── Stats (course groups) ── */
+  /* ── Stats (course groups) ──
+     Counted by the same states the cards show, from `classStateOf`, so the tiles
+     and the grid can never disagree. `full` used to be a bare
+     `enrolled >= capacity`, which counts a group with no capacity set (0 >= 0)
+     as a full room — the same reading of 0 that the enrollment check had.
+
+     `unscheduled` is counted here for the same reason: it is now one of the
+     states a card can wear, so leaving it out of the tiles would make the three
+     numbers stop adding up to Total and hide the groups that need a time. */
   const stats = {
     total: classes.length,
-    active: classes.filter(c => (c.enrolled_count ?? 0) > 0).length,
-    full: classes.filter(c => (c.enrolled_count ?? 0) >= (c.capacity ?? 0)).length,
-    empty: classes.filter(c => (c.enrolled_count ?? 0) === 0).length,
+    active: classes.filter(c => classStateOf(c) === 'active').length,
+    full: classes.filter(c => classStateOf(c) === 'full').length,
+    empty: classes.filter(c => classStateOf(c) === 'empty').length,
+    unscheduled: classes.filter(c => classStateOf(c) === 'unscheduled').length,
   }
 
   /* ── Handlers: Course Groups ── */
@@ -792,19 +919,72 @@ export function ClassesPage() {
     setSelectedClass(prev => prev?.id === cls.id ? null : cls)
   }, [])
 
+  /**
+   * Create the group, then give it its time.
+   *
+   * Two calls, in this order, because creating a group and defining when it
+   * meets are two different resources — `/classes/:id/schedules` is what owns
+   * `generate_sessions_from_schedule`, and duplicating that here would make
+   * two places responsible for producing sessions.
+   *
+   * Without the second call the group exists but its calendar is permanently
+   * empty, which is how every group made through this form used to end up:
+   * `POST /classes` stores no schedule and ignores `day_of_week` entirely.
+   */
   const handleAddClass = useCallback(async (payload: any) => {
+    let newClass: Class
     try {
-      const { data: newClass } = await api.post('/classes', payload)
-      setClasses(prev => [...prev, newClass])
-    } catch {
-      const temp: Class = {
-        id: `temp-${Date.now()}`, academy_id: '1',
-        name: payload.name, subject: payload.subject ?? '', color: payload.color,
-        capacity: payload.capacity, enrolled_count: 0, teacher_name: '',
-        status: 'empty', schedules: [],
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      const { data } = await api.post('/classes', payload)
+      newClass = data
+      setClasses(prev => [...prev, data])
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.error ??
+        err?.response?.data?.message ??
+        'Could not create the group. Please try again.'
+      toast.error('Group not created', message)
+      return
+    }
+
+    const created = newClass
+    const { class_type, day_of_week, session_date, start_time, end_time } = payload
+    try {
+      if (class_type === 'weekly') {
+        const { data } = await api.post(`/classes/${created.id}/schedules`, {
+          day_of_week,
+          start_time,
+          end_time,
+        })
+        const made = data?.sessions_created ?? 0
+        toast.success(
+          'Group created',
+          made > 0
+            ? `${payload.name} added, with ${made} sessions on the calendar.`
+            : `${payload.name} added. No sessions were generated — check the times.`,
+        )
+      } else {
+        await api.post('/sessions', {
+          class_id: created.id,
+          date: session_date,
+          start_time,
+          end_time,
+        })
+        toast.success('Group created', `${payload.name} added, with its one-off session.`)
       }
-      setClasses(prev => [...prev, temp])
+    } catch (err: any) {
+      // 409 means this group already meets at exactly these hours — a re-save,
+      // not a failure. The sessions are already on the calendar.
+      if (err?.response?.status === 409) {
+        toast.success('Group created', `${payload.name} added. Its times were already set.`)
+        return
+      }
+      // Otherwise the group exists but has no calendar. Say so plainly rather
+      // than reporting a clean success — the desk can add the time from the
+      // group's detail panel, but only if they know it is missing.
+      const message =
+        err?.response?.data?.error ??
+        'The group was created but its sessions were not. Set the times from the group panel.'
+      toast.error('Sessions not generated', message)
     }
   }, [])
 
@@ -828,12 +1008,27 @@ export function ClassesPage() {
     }
   }, [])
 
-  const handleDeleteRoom = useCallback(async (id: string) => {
+  /**
+   * Delete a room, after the PIN.
+   *
+   * The room is removed from the list only once the server has agreed. It used
+   * to be dropped either way: the failed request was swallowed and the row was
+   * filtered out anyway, so the room disappeared from the screen while still
+   * existing, and came back on the next visit to the tab.
+   */
+  const handleDeleteRoom = useCallback(async () => {
+    const room = roomToDelete
+    if (!room) return
     try {
-      await api.delete(`/classrooms/${id}`)
-    } catch { /* optimistic removal */ }
-    setClassrooms(prev => prev.filter(r => r.id !== id))
-  }, [])
+      await api.delete(`/classrooms/${room.id}`)
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? 'The room was not deleted. Press Retry.'
+      toast.error('Delete failed', msg)
+      throw new Error(msg)
+    }
+    setClassrooms(prev => prev.filter(r => r.id !== room.id))
+    toast.success('Room deleted', `"${room.name}" has been removed.`)
+  }, [roomToDelete])
 
   const tabBtnCls = (active: boolean) => cn(
     'px-4 py-2 text-xs font-semibold rounded-xl transition-all duration-150',
@@ -895,6 +1090,14 @@ export function ClassesPage() {
               <StatChip label="Total" value={stats.total} color="var(--text)" />
               <StatChip label="Active" value={stats.active} color="var(--emerald)" />
               <StatChip label="Full" value={stats.full} color="var(--red)" />
+              {/* Only when there are any. A permanent "No schedule 0" tile would
+                  be one more number the desk learns to stop reading — the chip
+                  is here to say a group needs a time, and it has nothing to say
+                  when none does. The card's amber dot carries the same fact
+                  either way, so nothing is hidden by the chip's absence. */}
+              {stats.unscheduled > 0 && (
+                <StatChip label="No schedule" value={stats.unscheduled} color="var(--gold)" />
+              )}
               <StatChip label="Empty" value={stats.empty} color="var(--muted)" />
             </div>
 
@@ -913,6 +1116,7 @@ export function ClassesPage() {
                     cls={cls}
                     onChanged={fetchClasses}
                     onOpenGroup={() => handleSelectClass(cls)}
+                    onOpenRegister={setRegisterFor}
                   />
                 )}
               />
@@ -925,7 +1129,7 @@ export function ClassesPage() {
             <ClassroomList
               classrooms={classrooms}
               isLoading={isRoomLoading}
-              onDelete={handleDeleteRoom}
+              onDelete={setRoomToDelete}
             />
           </div>
         )}
@@ -943,6 +1147,40 @@ export function ClassesPage() {
       {/* Modals */}
       <AddCourseGroupModal isOpen={isAddGroupModalOpen} onClose={() => setIsAddGroupModalOpen(false)} onAdd={handleAddClass} />
       <AddClassroomModal isOpen={isAddRoomModalOpen} onClose={() => setIsAddRoomModalOpen(false)} onAdd={handleAddRoom} />
+
+      {/* Deleting a room is the one action on this page with no undo, and the
+          trash icon sits a few pixels from a row that is otherwise inert. */}
+      <PinConfirmDialog
+        open={!!roomToDelete}
+        onClose={() => setRoomToDelete(null)}
+        title="Delete this room?"
+        confirmLabel="Delete room"
+        message={
+          roomToDelete ? (
+            <>
+              <strong className="font-semibold">{roomToDelete.name}</strong> will be removed
+              from the list of physical rooms. Sessions already placed in it keep their
+              history.
+            </>
+          ) : null
+        }
+        onConfirm={handleDeleteRoom}
+      />
+
+      {/* The attendance register — the false-until-true grid the Dashboard opens
+          on Start. Same component, same session, one register with two doors:
+          a group started from its card's ☰ now reaches the roll call from the
+          card it was started on, and still reaches it later in the lesson from
+          "Log Students Present" in that same menu. */}
+      <SessionCheckInModal
+        isOpen={!!registerFor}
+        session={registerFor}
+        onClose={() => setRegisterFor(null)}
+        onSuccess={() => {
+          setRegisterFor(null)
+          void fetchClasses()
+        }}
+      />
     </div>
   )
 }

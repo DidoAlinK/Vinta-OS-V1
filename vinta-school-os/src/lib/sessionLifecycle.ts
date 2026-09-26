@@ -17,6 +17,7 @@
  */
 
 import type { Session } from '../types/class'
+import { toLocalISO } from './sessionTime'
 
 export type LifecycleStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -28,12 +29,32 @@ export interface LifecycleRecord {
    * exactly that, and won, which is why a class the server had as `scheduled`
    * could show as running in a browser that had once been clicked.
    */
-  /** ISO timestamp — start toast snoozed until this time */
+  /**
+   * ISO timestamp — the start prompt is quiet until this time.
+   *
+   * This is the whole of the start-prompt bookkeeping now. It used to be a
+   * one-shot `startNotified` boolean as well, which made the nudge
+   * fire-once-and-be-lost: a single flag, cleared only by pressing Snooze,
+   * so a prompt that arrived while the desk was away from the screen was
+   * gone for good. The browser held 17 such records while 555 sessions sat
+   * `scheduled` — every one of them a class nobody was ever asked about
+   * again. Re-arming off a timestamp instead means a missed prompt is
+   * re-asked, which is the behaviour the desk actually wants.
+   */
   snoozedUntil?: string
-  /** Extra minutes added via "Running Late +10min" (T1) / "Extend +30" (T3) */
-  lateMinutes?: number
-  startNotified?: boolean
-  endNotified?: boolean
+  /**
+   * The `end_time` the end-of-class toast was last fired for.
+   *
+   * Deliberately the time and not a boolean. Extending a class moves its end
+   * time, and the desk should be asked again when the new one arrives — with
+   * a flag that would need clearing at exactly the right moment from
+   * wherever the extension happened, and a missed clear would either nag
+   * forever or go silent. Comparing against the end time makes re-arming a
+   * consequence of the extension rather than a second thing to remember.
+   *
+   * It also means an extension made on another device re-arms this one.
+   */
+  endNotifiedFor?: string
 }
 
 /**
@@ -43,11 +64,14 @@ export interface LifecycleRecord {
  * — see getEffectiveStatus. Changing the key drops them in one step, which is
  * the only safe way to do it: after the fact, nothing can tell a legitimate
  * old record from a stale one.
+ *
+ * Bumped from v2 for the same reason at a smaller scale: `startNotified` is
+ * gone (see snoozedUntil), and the sessions the old one-shot flag had gone
+ * quiet on are exactly the ones the desk was never asked about. Dropping the
+ * records lets the new re-prompt speak for them instead of inheriting a
+ * silence nothing can distinguish from an answer.
  */
-const STORAGE_KEY = 'vinta:session-lifecycle:v2'
-
-/** T6: per-group flag id — teacher says NEXT session is free (teacher pays). */
-const FREE_KEY = 'vinta:session-free-next:v1'
+const STORAGE_KEY = 'vinta:session-lifecycle:v3'
 
 function loadAll(): Record<string, LifecycleRecord> {
   try {
@@ -115,9 +139,78 @@ export function canOpenAttendance(status: LifecycleStatus): boolean {
   return status === 'in_progress'
 }
 
-/** Start allowed ONLY from SCHEDULED (manual early start included). */
+/**
+ * Start allowed ONLY from SCHEDULED (manual early start included).
+ *
+ * This is the status half of the question. `canStartSession` is the other
+ * half — the clock — and is what the UI should ask before offering a Start
+ * button. Kept, because a caller that has a status but no session (or no
+ * clock) still has a real question to ask.
+ */
 export function canStart(status: LifecycleStatus): boolean {
   return status === 'scheduled'
+}
+
+/** Local-time YYYY-MM-DD of the day `session` is scheduled on. */
+function sessionDay(session: Session): string {
+  return session?.date ?? ''
+}
+
+/**
+ * Is this class on today's date?
+ *
+ * The "its own day" rule, in one place, because three things depend on it
+ * agreeing with itself: the server's start guard, the Start button, and how
+ * long the start prompt keeps asking. `now` is local and `session.date` is a
+ * local wall-clock date, so this is a local-against-local comparison on
+ * purpose — formatting `now` through `toISOString()` would shift the
+ * boundary by the UTC offset and call a class on its own evening tomorrow.
+ */
+export function isSessionDay(session: Session, now: Date = new Date()): boolean {
+  const day = sessionDay(session)
+  return day !== '' && day === toLocalISO(now)
+}
+
+/**
+ * Why this class cannot be started right now, or `null` if it can.
+ *
+ * One function rather than a boolean plus a separate explanation, so the
+ * disabled button and the sentence under it can never disagree.
+ *
+ * The clock rule mirrors the server exactly —
+ * `session_lifecycle_service.start_session` refuses a class whose `date` is
+ * not today, and this must not offer a Start it is going to answer with a
+ * 409. Same day, not "within N hours": it explains itself to the desk
+ * without a rule they cannot see, and it survives a late start, an early
+ * start, and a browser whose clock is a little off.
+ *
+ * The asymmetry the desk will notice: a class that was never started and
+ * whose day has passed is *not* startable. It is late, not running, and its
+ * outcome is either Cancel (by hand) or, for a one-off class, the nightly
+ * close-out — see `close_past_temporary_sessions` on the server.
+ *
+ * `session.date` is a local wall-clock date and `now` is local, so this
+ * compares local against local on purpose. Going through `toISOString()`
+ * here would move the boundary by the UTC offset and refuse a class on its
+ * own evening. (`lib/sessionTime.ts` carries the same warning.)
+ */
+export function startBlockReason(session: Session, now: Date = new Date()): string | null {
+  if (!session) return 'No class selected.'
+  if (isSessionDay(session, now)) return null
+
+  const day = sessionDay(session) || 'an unknown date'
+  return `A class can only be started on its own day (${day}); today is ${toLocalISO(now)}.`
+}
+
+/**
+ * May this class be started, now?
+ *
+ * The gate for every Start affordance. Note it is *not* `canStart(status)`
+ * alone: that would offer Start on a class from last week, and on one dated
+ * next month, and the server refuses both.
+ */
+export function canStartSession(session: Session, now: Date = new Date()): boolean {
+  return canStart(getEffectiveStatus(session)) && startBlockReason(session, now) === null
 }
 
 /** Cancel / Teacher-Absent allowed ONLY from SCHEDULED — never from live. */
@@ -149,11 +242,17 @@ export function getScheduledStart(session: Session): Date | null {
   return getScheduledDateTime(session.date, session.start_time)
 }
 
-export function getScheduledEnd(session: Session, extraMinutes = 0): Date | null {
-  const end = getScheduledDateTime(session.date, session.end_time)
-  if (!end) return null
-  if (extraMinutes > 0) end.setMinutes(end.getMinutes() + extraMinutes)
-  return end
+/**
+ * When this class is expected to end.
+ *
+ * Read straight off the session, with no adjustment: an extended class has a
+ * later `end_time` on the server, so the extension is already in this
+ * number. It used to take an `extraMinutes` argument fed from a localStorage
+ * counter, which meant the app held two ends for one class and the wrong one
+ * won.
+ */
+export function getScheduledEnd(session: Session): Date | null {
+  return getScheduledDateTime(session.date, session.end_time)
 }
 
 export function isSnoozed(sessionId: string, now: Date = new Date()): boolean {
@@ -164,78 +263,62 @@ export function isSnoozed(sessionId: string, now: Date = new Date()): boolean {
 }
 
 // ─────────────────────────────────────────────
-// T3/T6: "Mark NEXT as Free" per-group flag (frontend-only, backend frozen).
-// The hamburger sets it; T6 consumes it on the NEXT created session.
+// Phase — what the clock says, as opposed to what the server says
 // ─────────────────────────────────────────────
 
-export interface FreeNextRecord {
-  markedAt: string
-  /** Session id the hamburger was opened from (never the free session itself). */
-  markedSessionId?: string
-  /** Short label of the marked session for toasts (e.g. "Sat 10:00"). */
-  markedLabel?: string
-  /** NEXT = strictly after this date (YYYY-MM-DD). Falls back to markedAt day. */
-  afterDate?: string
-  /** NEXT = after this HH:MM on afterDate. Falls back to markedAt time. */
-  afterTime?: string
-}
-
-function loadFreeAll(): Record<string, FreeNextRecord> {
-  try {
-    const raw = localStorage.getItem(FREE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveFreeAll(map: Record<string, FreeNextRecord>): void {
-  try {
-    localStorage.setItem(FREE_KEY, JSON.stringify(map))
-  } catch {
-    // Storage blocked — flag still applies in-memory for this tab read
-  }
-}
-
-/** True when the teacher flagged the NEXT session of this group as free. */
-export function isNextFreeMarked(classId: string): boolean {
-  if (!classId) return false
-  return Boolean(loadFreeAll()[classId])
-}
-
-/** Full pending NEXT-free record (null when none). */
-export function getFreeMark(classId: string): FreeNextRecord | null {
-  if (!classId) return null
-  return loadFreeAll()[classId] ?? null
-}
-
 /**
- * Flag the NEXT session of this group as free (teacher pays).
- * ctx pins the NEXT boundary: strictly after the marked session so the
- * CURRENT instance can never self-assign (incl. Sunday/extra regen timing).
+ * Where a class sits relative to *now*, for display.
+ *
+ * This exists because the server's status alone cannot answer "is this class
+ * running?". The server only changes a status when something asks it to: a
+ * class goes `in_progress` when the desk starts it and leaves `in_progress`
+ * only when the desk finishes it. Nothing closes a class on a timer — see
+ * `tasks/cron_jobs.py`, which deliberately does not — so a class that
+ * overran stays `in_progress` on the server until a human acts, and any UI
+ * that reads the status alone will claim a class that ended hours ago is
+ * still running. That is the reported bug.
+ *
+ *   scheduled  — not started yet
+ *   live       — in progress, and its end time has not passed
+ *   overdue    — in progress, but past its end time: still open on the
+ *                server, and the desk owes it a decision (Finish, Extend,
+ *                or Void). Not an error state — a class that runs long is
+ *                ordinary — so it must not be rendered as one.
+ *   done       — terminal: conducted or cancelled
+ *
+ * DISPLAY ONLY. Never gate an action or a charge on this — use
+ * `getEffectiveStatus` and the `can*` guards below, which read the server.
+ * A phase is derived from `end_time` plus the browser clock, so two devices
+ * can disagree about it and a wrong clock can invent one.
+ *
+ * Note the asymmetry: a class that was *never started* and whose time has
+ * passed stays `scheduled`, not `overdue`. It is late, not running, so it is
+ * not the thing being reported — and it needs a different prompt (Start or
+ * Cancel) than an overrun does. When that becomes its own feature it should
+ * be its own phase rather than an overload of this one.
  */
-export function markNextFree(
-  classId: string,
-  ctx?: { markedSessionId?: string; markedLabel?: string; afterDate?: string; afterTime?: string },
-): void {
-  if (!classId) return
-  const all = loadFreeAll()
-  all[classId] = {
-    markedAt: new Date().toISOString(),
-    markedSessionId: ctx?.markedSessionId,
-    markedLabel: ctx?.markedLabel,
-    afterDate: ctx?.afterDate,
-    afterTime: ctx?.afterTime,
-  }
-  saveFreeAll(all)
+export type SessionPhase = 'scheduled' | 'live' | 'overdue' | 'done'
+
+export function getSessionPhase(session: Session, now: Date = new Date()): SessionPhase {
+  const status = getEffectiveStatus(session)
+  if (status === 'completed' || status === 'cancelled') return 'done'
+  if (status !== 'in_progress') return 'scheduled'
+
+  const end = getScheduledEnd(session)
+  // An unparsable end time means we cannot prove the class is over, so the
+  // server's `in_progress` stands.
+  if (!end) return 'live'
+
+  return now > end ? 'overdue' : 'live'
 }
 
-/** Clear the flag (undo, or consumed by T6 on the NEXT created session). */
-export function unmarkNextFree(classId: string): void {
-  if (!classId) return
-  const all = loadFreeAll()
-  delete all[classId]
-  saveFreeAll(all)
-}
+// ─────────────────────────────────────────────
+// "Mark NEXT as Free" no longer lives here.
+//
+// It used to be a per-group localStorage flag that a later sweep adopted
+// onto whichever session turned out to be next. The server never saw it, so
+// the flag did not stop a credit being spent — the one thing it was for.
+// The free flag is now written straight onto the next session's own
+// `is_free_session` column, and read back from it: see lib/freeSessions.ts
+// and the hamburger's FreeNextModal.
+// ─────────────────────────────────────────────

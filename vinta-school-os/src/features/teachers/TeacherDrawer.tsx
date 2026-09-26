@@ -39,7 +39,12 @@ import {
 import type { Teacher } from '../../types/teacher'
 import { COMMISSION_TYPE_LABELS } from '../../types/teacher'
 import type { CommissionType } from '../../types/teacher'
-import { getTeacherEmail, setTeacherEmail } from '../../lib/teacherEmails'
+// getTeacherEmail is a read-only fallback for addresses stashed in localStorage
+// back when the backend had no email column. Nothing writes it any more —
+// email now round-trips through the API — so it only ever surfaces values a
+// browser already had, and the server's null wins whenever it is not.
+import { getTeacherEmail } from '../../lib/teacherEmails'
+import { useAuthStore } from '../../stores/authStore'
 import type { PayoutRecord } from '../../types/billing'
 
 // ============================================
@@ -127,11 +132,21 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
 
   /* ── Edit mode state ── */
   const [isEditing, setIsEditing] = useState(false)
+  /**
+   * Commission is owner-only, server-side and here.
+   *
+   * The drawer used to send commission_type/commission_value on every save for
+   * any teacher that already had them, so a staff save was refused 403 and the
+   * edit — a phone number, a status flip — was lost with it. A non-owner now
+   * sees the numbers and leaves them alone.
+   */
+  const isOwner = useAuthStore((s) => s.user?.role === 'owner')
   const [editFirstName, setEditFirstName] = useState('')
   const [editLastName, setEditLastName] = useState('')
   const [editEmail, setEditEmail] = useState('')
   const [editEmailError, setEditEmailError] = useState<string | null>(null)
   const [editPhone, setEditPhone] = useState('')
+  const [editStatus, setEditStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE')
   const [editSubjectIds, setEditSubjectIds] = useState<string[]>([])
   const [editGrossOn, setEditGrossOn] = useState(false)
   const [editCommissionType, setEditCommissionType] = useState<CommissionType>('PERCENTAGE')
@@ -216,6 +231,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
     setEditEmail(teacher.email ?? getTeacherEmail(teacher.id) ?? '')
     setEditEmailError(null)
     setEditPhone(teacher.phone ?? '')
+    setEditStatus(teacher.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE')
     setEditSubjectIds((teacher.subjects ?? []).map((s: any) => s.id).filter(Boolean))
     const hasCommission = teacher.commission_type != null && teacher.commission_value != null
     setEditGrossOn(hasCommission)
@@ -234,10 +250,12 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
   const handleSave = useCallback(async () => {
     if (!teacher) return
     if (!editFirstName.trim()) { toast.error('First name is required'); return }
-    // T9: email required + unique + validated; stored in registry, never PUT.
+    // Email is optional here for the same reason it is on create: a teacher
+    // without one still needs an editable profile. A present value must still
+    // be well-formed — the server enforces that too, and 409s on a clash.
     const mailErr = (() => {
       const v = editEmail.trim()
-      if (!v) return 'Email is required.'
+      if (!v) return null
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'Enter a valid email address.'
       return null
     })()
@@ -250,31 +268,39 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
       const payload: Record<string, unknown> = {
         first_name: editFirstName.trim(),
         last_name: editLastName.trim(),
+        // Optional — "" clears it server-side, which is how a teacher without
+        // an email is stored (null, and NULLs do not collide in the index).
+        email: editEmail.trim(),
+        status: editStatus,
         phone: editPhone.trim() || undefined,
         subject_ids: editSubjectIds,
         notes: editNotes.trim() || undefined,
       }
-      if (editGrossOn) {
+      // Owner-only, and omitted entirely otherwise: the server refuses the
+      // whole request with a 403 if a non-owner so much as names the field.
+      if (isOwner && editGrossOn) {
         payload.commission_type = editCommissionType
         payload.commission_value = editCommissionValue ? Number(editCommissionValue) : 0
       }
 
       await api.put(`/teachers/${teacher.id}`, payload)
-      // T9: persist validated email to the frontend registry (never sent).
-      const storeErr = setTeacherEmail(teacher.id, editEmail.trim())
-      if (storeErr) {
-        toast.warning('Teacher saved, email rejected', storeErr)
-      } else {
-        toast.success('Teacher updated successfully')
-      }
+      toast.success('Teacher updated successfully')
       setIsEditing(false)
       onUpdated?.()
-    } catch {
-      toast.error('Failed to update teacher')
+    } catch (err) {
+      // Surface the server's own sentence — a 409 email clash and a 403
+      // owner-only commission are both actionable and were being flattened
+      // into one generic message.
+      const message =
+        (err as { response?: { data?: { error?: string; message?: string } } })
+          ?.response?.data?.error ??
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'The server refused the request.'
+      toast.error('Could not save teacher', message)
     } finally {
       setEditSaving(false)
     }
-  }, [teacher, editFirstName, editLastName, editEmail, editPhone, editSubjectIds, editGrossOn, editCommissionType, editCommissionValue, editNotes, onUpdated])
+  }, [teacher, editFirstName, editLastName, editEmail, editStatus, editPhone, editSubjectIds, isOwner, editGrossOn, editCommissionType, editCommissionValue, editNotes, onUpdated])
 
   /* ── Filtered subjects for edit dropdown ── */
   const filteredSubjects = subjects.filter((s) =>
@@ -478,15 +504,15 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 />
               </EditField>
 
-              {/* Email — T9 required, unique, validated */}
-              <EditField label="Email" required>
+              {/* Email — optional, unique per academy when present */}
+              <EditField label="Email (optional)">
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => {
                     setEditEmail(e.target.value)
                     const v = e.target.value.trim()
-                    setEditEmailError(!v ? 'Email is required.' : /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : 'Enter a valid email address.')
+                    setEditEmailError(!v ? null : /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : 'Enter a valid email address.')
                   }}
                   placeholder="teacher@academy.dz"
                   className={cn(editInputCls, editEmailError && 'border-[var(--red)]/50')}
@@ -640,9 +666,20 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                   <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
                     Turn on calculating gross profit
                   </p>
-                  <Toggle checked={editGrossOn} onCheckedChange={(v) => { setEditGrossOn(v); if (!v) setEditCommissionValue('') }} />
+                  {isOwner ? (
+                    <Toggle checked={editGrossOn} onCheckedChange={(v) => { setEditGrossOn(v); if (!v) setEditCommissionValue('') }} />
+                  ) : (
+                    <span className="text-[11px] text-[var(--muted)]">
+                      {editGrossOn ? 'On' : 'Off'}
+                    </span>
+                  )}
                 </div>
-                {!editGrossOn && (
+                {!isOwner && (
+                  <p className="text-[11px] text-[var(--muted)] mb-1">
+                    Commission is set by the academy owner. Your other changes still save.
+                  </p>
+                )}
+                {!editGrossOn && isOwner && (
                   <p className="text-[11px] text-[var(--muted)] mb-1">
                     Off — paid per session formula only, no gross/cut math.
                   </p>
@@ -655,12 +692,14 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                     <button
                       key={type}
                       type="button"
-                      onClick={() => { setEditCommissionType(type); setEditCommissionValue('') }}
+                      disabled={!isOwner}
+                      onClick={() => { if (!isOwner) return; setEditCommissionType(type); setEditCommissionValue('') }}
                       className={cn(
                         'flex-1 py-2 rounded-xl text-[11px] font-medium transition-all duration-150 leading-tight',
                         editCommissionType === type
                           ? 'bg-[var(--gold-soft)] text-[var(--gold)] border border-[var(--gold)]/30'
                           : 'bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)] hover:border-[var(--muted)]/30',
+                        !isOwner && 'opacity-60 cursor-default',
                       )}
                     >
                       <span className="block">{COMMISSION_TYPE_LABELS[type]}</span>
@@ -681,6 +720,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                   <div className="relative">
                     <input
                       type="number"
+                      disabled={!isOwner}
                       value={editCommissionValue}
                       onChange={(e) => {
                         const val = e.target.value
@@ -696,7 +736,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                       placeholder={editCommissionType === 'PERCENTAGE' ? '30' : editCommissionType === 'FLAT_HOURLY' ? '1500' : '800'}
                       min={0}
                       max={editCommissionType === 'PERCENTAGE' ? 100 : undefined}
-                      className={cn(editInputCls, 'pr-20')}
+                      className={cn(editInputCls, 'pr-20', !isOwner && 'opacity-60 cursor-default')}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted)]">
                       {editCommissionType === 'PERCENTAGE' ? '%' : editCommissionType === 'FLAT_HOURLY' ? 'DA/h' : 'DA/session'}
@@ -705,6 +745,26 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 </EditField>
                 </>
                 )}
+              </div>
+
+              {/* Status — ACTIVE / INACTIVE. An inactive teacher stays on the
+                  roster (and on past sessions) but is kept out of the
+                  assignment pickers, which opt in with ?status=ACTIVE. */}
+              <div className="pt-2 border-t border-[var(--glass-border)]">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
+                    Active
+                  </p>
+                  <Toggle
+                    checked={editStatus === 'ACTIVE'}
+                    onCheckedChange={(v) => setEditStatus(v ? 'ACTIVE' : 'INACTIVE')}
+                  />
+                </div>
+                <p className="text-[11px] text-[var(--muted)] mt-1">
+                  {editStatus === 'ACTIVE'
+                    ? 'Available for new classes and sessions.'
+                    : 'Kept on record, but hidden from the class and session pickers.'}
+                </p>
               </div>
 
               {/* Notes */}
@@ -774,6 +834,20 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 {teacher.phone ? formatPhone(teacher.phone) : 'Not set'}
               </p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
+                {/* Status — only INACTIVE is worth a badge; an active teacher
+                    is the norm and a badge on every one of them is noise. */}
+                {teacher.status === 'INACTIVE' && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium',
+                      'bg-[var(--muted)]/15 border border-[var(--glass-border)]',
+                      'text-[var(--muted)]',
+                    )}
+                  >
+                    Inactive
+                  </span>
+                )}
+
                 {/* Commission model badge — only when gross-profit is on */}
                 {isGrossProfitEnabled() && teacher.commission_type && teacher.commission_value != null && (
                   <span

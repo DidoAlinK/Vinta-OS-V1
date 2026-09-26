@@ -188,9 +188,18 @@ def enroll_student(student_id):
     if not data or not data.get("class_id"):
         return jsonify({"error": "class_id is required"}), 400
 
-    enrollment = student_service.enroll_student(
-        student_id, data["class_id"], g.current_academy_id, g.current_user.id
-    )
+    # enroll_student refuses with a ValueError — class missing, class full —
+    # and letting it escape turned every one of those into an HTML 500 that the
+    # desk could only read as "something broke". A refusal is a 400 with the
+    # service's own sentence, which is what the UI surfaces.
+    try:
+        enrollment = student_service.enroll_student(
+            student_id, data["class_id"], g.current_academy_id, g.current_user.id
+        )
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
     db.session.commit()
 
     return (

@@ -176,6 +176,38 @@ body {
 }
 
 /* ============================================
+   Native Control Chrome
+
+   The last piece of the operating system still visible in the interface.
+   Twenty-five numeric fields across the app are styled glass-and-gold by
+   their own classes, and then have the browser's spinner arrows bolted onto
+   the right edge — light grey, square, and about the size of a full stop, in
+   dark mode especially. They read as a rendering fault next to the rest of
+   the form.
+
+   Hiding the spinners is a trade, and it is worth naming: the arrows were a
+   working mouse affordance, and they are gone. Every one of these fields
+   already carries `min`/`max` and clamps its own value, so the arrows were
+   only ever a slow way to type a number that typing does directly. If one is
+   ever missed, the fix is a stepper built from the app's own buttons on that
+   field — not putting the browser's back.
+   ============================================ */
+
+/* Firefox: the spinner is the only thing `textfield` removes. */
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/* Chrome, Safari, Edge. */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* ============================================
    Scrollbar Styling
    ============================================ */
 

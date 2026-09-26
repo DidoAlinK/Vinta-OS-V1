@@ -3,6 +3,7 @@ Vinta School OS — Settings Blueprint
 /api/settings — Academy Config, Staff Management, Automations, Profile
 """
 import uuid
+from datetime import datetime, timedelta, timezone
 from flask_smorest import Blueprint
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -23,6 +24,20 @@ from app.schemas.settings import (
 from app.schemas.base import ErrorSchema, MessageSchema
 
 settings_bp = Blueprint("settings", __name__, description="Academy settings, staff & subscriptions")
+
+# How long the activity log keeps anything. Two weeks — long enough to
+# answer "what happened to last week's classes" and to reconstruct a
+# disputed register, short enough that the log stays a window on the recent
+# past rather than an archive nobody reads. Applies to the academy-wide
+# feed and a group's own log alike: they read the same table, so they
+# expire on the same clock.
+ACTIVITY_LOG_RETENTION_DAYS = 14
+
+# Most rows the group-filtered read will look at before narrowing. The
+# retention window means this is never reached in practice; it is here so a
+# busy academy's read stays bounded rather than loading the whole table to
+# return twenty rows.
+RETENTION_READ_CAP = 2000
 
 
 @settings_bp.route("/academy", methods=["GET"])
@@ -749,21 +764,79 @@ def export_data(dataset):
 @tenant_required
 def get_activity_log():
     """
-    Get recent activity log entries for the dashboard.
-    Returns entries in the shape the frontend ActivityLog component expects.
+    Get recent activity log entries.
+
+    Query params:
+      limit     default 20, capped at 200
+      class_id  optional — only what happened to that group
+
+    The same table answers two questions. The dashboard asks "what has been
+    going on" and wants the academy's whole recent history; a group's own
+    hamburger asks "what happened to THIS class", and used to be handed the
+    academy-wide feed instead, which told the desk nothing it could not
+    already see and buried the one line it wanted.
+
+    An entry belongs to a group when it names the group itself, when it
+    names one of the group's sessions, or when it carries the class_id in
+    its metadata. All three are checked because the log has been written by
+    three different code paths over time and history is not re-writable.
+
+    Retention: entries older than ACTIVITY_LOG_RETENTION_DAYS are deleted
+    here, before the read. Two weeks is the horizon the desk asked for, and
+    pruning on read is what makes it self-maintaining — nobody has to
+    remember a cleanup job, and no reader can ever see a row past it.
     """
     from flask import g
     from app.models.audit import ActivityLog as ActivityLogModel
+    from app.models.scheduling import Session as SessionModel
 
     limit = request.args.get("limit", 20, type=int)
+    limit = max(1, min(limit, 200))
+    class_id = request.args.get("class_id")
 
-    logs = (
-        ActivityLogModel.query
-        .filter_by(academy_id=g.current_academy_id)
-        .order_by(ActivityLogModel.created_at.desc())
-        .limit(limit)
-        .all()
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        days=ACTIVITY_LOG_RETENTION_DAYS
     )
+    pruned = (
+        ActivityLogModel.query
+        .filter(
+            ActivityLogModel.academy_id == g.current_academy_id,
+            ActivityLogModel.created_at < cutoff,
+        )
+        .delete(synchronize_session=False)
+    )
+    if pruned:
+        db.session.commit()
+
+    # Filtering a group's history happens in Python rather than in SQL
+    # because "belongs to this group" spans three columns, one of them
+    # JSON. The retention window keeps the row count small enough that this
+    # stays a cheap read rather than a scan of the academy's whole past.
+    if class_id:
+        session_ids = {
+            sid for (sid,) in db.session.query(SessionModel.id)
+            .filter(
+                SessionModel.academy_id == g.current_academy_id,
+                SessionModel.class_id == class_id,
+            )
+            .all()
+        }
+        candidates = (
+            ActivityLogModel.query
+            .filter_by(academy_id=g.current_academy_id)
+            .order_by(ActivityLogModel.created_at.desc())
+            .limit(RETENTION_READ_CAP)
+            .all()
+        )
+        logs = [log for log in candidates if _log_belongs_to_class(log, class_id, session_ids)][:limit]
+    else:
+        logs = (
+            ActivityLogModel.query
+            .filter_by(academy_id=g.current_academy_id)
+            .order_by(ActivityLogModel.created_at.desc())
+            .limit(limit)
+            .all()
+        )
 
     # Map backend action types to frontend activity types
     ACTION_TYPE_MAP = {
@@ -775,13 +848,14 @@ def get_activity_log():
         "withdrawn": "student",
         "created": "student",
         "updated": "student",
+        "extended": "checkin",
         "deleted": "alert",
     }
 
     activities = []
     for log in logs:
         user = db.session.get(User, log.user_id)
-        user_name = user.name if user else ""
+        user_name = user.name if user else "System"
         activity_type = ACTION_TYPE_MAP.get(log.action, "alert")
 
         # Build a human-readable title from the action
@@ -794,6 +868,25 @@ def get_activity_log():
             "description": log.description or "",
             "timestamp": log.created_at.isoformat() + "Z" if log.created_at else "",
             "staff_name": user_name,
+            # The frontend colours by these; a group's log can then show a
+            # free session or a teacher absence without re-reading anything.
+            "action": log.action,
+            "cancelled_reason": (log.log_metadata or {}).get("cancelled_reason"),
         })
 
-    return jsonify({"activities": activities}), 200
+    return jsonify({
+        "activities": activities,
+        "class_id": class_id,
+        "retention_days": ACTIVITY_LOG_RETENTION_DAYS,
+    }), 200
+
+
+def _log_belongs_to_class(log, class_id: str, session_ids: set) -> bool:
+    """Is this entry part of that group's story?"""
+    if (log.log_metadata or {}).get("class_id") == class_id:
+        return True
+    if log.entity_type == "class" and log.entity_id == class_id:
+        return True
+    if log.entity_type == "session" and log.entity_id in session_ids:
+        return True
+    return False

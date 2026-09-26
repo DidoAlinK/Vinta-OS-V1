@@ -37,6 +37,7 @@ import StudentGuardians from './components/StudentGuardians'
 import BillingSummaryCard from './components/BillingSummaryCard'
 import BillingCalendarCard from './components/BillingCalendarCard'
 import PaymentHistoryList from './components/PaymentHistoryList'
+import StudentAttendanceCalendar from './components/StudentAttendanceCalendar'
 import { useStudentProfile } from './hooks/useStudentProfile'
 import { useStudentBilling } from './hooks/useStudentBilling'
 import type { Student } from '../../types/student'
@@ -343,7 +344,19 @@ export default function StudentDrawer({
                           : null
                       }
                     />
-                    <InfoRow label="Enrollment" value={detail.enrollment_status} />
+                    <InfoRow
+                      label="Enrollment"
+                      // The API sends the raw enum ("active", "not_enrolled").
+                      // An unrecognised value falls through to itself rather
+                      // than to a blank, so a new server-side state shows up
+                      // here instead of silently disappearing.
+                      value={
+                        detail.enrollment_status
+                          ? (ENROLLMENT_LABELS[detail.enrollment_status] ??
+                             detail.enrollment_status)
+                          : null
+                      }
+                    />
                   </dl>
                 </ProfileCard>
               )}
@@ -383,6 +396,13 @@ export default function StudentDrawer({
                 loading={billingLoading}
                 error={billingError}
                 onRetry={refreshBilling}
+              />
+              {/* Under the money, not beside it: the register answers "did the
+                  sessions they paid for actually happen", which only makes
+                  sense once the payments are on screen above it. */}
+              <StudentAttendanceCalendar
+                calendar={detail.attendance_calendar}
+                loading={profileLoading}
               />
             </div>
           </div>
@@ -445,6 +465,20 @@ export default function StudentDrawer({
 // ============================================
 // InfoRow (internal) — a read-only label/value pair
 // ============================================
+
+/**
+ * Enrollment.status is a lowercase enum on the wire; these are the same words
+ * in sentence case for the drawer. `not_enrolled` in particular is a server
+ * sentinel, not English, and it was being printed verbatim.
+ */
+const ENROLLMENT_LABELS: Record<string, string> = {
+  active: 'Active',
+  withdrawn: 'Withdrawn',
+  expired: 'Expired',
+  overdue: 'Overdue',
+  transferred: 'Transferred',
+  not_enrolled: 'Not enrolled in a group',
+}
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (

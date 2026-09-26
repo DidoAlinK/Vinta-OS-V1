@@ -1,2 +1,0 @@
-import{j as e}from"./index-_s2NeC87.js";var t={name:`chevron-down`,size:24,node:[[`path`,{d:`m6 9 6 6 6-6`,key:`qrunsl`}]]};t.node;var n=e(t);export{n as t};
-//# sourceMappingURL=chevron-down-CZHvGyCM.js.map

@@ -3,6 +3,8 @@
  * Phone, currency, date, and time formatting utilities
  */
 
+import { toLocalISO } from './sessionTime'
+
 // ============================================
 // Phone Formatting
 // ============================================
@@ -98,13 +100,27 @@ export function formatAmount(amount: number): string {
 // ============================================
 
 /**
- * Format date as YYYY-MM-DD
- * @param date - Date object or string
- * @returns Formatted date string
+ * Format date as YYYY-MM-DD — local time, never UTC.
+ *
+ * This used `Date#toISOString()`, which is UTC: the calendar day it reports
+ * rolls over at midnight UTC, not midnight locally, so for part of every day
+ * it named a different day than the one on screen. That string goes straight
+ * out as the `date` query param in `DayView`/`WeekView` and is the grouping
+ * key in `AgendaBoard`, so a session could be rendered under one day and
+ * fetched/saved under another.
+ *
+ * `toLocalISO` in `lib/sessionTime.ts` is the same fix and is the canonical
+ * helper; this stays as a thin alias because callers already import it here.
  */
 export function formatDateISO(date: Date | string): string {
+  if (typeof date === 'string') {
+    // A date-only string is already the answer. Re-parsing it would read it as
+    // UTC midnight and shift it back a day in any negative-offset timezone.
+    const dateOnly = /^(\d{4}-\d{2}-\d{2})/.exec(date)
+    if (dateOnly) return dateOnly[1]
+  }
   const d = typeof date === 'string' ? new Date(date) : date
-  return d.toISOString().split('T')[0]
+  return toLocalISO(d)
 }
 
 /**
@@ -199,6 +215,31 @@ export function isToday(date: Date | string): boolean {
 export function timeToDecimal(time: string): number {
   const [hours, minutes] = time.split(':').map(Number)
   return hours + minutes / 60
+}
+
+/**
+ * How long a class ran, from two "HH:MM" times — "1 h 45 min".
+ *
+ * Written here rather than in a date library because the codebase has none by
+ * design, and this is the only shape it needs: two times on one clock. Callers
+ * that need to know the times are usable should check for '' — it is returned
+ * for unparseable input and for a non-positive span, so a mistake never reads as
+ * a zero-minute class.
+ *
+ * Shared, not local: the group form and the teacher form both print it, and two
+ * copies of this would eventually disagree about what "1 h 45 min" means.
+ */
+export function formatDuration(start: string, end: string): string {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  if ([sh, sm, eh, em].some(Number.isNaN)) return ''
+  const minutes = eh * 60 + em - (sh * 60 + sm)
+  if (minutes <= 0) return ''
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) return `${rest} min`
+  if (rest === 0) return `${hours} h`
+  return `${hours} h ${rest} min`
 }
 
 /**

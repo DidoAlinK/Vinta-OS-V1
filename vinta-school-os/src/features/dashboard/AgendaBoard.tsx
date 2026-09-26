@@ -46,14 +46,44 @@ interface AgendaBoardProps {
   onStartSession?: (session: Session) => void
   onFinishSession?: (session: Session) => void
   onSessionsChanged?: () => void
-  /** T8: open the scheduling window (toolbar + empty cell click) */
+  /** T8: open the scheduling window (the + New Class button only) */
   onNewClass?: (prefillDate?: string) => void
+  /**
+   * Open a live class's attendance register. The menu only offers
+   * "Log Students Present" when a parent can actually open the grid, and on
+   * this board the menu is the only way in — Start opens it once, but a desk
+   * that closed it needs a second door.
+   */
+  onOpenRegister?: (session: Session) => void
 }
 
 interface PositionedSession {
   session: Session
   col: number
   totalCols: number
+}
+
+/** The ☰ panel's own box — `w-52` wide, and about this tall with every row. */
+const MENU_WIDTH = 208
+const MENU_EST_HEIGHT = 320
+
+/**
+ * Where to pin the panel for a click at `point`, kept inside the viewport —
+ * a block near the right edge or the bottom of the board would otherwise open
+ * its menu off-screen.
+ */
+function menuAnchorAt(point: { x: number; y: number }): { x: number; y: number } {
+  const x = Math.max(8, Math.min(point.x, window.innerWidth - MENU_WIDTH - 8))
+  const y = point.y + MENU_EST_HEIGHT > window.innerHeight
+    ? Math.max(8, point.y - MENU_EST_HEIGHT)
+    : point.y
+  return { x, y }
+}
+
+/** Same, for a keyboard open — there is no pointer, so hang off the block. */
+function menuAnchorForElement(el: HTMLElement): { x: number; y: number } {
+  const rect = el.getBoundingClientRect()
+  return menuAnchorAt({ x: rect.left, y: rect.bottom })
 }
 
 /* ─── Overlap Resolution ─── */
@@ -131,6 +161,7 @@ export function AgendaBoard({
   onFinishSession,
   onSessionsChanged,
   onNewClass,
+  onOpenRegister,
 }: AgendaBoardProps) {
   const [now, setNow] = useState(getCurrentHour)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -138,6 +169,19 @@ export function AgendaBoard({
     sessions: Session[]
     x: number
     y: number
+    /** The block the picker was raised from — the menu's toggle-out anchor. */
+    el: HTMLElement
+  } | null>(null)
+  /**
+   * The session whose ☰ panel is open, opened by clicking its block rather
+   * than by pressing the ☰. One instance for the whole board: the panel is
+   * `fixed`, so it does not belong to the block it came from.
+   */
+  const [menuTarget, setMenuTarget] = useState<{
+    session: Session
+    x: number
+    y: number
+    el: HTMLElement
   } | null>(null)
 
   // Use the currentDate from parent navigation, falling back to today
@@ -210,7 +254,31 @@ export function AgendaBoard({
     }
   }, [overlapPopup])
 
-  /** Handle click on a session block — show popup if overlapping sessions exist */
+  /**
+   * Select the session and raise its ☰ panel — the Dashboard's management
+   * surface, opened by the block itself rather than a ☰ press.
+   *
+   * The select is skipped when that session is already the selected one: the
+   * Dashboard's select *toggles*, so a desk opening the menu on the class the
+   * right-hand panel is already showing would blank the panel it is managing.
+   */
+  const openSessionMenu = useCallback(
+    (session: Session, el: HTMLElement, point?: { x: number; y: number }) => {
+      if (selectedSessionId !== session.id) onSelectSession(session)
+      const at = point ? menuAnchorAt(point) : menuAnchorForElement(el)
+      setMenuTarget({ session, x: at.x, y: at.y, el })
+    },
+    [selectedSessionId, onSelectSession],
+  )
+
+  /**
+   * Click on a session block.
+   *
+   * Overlapping blocks resolve to the picker first — "which session did you
+   * mean" is a question the block cannot answer on its own. Otherwise the
+   * click selects the session and opens its menu, and clicking the same block
+   * again dismisses the menu without disturbing the panel.
+   */
   const handleSessionClick = useCallback(
     (session: Session, e: React.MouseEvent) => {
       e.stopPropagation()
@@ -224,12 +292,25 @@ export function AgendaBoard({
         // Position popup near the clicked block, clamped to viewport
         const x = Math.min(rect.right + 8, window.innerWidth - 280)
         const y = Math.min(rect.top, window.innerHeight - 200)
-        setOverlapPopup({ sessions: overlapping, x, y })
-      } else {
-        onSelectSession(session)
+        setOverlapPopup({
+          sessions: overlapping,
+          x,
+          y,
+          el: e.currentTarget as HTMLElement,
+        })
+        return
       }
+      // This block's panel is already open — the click is a dismissal.
+      if (menuTarget?.session.id === session.id) {
+        setMenuTarget(null)
+        return
+      }
+      openSessionMenu(session, e.currentTarget as HTMLElement, {
+        x: e.clientX,
+        y: e.clientY,
+      })
     },
-    [sessions, onSelectSession],
+    [sessions, menuTarget, openSessionMenu],
   )
 
   return (
@@ -240,7 +321,7 @@ export function AgendaBoard({
           <h2 className="text-base font-semibold font-[family-name:var(--font-heading)] text-[var(--text)]">
             Schedule &amp; class agenda
           </h2>
-          <p className="text-[11px] text-[var(--muted)] mt-0.5">View-only · click a block for details · empty cell click schedules</p>
+          <p className="text-[11px] text-[var(--muted)] mt-0.5">Click a block to run the class · + New Class to schedule one</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -349,11 +430,10 @@ export function AgendaBoard({
                   i > 0 && 'border-l border-[var(--divider)]',
                   today && 'bg-[var(--gold-soft)]/[0.04]',
                 )}
-                // T8: empty cell click opens the scheduling window (calendar stays view-only).
-                onClick={(e) => {
-                  if ((e.target as HTMLElement).closest('[role="button"]')) return
-                  onNewClass?.(dateKey)
-                }}
+                // No empty-cell click here, by design: scheduling belongs to
+                // the Calendar tab and the + New Class button above is this
+                // board's one way in. The Dashboard runs classes, it does not
+                // place them.
               >
                 {/* Hour grid-lines */}
                 {CALENDAR_HOURS.map((h) => (
@@ -382,7 +462,9 @@ export function AgendaBoard({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault()
-                          onSelectSession(session)
+                          // No pointer to hang off, so the block's own box
+                          // anchors the panel.
+                          openSessionMenu(session, e.currentTarget as HTMLElement)
                         }
                       }}
                       className={cn(
@@ -408,7 +490,7 @@ export function AgendaBoard({
                       {height > 28 && (
                         <div className="flex items-center gap-1 min-w-0">
                           {/* T6: FREE badge on the free session block */}
-                          {isSessionFree(session.id) && (
+                          {isSessionFree(session) && (
                             <span
                               className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-bold bg-[var(--emerald)] text-white shrink-0"
                               title="FREE session — teacher pays (revenue 0, cut 0)"
@@ -443,17 +525,10 @@ export function AgendaBoard({
                           <p className="text-[10px] font-semibold leading-tight truncate flex-1 min-w-0" style={{ color: sessionColor }}>
                             {session.class_name}
                           </p>
-                          {/* T3: single entry point — ☰ on every session row/block */}
-                          <span onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                            <SessionMenu
-                              session={session}
-                              sessions={sessions}
-                              status={getEffectiveStatus(session)}
-                              onStart={onStartSession}
-                              onFinish={onFinishSession}
-                              onChanged={onSessionsChanged}
-                            />
-                          </span>
+                          {/* No ☰ here any more: the block itself opens the
+                              panel (see menuTarget), and two triggers on one
+                              block could raise two panels at once. The ☰ still
+                              lives on the detail panel's header. */}
                         </div>
                       )}
                       {height > 46 && (
@@ -512,7 +587,14 @@ export function AgendaBoard({
                   key={s.id}
                   type="button"
                   onClick={() => {
-                    onSelectSession(s)
+                    // The picked session's menu takes the picker's place: the
+                    // picker answered "which one", the menu answers "what do
+                    // I do with it". The block stays the anchor, so clicking
+                    // that block again still toggles the panel shut.
+                    openSessionMenu(s, overlapPopup.el, {
+                      x: overlapPopup.x,
+                      y: overlapPopup.y,
+                    })
                     setOverlapPopup(null)
                   }}
                   className={cn(
@@ -541,6 +623,29 @@ export function AgendaBoard({
             })}
           </div>
         </div>
+      )}
+
+      {/* ── Block-click menu ──
+          One instance for the whole board: the panel is `fixed`, so it does
+          not belong to the block it was opened from. `onOpenChange` is what
+          clears `menuTarget` — every way the panel can shut (an item, Escape,
+          an outside click, a scroll) reports through it, so the board never
+          keeps rendering a panel nobody can see or close. */}
+      {menuTarget && (
+        <SessionMenu
+          key={menuTarget.session.id}
+          session={menuTarget.session}
+          sessions={sessions}
+          status={getEffectiveStatus(menuTarget.session)}
+          onStart={onStartSession}
+          onFinish={onFinishSession}
+          onChanged={onSessionsChanged}
+          onOpenRegister={onOpenRegister}
+          defaultOpen
+          hideTrigger
+          anchor={{ x: menuTarget.x, y: menuTarget.y, el: menuTarget.el }}
+          onOpenChange={(open) => { if (!open) setMenuTarget(null) }}
+        />
       )}
 
       {/* ── Loading overlay ── */}

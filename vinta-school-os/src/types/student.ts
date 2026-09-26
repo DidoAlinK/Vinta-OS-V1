@@ -48,6 +48,62 @@ export interface BillingCalendarEntry {
   cycle_end: string | null
 }
 
+/**
+ * What a day on the attendance calendar means.
+ *
+ * The server decides this — `student_service._session_state` — so that "did
+ * they pay" has exactly one definition. The UI only paints it:
+ *
+ * - `attended`     green  — present, and a plan covered the day.
+ * - `unpaid`       yellow — present, but nothing covered the day. The signal
+ *                           the desk acts on: they came and were not paid for.
+ * - `absent`       red    — the register says they were not there.
+ * - `upcoming`     grey   — has not happened yet; the register is empty by
+ *                           design, not by neglect.
+ * - `cancelled`    — the group did not meet. Outranks the register.
+ * - `not_enrolled` — a session of a group they had not joined yet.
+ * - `unrecorded`   — it is past and no register was ever taken, so there is no
+ *                    fact about this student to show. Deliberately neither
+ *                    green, red, nor yellow.
+ */
+export type AttendanceDayState =
+  | 'attended'
+  | 'unpaid'
+  | 'absent'
+  | 'upcoming'
+  | 'cancelled'
+  | 'not_enrolled'
+  | 'unrecorded'
+
+/** One session this student is party to, past or future. */
+export interface AttendanceCalendarEntry {
+  /** ISO date of the session. */
+  date: string
+  session_id: string
+  class_id: string
+  class_name: string | null
+  start_time: string | null
+  end_time: string | null
+  session_status: string
+  is_free_session: boolean
+  /** The raw register value, PRESENT / ABSENT, or null when there is no row. */
+  attendance: string | null
+  /** Whether a subscription's window covered this group on this day. */
+  covered: boolean
+  /** False for a session of a group they had not joined yet. */
+  enrolled: boolean
+  state: AttendanceDayState
+}
+
+/** The whole register, spanning every group the student studies in. */
+export interface AttendanceCalendar {
+  /** ISO date. The grid dims days before this — they were not a student yet. */
+  joined_on: string
+  /** ISO date, the server's clock, so the grid agrees with the states. */
+  today: string
+  entries: AttendanceCalendarEntry[]
+}
+
 export interface Student {
   id: string
   academy_id?: string
@@ -90,6 +146,8 @@ export interface Student {
   enrollments?: Enrollment[]
   guardians?: Guardian[]
   billing_calendar?: BillingCalendarEntry[]
+  /** Detail route only. The register across every group, never reset. */
+  attendance_calendar?: AttendanceCalendar
 }
 
 // ============================================

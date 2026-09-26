@@ -55,14 +55,21 @@ def _clean_email(raw):
     """
     Format-check a teacher email. Returns (value, error).
 
+    Email is OPTIONAL: absent, null or empty all mean "no email" and return
+    (None, None) rather than an error, because plenty of teachers here do not
+    have one and the desk must still be able to create their profile. A value
+    that is present but malformed is still an error.
+
     Stored lower-cased/stripped so the DB unique index agrees with the
     case-insensitive uniqueness rule the UI already applies.
     """
+    if raw is None:
+        return None, None
     if not isinstance(raw, str):
-        return None, "email is required"
+        return None, "email must be a valid email address"
     value = raw.strip().lower()
     if not value:
-        return None, "email is required"
+        return None, None
     if len(value) > 254 or not EMAIL_RE.match(value):
         return None, "email must be a valid email address"
     return value, None
@@ -135,7 +142,16 @@ def _resolve_commission(data, current_type):
 
 
 def _email_taken(academy_id, email, exclude_teacher_id=None):
-    """True if another teacher in the academy already uses this email."""
+    """
+    True if another teacher in the academy already uses this email.
+
+    An absent email is never a clash. The column is nullable and the
+    (academy_id, email) unique index treats NULLs as distinct, so any number
+    of teachers may have none — without this guard, `email IS NULL` would
+    match the first teacher who has no email and block every later one.
+    """
+    if not email:
+        return False
     query = Teacher.query.filter_by(academy_id=academy_id, email=email)
     if exclude_teacher_id:
         query = query.filter(Teacher.id != exclude_teacher_id)
@@ -318,10 +334,10 @@ def get_teacher(teacher_id):
 def create_teacher():
     """
     Create a new teacher with default contract_type=hourly, rate=0.
-    Body: { first_name, last_name, email, phone?, subject?, contract_type?,
+    Body: { first_name, last_name, email?, phone?, subject?, contract_type?,
             hourly_rate?, per_student_rate?, commission_type?, commission_value? }
 
-    email is required and unique per academy (409 on a clash).
+    email is optional but unique per academy when given (409 on a clash).
     commission_type/commission_value are owner-only and range-checked.
     """
     from flask import g
@@ -407,7 +423,8 @@ def update_teacher(teacher_id):
             commission_type?, commission_value? }
 
     email keeps the per-academy uniqueness rule but excludes this teacher's
-    own row. status must be ACTIVE or INACTIVE.
+    own row, and may be cleared by sending null or "". status must be ACTIVE
+    or INACTIVE.
     commission_type/commission_value are owner-only (403 otherwise) and
     range-checked.
     """

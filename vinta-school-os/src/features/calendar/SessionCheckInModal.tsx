@@ -26,6 +26,7 @@ import api from '../../lib/api'
 import { toast } from '../../stores/uiStore'
 import { useAuthStore } from '../../stores/authStore'
 import { formatDa } from '../../lib/formatters'
+import { toLocalISO } from '../../lib/sessionTime'
 import {
   getAbsenceConsumesCredit,
   getUnpaidDebt,
@@ -33,7 +34,7 @@ import {
   recordUnpaidDebt,
 } from '../../lib/billingRules'
 import type { Session, SessionStudent, AttendanceStatus } from '../../types/class'
-import { getToggle6 } from '../../lib/billingRules'
+import { isFreeSessionAutoPresent } from '../../lib/billingRules'
 import { isSessionFree } from '../../lib/freeSessions'
 import { getVoidRestoredCredits, isSessionVoided } from '../../lib/voidedSessions'
 import {
@@ -131,8 +132,8 @@ export default function SessionCheckInModal({
   const [debtTick, setDebtTick] = useState(0)
 
   // T6: free-session routing (zero billing) + Toggle 6 (auto-present vs track)
-  const isFree = session ? isSessionFree(session.id) : false
-  const autoPresent = getToggle6(new Date())
+  const isFree = session ? isSessionFree(session) : false
+  const autoPresent = isFreeSessionAutoPresent()
   // T7: voided sessions freeze the grid — rows VOIDED, read-only.
   const isVoided = session ? isSessionVoided(session.id) : false
 
@@ -149,8 +150,8 @@ export default function SessionCheckInModal({
       setRoster(entries)
       // T2 FALSE-UNTIL-TRUE: every row starts ABSENT (red). Flip to PRESENT per row.
       // T6 Toggle 6 ON (default): FREE sessions auto-mark PRESENT, skip tracking.
-      const freeNow = isSessionFree(session.id)
-      const autoNow = getToggle6(new Date())
+      const freeNow = isSessionFree(session)
+      const autoNow = isFreeSessionAutoPresent()
       const init: Record<string, { status: AttendanceStatus; is_group_swap: boolean }> = {}
       entries.forEach(e => {
         const s = (e.attendance_status as AttendanceStatus | undefined)
@@ -449,12 +450,13 @@ export default function SessionCheckInModal({
       const now = new Date(`${session.date}T${session.start_time}:00`)
       const windowStart = new Date(now)
       windowStart.setDate(windowStart.getDate() - 7)
-      const fmtDay = (d: Date) => d.toISOString().split('T')[0]
 
       const sameTeacherIds = new Set(sameTeacherGroups.map((g) => g.id))
       const candidateSessions: Session[] = []
       try {
-        const weekRes = await api.get('/calendar/week', { params: { date: fmtDay(windowStart) } })
+        // Local, not UTC: this asks the server for the week containing the
+        // 7-day absence window, and toISOString() shifts the day boundary.
+        const weekRes = await api.get('/calendar/week', { params: { date: toLocalISO(windowStart) } })
         const sessions: Session[] = weekRes.data.sessions ?? weekRes.data ?? []
         for (const s of sessions ?? []) {
           if (!s || s.id === session.id) continue
@@ -637,13 +639,13 @@ export default function SessionCheckInModal({
     if (!session || !pin.trim() || pin.length !== 4) return
     setIsSubmitting(true)
     // T5 Toggle 1 (effective this week): ABSENT consumes at finalize when ON.
-    const toggle1 = getAbsenceConsumesCredit(new Date())
+    const toggle1 = getAbsenceConsumesCredit()
     void toggle1
     try {
       // T6 FREE: every row routes billing-free (add-to-session) — revenue 0,
       // cut 0 for ALL commission types, no credit decrement. Toggle 6 ON skips
       // tracking (rows pre-marked PRESENT); OFF tracks normally for records.
-      const freeNow = isSessionFree(session.id)
+      const freeNow = isSessionFree(session)
       // T4: SUPPRESSED swap rows skip /check-in (no billing side effects) so the
       // visit costs 1 credit TOTAL — the original ABSENT already consumed it.
       // Linked absences NEVER create makeup tokens: we never upsert the original
@@ -671,7 +673,7 @@ export default function SessionCheckInModal({
       // ledger). Front-desk CAN check-in — debt is real, settled on Record Payment.
       // ABSENT rows also land here only when Toggle 1 is OFF (no credit to consume);
       // when ON the backend consumed the seat credit at check-in.
-      const freeDone = isSessionFree(session.id)
+      const freeDone = isSessionFree(session)
       if (freeDone) {
         // FREE: no debt, no consumption — teacher pays.
         setStep('done')
@@ -809,7 +811,7 @@ export default function SessionCheckInModal({
                   {isFree ? '0 Da (FREE)' : groupPrice != null ? formatDa(groupPrice) : 'Price Not set'}
                 </span>
                 <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-[var(--input-bg)] border border-[var(--glass-border)] text-[var(--muted)]">
-                  {isFree ? 'credits frozen' : <>ABSENT {getAbsenceConsumesCredit(new Date()) ? 'consumes 1' : 'free'} (Toggle 1)</>}
+                  {isFree ? 'credits frozen' : <>ABSENT {getAbsenceConsumesCredit() ? 'consumes 1' : 'free'} (Toggle 1)</>}
                 </span>
                 {creditError && (
                   <button

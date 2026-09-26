@@ -13,7 +13,8 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
-import { toast } from '../../stores/uiStore'
+import { toast, useUIStore } from '../../stores/uiStore'
+import { PinConfirmDialog } from '../../components/ui/PinConfirmDialog'
 import { getTeacherEmail } from '../../lib/teacherEmails'
 import TeacherTable from './TeacherTable'
 import TeacherDrawer from './TeacherDrawer'
@@ -32,6 +33,21 @@ export default function TeachersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  /** The teacher whose Delete was pressed — the PIN dialog is gated on them. */
+  const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null)
+
+  /* ── Arriving from the global search ──
+     Cleared synchronously so a React double-invoke in development cannot open
+     the same drawer twice. */
+  const focusTarget = useUIStore((s) => s.focusTarget)
+  const clearFocusTarget = useUIStore((s) => s.clearFocusTarget)
+
+  useEffect(() => {
+    if (focusTarget?.kind !== 'teacher') return
+    clearFocusTarget()
+    setSelectedTeacher(focusTarget.teacher)
+    setIsDrawerOpen(true)
+  }, [focusTarget, clearFocusTarget])
 
   /* ── Derived stats (contract split removed with the hourly model) ── */
   const stats = {
@@ -72,16 +88,33 @@ export default function TeachersPage() {
     setTimeout(() => setSelectedTeacher(null), 200)
   }, [])
 
-  const handleDeleteTeacher = useCallback(async (id: string) => {
+  /**
+   * Step one: the drawer's Delete asks for confirmation rather than deleting.
+   *
+   * The id is resolved against the loaded roster so the dialog can name the
+   * person it is about to remove — a confirmation that cannot say who it means
+   * is one the desk will click through.
+   */
+  const handleDeleteTeacher = useCallback((id: string) => {
+    const target = teachers.find((t) => t.id === id) ?? null
+    if (target) setTeacherToDelete(target)
+  }, [teachers])
+
+  /** Step two: runs only after the PIN is accepted. */
+  const confirmDeleteTeacher = useCallback(async () => {
+    const target = teacherToDelete
+    if (!target) return
     try {
-      await api.delete(`/teachers/${id}`)
-      setTeachers((prev) => prev.filter((t) => t.id !== id))
-      handleCloseDrawer()
-      toast.success('Teacher deleted successfully')
-    } catch {
-      toast.error('Failed to delete teacher', 'Please try again.')
+      await api.delete(`/teachers/${target.id}`)
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? 'Please try again.'
+      toast.error('Failed to delete teacher', msg)
+      throw new Error(msg)
     }
-  }, [handleCloseDrawer])
+    setTeachers((prev) => prev.filter((t) => t.id !== target.id))
+    handleCloseDrawer()
+    toast.success('Teacher deleted successfully')
+  }, [teacherToDelete, handleCloseDrawer])
 
   /* ── Filtered list ── */
   const filteredTeachers = search
@@ -197,6 +230,24 @@ export default function TeachersPage() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onAdded={fetchTeachers}
+      />
+
+      {/* ── Delete confirmation (PIN-gated) ────────── */}
+      <PinConfirmDialog
+        open={!!teacherToDelete}
+        onClose={() => setTeacherToDelete(null)}
+        title="Delete this teacher?"
+        confirmLabel="Delete teacher"
+        message={
+          teacherToDelete ? (
+            <>
+              <strong className="font-semibold">{teacherToDelete.full_name}</strong> will be
+              removed from the roster. Their published classes and past sessions keep their
+              history — reassign the groups that still need a teacher.
+            </>
+          ) : null
+        }
+        onConfirm={confirmDeleteTeacher}
       />
     </div>
   )

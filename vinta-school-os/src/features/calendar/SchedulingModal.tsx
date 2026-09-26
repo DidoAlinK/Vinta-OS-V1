@@ -20,6 +20,7 @@ import { X, Repeat, Clock3, RefreshCw } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { toast } from '../../stores/uiStore'
+import { toLocalISO } from '../../lib/sessionTime'
 import type { Session } from '../../types/class'
 import {
   createScheduleDef,
@@ -31,6 +32,9 @@ import {
   type ScheduleEndKind,
   type TempReason,
 } from '../../lib/scheduleDefs'
+import { Select } from '../../components/ui/Select'
+import { DayPicker } from '../../components/ui/DayPicker'
+import { TimePicker } from '../../components/ui/TimePicker'
 
 // ============================================
 // Props
@@ -88,7 +92,10 @@ const primaryBtnCls = cn(
 )
 
 function todayISO(): string {
-  return new Date().toISOString().split('T')[0]
+  // Local, not UTC: toISOString() names yesterday's date for the first hour of
+  // every day in Algeria (UTC+1), so a class created "today" was filed under
+  // yesterday.
+  return toLocalISO(new Date())
 }
 
 function errMsg(err: any, fallback: string): string {
@@ -388,10 +395,16 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
             <div className="space-y-3">
               <div>
                 <label className={labelCls}>Group</label>
-                <select value={wGroup} onChange={(e) => setWGroup(e.target.value)} disabled={wSaving} className={inputCls}>
-                  <option value="">Select group…</option>
-                  {groups.map((g) => <option key={g.id} value={g.id}>{g.name}{g.subject ? ` (${g.subject})` : ''}</option>)}
-                </select>
+                <Select
+                  value={wGroup}
+                  onChange={setWGroup}
+                  options={[
+                    { value: '', label: 'Select group…' },
+                    ...groups.map((g) => ({ value: g.id, label: `${g.name}${g.subject ? ` (${g.subject})` : ''}` })),
+                  ]}
+                  disabled={wSaving}
+                  className={cn(inputCls, 'h-auto')}
+                />
               </div>
               <div>
                 <label className={labelCls}>Teacher (auto)</label>
@@ -400,30 +413,40 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className={labelCls}>Day</label>
-                  <select value={wDay} onChange={(e) => setWDay(Number(e.target.value))} disabled={wSaving} className={inputCls}>
-                    {DAY_OPTIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                  </select>
+                  <Select
+                    value={String(wDay)}
+                    onChange={(v) => setWDay(Number(v))}
+                    options={DAY_OPTIONS.map((d) => ({ value: String(d.value), label: d.label }))}
+                    disabled={wSaving}
+                    className={cn(inputCls, 'h-auto')}
+                  />
                 </div>
                 <div>
                   <label className={labelCls}>Start</label>
-                  <input type="time" value={wStart} onChange={(e) => setWStart(e.target.value)} disabled={wSaving} className={inputCls} />
+                  <TimePicker value={wStart} onChange={setWStart} disabled={wSaving} className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>End</label>
-                  <input type="time" value={wEnd} onChange={(e) => setWEnd(e.target.value)} disabled={wSaving} className={inputCls} />
+                  <TimePicker value={wEnd} onChange={setWEnd} disabled={wSaving} className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Room</label>
-                  <select value={wRoom} onChange={(e) => setWRoom(e.target.value)} disabled={wSaving} className={inputCls}>
-                    <option value="">— No room —</option>
-                    {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </select>
+                  <Select
+                    value={wRoom}
+                    onChange={setWRoom}
+                    options={[
+                      { value: '', label: '— No room —' },
+                      ...rooms.map((r) => ({ value: r.id, label: r.name })),
+                    ]}
+                    disabled={wSaving}
+                    className={cn(inputCls, 'h-auto')}
+                  />
                 </div>
                 <div>
                   <label className={labelCls}>Starts from</label>
-                  <input type="date" value={wFrom} onChange={(e) => setWFrom(e.target.value)} disabled={wSaving} className={inputCls} />
+                  <DayPicker value={wFrom} onChange={setWFrom} disabled={wSaving} className={inputCls} />
                 </div>
               </div>
               <div>
@@ -449,7 +472,7 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
                   <input type="number" value={wEndN} onChange={(e) => setWEndN(Math.min(52, Math.max(1, Math.round(Number(e.target.value) || 8))))} min={1} max={52} disabled={wSaving} className={inputCls} />
                 )}
                 {wEndKind === 'on_date' && (
-                  <input type="date" value={wEndDate} onChange={(e) => setWEndDate(e.target.value)} disabled={wSaving} className={inputCls} />
+                  <DayPicker value={wEndDate} onChange={setWEndDate} disabled={wSaving} className={inputCls} />
                 )}
               </div>
               <p className="text-[11px] text-[var(--muted)]">
@@ -475,45 +498,67 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
             <div className="space-y-3">
               <div>
                 <label className={labelCls}>Link to Group (optional, billing only)</label>
-                <select value={tGroup} onChange={(e) => { setTGroup(e.target.value); setTError(null) }} disabled={tSaving} className={inputCls}>
-                  <option value="">— No group —</option>
-                  {groups.map((g) => <option key={g.id} value={g.id}>{g.name}{g.subject ? ` (${g.subject})` : ''}</option>)}
-                </select>
+                <Select
+                  value={tGroup}
+                  onChange={(v) => { setTGroup(v); setTError(null) }}
+                  options={[
+                    { value: '', label: '— No group —' },
+                    ...groups.map((g) => ({ value: g.id, label: `${g.name}${g.subject ? ` (${g.subject})` : ''}` })),
+                  ]}
+                  disabled={tSaving}
+                  className={cn(inputCls, 'h-auto')}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Teacher</label>
-                  <select value={tTeacher} onChange={(e) => setTTeacher(e.target.value)} disabled={tSaving} className={inputCls}>
-                    <option value="">Select…</option>
-                    {teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+                  <Select
+                    value={tTeacher}
+                    onChange={setTTeacher}
+                    options={[
+                      { value: '', label: 'Select…' },
+                      ...teachers.map((t) => ({ value: t.id, label: t.name })),
+                    ]}
+                    disabled={tSaving}
+                    className={cn(inputCls, 'h-auto')}
+                  />
                 </div>
                 <div>
                   <label className={labelCls}>Reason</label>
-                  <select value={tReason} onChange={(e) => setTReason(e.target.value as TempReason)} disabled={tSaving} className={inputCls}>
-                    {TEMP_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                  <Select
+                    value={tReason}
+                    onChange={(v) => setTReason(v as TempReason)}
+                    options={TEMP_REASONS.map((r) => ({ value: r, label: r }))}
+                    disabled={tSaving}
+                    className={cn(inputCls, 'h-auto')}
+                  />
                 </div>
               </div>
               <div>
                 <label className={labelCls}>Date</label>
-                <input type="date" value={tDate} onChange={(e) => setTDate(e.target.value)} disabled={tSaving} className={inputCls} />
+                <DayPicker value={tDate} onChange={setTDate} disabled={tSaving} className={inputCls} />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className={labelCls}>Start</label>
-                  <input type="time" value={tStart} onChange={(e) => setTStart(e.target.value)} disabled={tSaving} className={inputCls} />
+                  <TimePicker value={tStart} onChange={setTStart} disabled={tSaving} className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>End</label>
-                  <input type="time" value={tEnd} onChange={(e) => setTEnd(e.target.value)} disabled={tSaving} className={inputCls} />
+                  <TimePicker value={tEnd} onChange={setTEnd} disabled={tSaving} className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Room</label>
-                  <select value={tRoom} onChange={(e) => setTRoom(e.target.value)} disabled={tSaving} className={inputCls}>
-                    <option value="">—</option>
-                    {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </select>
+                  <Select
+                    value={tRoom}
+                    onChange={setTRoom}
+                    options={[
+                      { value: '', label: '—' },
+                      ...rooms.map((r) => ({ value: r.id, label: r.name })),
+                    ]}
+                    disabled={tSaving}
+                    className={cn(inputCls, 'h-auto')}
+                  />
                 </div>
               </div>
               <p className="text-[11px] text-[var(--muted)]">🕐 Creates exactly 1 session — never a series.</p>

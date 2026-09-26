@@ -1,131 +1,85 @@
 /**
- * Vinta School OS — T6 Free Session registry (frontend-only)
- * Backend frozen: no isFreeSession / pendingFreeSession columns exist.
+ * Vinta School OS — free sessions, as the server records them
  *
- * - Hamburger "Mark NEXT as Free" stages a per-group pending flag
- *   (sessionLifecycle.markNextFree, with afterDate/afterTime ctx).
- * - consumePendingFree() assigns the flag to the chronologically-NEXT
- *   non-terminal session of that group (regular Sunday generation OR ad-hoc
- *   Monday extra — both appear as sessions), marks it free, auto-clears pending.
- * - A free session: revenue=0, teacherCut=0 (all commission types),
- *   no credit decrement. Enforced by routing its check-ins through the
- *   billing-free add-to-session path (SessionCheckInModal) — backend finalize
- *   then naturally computes 0/0/0 with no RevenueEntry rows.
+ * A free session is one nobody is charged for: the teacher pays, no credit
+ * leaves the student's plan, and no revenue is written. That is a fact
+ * about a session row, and it lives in `sessions.is_free_session` — the
+ * column the register's start-up path, the billing service and the
+ * finalise step all already read.
+ *
+ * It used to live in localStorage instead. The hamburger staged a per-group
+ * "the next one is free" mark, and a sweep adopted it onto whichever
+ * session turned out to be next. The server never saw any of it, which
+ * meant the one thing the flag exists to do — stop a credit being spent —
+ * did not happen, and two browsers could disagree about whether a session
+ * was free. A mark that only exists in the tab that made it is not a
+ * decision the academy can rely on.
+ *
+ * There is one answer now, and it is read off the session being rendered.
  */
 
+import api from './api'
 import type { Session } from '../types/class'
-import {
-  getFreeMark,
-  normalizeBackendStatus,
-  unmarkNextFree,
-} from './sessionLifecycle'
 
-export interface FreeSessionRecord {
-  sessionId: string
-  classId: string
-  markedAt: string
-  consumedAt: string
-}
-
-const FREE_SESSIONS_KEY = 'vinta:free-sessions:v1'
-
-function loadFreeSessions(): Record<string, FreeSessionRecord> {
-  try {
-    const raw = localStorage.getItem(FREE_SESSIONS_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveFreeSessions(map: Record<string, FreeSessionRecord>): void {
-  try {
-    localStorage.setItem(FREE_SESSIONS_KEY, JSON.stringify(map))
-  } catch {
-    // Storage blocked — designation still applies for this tab read cycle
-  }
-}
-
-/** True when THIS session instance was designated free (teacher pays). */
-export function isSessionFree(sessionId: string): boolean {
-  if (!sessionId) return false
-  return Boolean(loadFreeSessions()[sessionId])
-}
-
-/** Designate a session instance as free. Idempotent per session. */
-export function markSessionFree(sessionId: string, classId: string): FreeSessionRecord {
-  const all = loadFreeSessions()
-  const existing = all[sessionId]
-  if (existing) return existing
-  const now = new Date().toISOString()
-  const rec: FreeSessionRecord = { sessionId, classId, markedAt: now, consumedAt: now }
-  all[sessionId] = rec
-  saveFreeSessions(all)
-  return rec
-}
-
-/** Clear a free designation (undo / correction). */
-export function unmarkSessionFree(sessionId: string): void {
-  if (!sessionId) return
-  const all = loadFreeSessions()
-  delete all[sessionId]
-  saveFreeSessions(all)
-}
-
-function isTerminal(session: Session): boolean {
-  const st = normalizeBackendStatus(session?.status)
-  return st === 'completed' || st === 'cancelled'
+/**
+ * Is this session free?
+ *
+ * Takes the session rather than its id on purpose: the answer is a field on
+ * the row, so a caller holding only an id has nothing to answer with — and
+ * that is exactly how the localStorage version came to exist.
+ */
+export function isSessionFree(session: Session | null | undefined): boolean {
+  return Boolean(session?.is_free_session)
 }
 
 /**
- * Assign pending NEXT-free flags to the chronologically-next non-terminal
- * session of each flagged group. Call after every sessions fetch.
- * Returns assignments (for toasts). Pending clears on assignment.
+ * Write the flag. The only way it changes.
+ *
+ * `is_free_session` is one of the few fields a scheduled session may be
+ * PATCHed with, and the server refuses it on a finished or cancelled row —
+ * which is the right answer: there is no billing left to suppress.
  */
-export function consumePendingFree(sessions: Session[]): Array<{ record: FreeSessionRecord; session: Session }> {
-  if (!Array.isArray(sessions) || sessions.length === 0) return []
-  const assigned: Array<{ record: FreeSessionRecord; session: Session }> = []
-
-  const byClass = new Map<string, Session[]>()
-  for (const s of sessions) {
-    if (!s || !s.class_id) continue
-    const list = byClass.get(s.class_id) ?? []
-    list.push(s)
-    byClass.set(s.class_id, list)
-  }
-
-  for (const [classId, list] of byClass) {
-    const mark = getFreeMark(classId)
-    if (!mark) continue
-
-    const afterDate = mark.afterDate ?? mark.markedAt.slice(0, 10)
-    const threshold =
-      mark.afterTime ??
-      (mark.markedAt.length >= 16 ? mark.markedAt.slice(11, 16) : '')
-
-    const cands = list
-      .filter((s) => {
-        if (!s.id || s.id === mark.markedSessionId) return false
-        if (isSessionFree(s.id)) return false
-        if (isTerminal(s)) return false
-        if (s.date > afterDate) return true
-        if (s.date === afterDate && threshold !== '' && (s.start_time ?? '') > threshold) return true
-        return false
-      })
-      .sort((a, b) =>
-        a.date === b.date
-          ? (a.start_time ?? '').localeCompare(b.start_time ?? '')
-          : a.date.localeCompare(b.date),
-      )
-
-    if (cands.length === 0) continue // stays pending until the NEXT session exists
-    const next = cands[0]
-    const record = markSessionFree(next.id, classId)
-    unmarkNextFree(classId)
-    assigned.push({ record, session: next })
-  }
-
-  return assigned
+export async function setSessionFree(sessionId: string, isFree: boolean): Promise<void> {
+  await api.patch(`/sessions/${sessionId}`, { is_free_session: isFree })
 }
+
+/**
+ * The group's next session after `session` — the row a "next time free" mark
+ * belongs on.
+ *
+ * Asked of the server rather than read off the loaded week, because the next
+ * session of a group is usually *not* in the week on screen: the weekly grid
+ * shows seven days, and a group that meets on Mondays has no next session
+ * anywhere in a Thursday view. Searching the loaded list would have answered
+ * "there is none" for almost every session the desk opens.
+ *
+ * Rows that are already finished or cancelled are excluded before the choice
+ * is made, not after: "after" has to mean the next session that can still be
+ * billed, and a cancelled occurrence is not a candidate just because it sorts
+ * first.
+ *
+ * Returns null when the group has nothing left scheduled — an honest answer,
+ * and one the caller has to say out loud rather than silently mark this
+ * session instead.
+ */
+export async function findNextSession(session: Session | null | undefined): Promise<Session | null> {
+  if (!session?.class_id) return null
+  const { data } = await api.get('/sessions', {
+    params: {
+      class_id: session.class_id,
+      from: session.date,
+      status: 'scheduled',
+      limit: 50,
+    },
+  })
+  const list: Session[] = data?.sessions ?? []
+  const thisStart = session.start_time ?? ''
+  return (
+    list
+      .filter((s) => s.id !== session.id)
+      .filter((s) => s.date > session.date || (s.date === session.date && (s.start_time ?? '') > thisStart))
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.start_time ?? '').localeCompare(b.start_time ?? ''))[0] ?? null
+  )
+}
+
+export default isSessionFree

@@ -27,7 +27,12 @@ import {
   getInitials,
 } from '../../lib/formatters'
 import { getTeacherEmail } from '../../lib/teacherEmails'
-import { formatDa } from '../../lib/formatters'
+import { formatDa, formatDuration } from '../../lib/formatters'
+import { classStateOf } from '../../lib/classState'
+import { DayPicker } from '../../components/ui/DayPicker'
+import { Select } from '../../components/ui/Select'
+import { TimePicker } from '../../components/ui/TimePicker'
+import { PinConfirmDialog } from '../../components/ui/PinConfirmDialog'
 import type { Class, BillingModel, Schedule } from '../../types/class'
 
 // ============================================
@@ -91,6 +96,25 @@ function resolveColor(cls: Class): string {
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number)
   return h * 60 + m
+}
+
+/** The server may send "HH:MM:SS"; the time inputs and the picker want "HH:MM". */
+function hhmm(time: string | undefined): string {
+  return (time ?? '').slice(0, 5)
+}
+
+/**
+ * The next date that falls on `dow` (0=Sun…6=Sat), as YYYY-MM-DD.
+ *
+ * The edit panel collects a day as a date, the way the Add form does, because
+ * DayPicker picks dates. Seeding it from an existing schedule means picking a
+ * date whose weekday matches — any date works, the weekday is all that is read.
+ */
+function nextDateForDow(dow: number): string {
+  const today = new Date()
+  const delta = (dow - today.getDay() + 7) % 7
+  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + delta)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 /**
@@ -272,6 +296,8 @@ function getScheduleBounds(
 export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated }: ClassDetailProps) {
   // ── Edit state ──
   const [isEditing, setIsEditing] = useState(false)
+  /** The delete button arms this; only an accepted PIN reaches handleDelete. */
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [editName, setEditName] = useState('')
   const [editSubject, setEditSubject] = useState('')
   const [editColor, setEditColor] = useState('')
@@ -284,7 +310,14 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
   const [editGroupName, setEditGroupName] = useState('')
   const [editAcademicLevel, setEditAcademicLevel] = useState('')
   const [editClassType, setEditClassType] = useState<'weekly' | 'temporary'>('weekly')
-  const [editDedicatedTime, setEditDedicatedTime] = useState('')
+  // The group's real time, as two times on a clock plus the day it meets —
+  // the same three values the Add form collects. These replace a free-text
+  // "Dedicated Time" box that wrote a sentence (`Mon/Wed 10:00-12:00`) into
+  // `classes.dedicated_time`, a column nothing schedules from. The desk typed
+  // a time, the group looked configured, and the calendar stayed empty.
+  const [editDay, setEditDay] = useState('')
+  const [editStartTime, setEditStartTime] = useState('')
+  const [editEndTime, setEditEndTime] = useState('')
   const [saving, setSaving] = useState(false)
 
   // ── Teachers ──
@@ -301,6 +334,29 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
   const [studentSearch, setStudentSearch] = useState('')
   const [enrolling, setEnrolling] = useState(false)
 
+  // ── The group's slots ──
+  // `GET /classes` does not send `schedules` (only `GET /classes/<id>` does),
+  // and this drawer is handed a row straight off the list. So the panel would
+  // open with the time fields blank and no way to tell whether Save would add
+  // a slot or repeat one that already exists — and repeating one is how this
+  // academy's Group A ended up with three identical slots. Fetch them.
+  const [schedules, setSchedules] = useState<Schedule[]>([])
+
+  /**
+   * Seed the three time fields from the group's first slot.
+   *
+   * Only the first: a group can hold several, but this panel edits one (the
+   * Add form creates one) and rewriting all of them from a single set of
+   * inputs would silently delete the others. The full list stays visible in
+   * the Weekly Schedule block below.
+   */
+  const seedEditTimes = useCallback((list: Schedule[]) => {
+    const first = list[0]
+    setEditDay(first ? nextDateForDow(first.day_of_week) : '')
+    setEditStartTime(hhmm(first?.start_time))
+    setEditEndTime(hhmm(first?.end_time))
+  }, [])
+
   // Sync edit state when class changes
   useEffect(() => {
     if (cls) {
@@ -316,10 +372,48 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
       setEditGroupName(cls.group_name || '')
       setEditAcademicLevel(cls.academic_level || '')
       setEditClassType(cls.class_type || 'weekly')
-      setEditDedicatedTime(cls.dedicated_time || '')
     }
     setIsEditing(false)
   }, [cls?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load the slots. Embedded first, since a detail fetch has already paid for
+  // them; otherwise the per-class endpoint, as ScheduleSlotsBlock does.
+  const reloadSchedules = useCallback(async () => {
+    if (!cls?.id) return
+    try {
+      const { data } = await api.get(`/classes/${cls.id}/schedules`)
+      setSchedules((data.schedules ?? data ?? []) as Schedule[])
+    } catch {
+      // Keep whatever we had. A failed refresh must not empty the panel and
+      // re-open the duplicate guard it exists to close.
+    }
+  }, [cls?.id])
+
+  useEffect(() => {
+    if (!cls?.id) {
+      setSchedules([])
+      return
+    }
+    const embedded = cls.schedules ?? []
+    if (embedded.length > 0) {
+      setSchedules(embedded)
+      return
+    }
+    let cancelled = false
+    api.get(`/classes/${cls.id}/schedules`)
+      .then(({ data }) => {
+        if (cancelled) return
+        setSchedules((data.schedules ?? data ?? []) as Schedule[])
+      })
+      .catch(() => { if (!cancelled) setSchedules([]) })
+    return () => { cancelled = true }
+  }, [cls?.id, cls?.schedules])
+
+  // Reflect the loaded slots into the three time fields — on open, and again
+  // after a Save that added one.
+  useEffect(() => {
+    seedEditTimes(schedules)
+  }, [schedules, seedEditTimes])
 
   const color = cls ? resolveColor(cls) : '#75726a'
 
@@ -427,9 +521,9 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
     setEditGroupName(cls.group_name || '')
     setEditAcademicLevel(cls.academic_level || '')
     setEditClassType(cls.class_type || 'weekly')
-    setEditDedicatedTime(cls.dedicated_time || '')
+    seedEditTimes(schedules)
     setIsEditing(true)
-  }, [cls])
+  }, [cls, schedules, seedEditTimes])
 
   const handleCancelEdit = useCallback(() => {
     setIsEditing(false)
@@ -446,12 +540,31 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
       setEditGroupName(cls.group_name || '')
       setEditAcademicLevel(cls.academic_level || '')
       setEditClassType(cls.class_type || 'weekly')
-      setEditDedicatedTime(cls.dedicated_time || '')
+      seedEditTimes(schedules)
     }
-  }, [cls])
+  }, [cls, schedules, seedEditTimes])
 
   const handleSaveEdit = useCallback(async () => {
     if (!cls || !editName.trim()) return
+    // Check the times before the PUT, not after: the group save and the slot
+    // save are two requests, and refusing here means a bad time can never
+    // leave the group half-saved with its name changed and its time missing.
+    const wantsWeeklySlot = editClassType === 'weekly'
+    if (wantsWeeklySlot && (editStartTime || editEndTime)) {
+      if (!editStartTime || !editEndTime) {
+        toast.error('Check the times', 'A slot needs both a Start At and an End At.')
+        return
+      }
+      if (editEndTime <= editStartTime) {
+        toast.error('Check the times', 'End At must be after Start At.')
+        return
+      }
+      if (!editDay) {
+        toast.error('Pick the day', 'Pick the weekday this group meets.')
+        return
+      }
+    }
+
     setSaving(true)
     try {
       await api.put(`/classes/${cls.id}`, {
@@ -461,14 +574,64 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
         capacity: editCapacity,
         teacher_id: editTeacherId || null,
         notes: editNotes.trim() || null,
-        price_da: editPriceDa || null,
+        // Never null. The column is NOT NULL with a default of 0, so sending
+        // null here answered 500 — and `editPriceDa || null` sent null for a
+        // price of 0, which is exactly the group the Add form creates when the
+        // Price box is left empty. The edit panel could not be saved at all on
+        // such a group: the name, the capacity, the time, none of it.
+        price_da: Number.isFinite(editPriceDa) ? Math.max(0, Math.round(editPriceDa)) : 0,
         billing_model: editBillingModel,
         credits_per_cycle: editBillingModel === 'CREDIT_BASED' ? editCreditsPerCycle : undefined,
         group_name: editGroupName.trim() || undefined,
         academic_level: editAcademicLevel.trim() || undefined,
         class_type: editClassType,
-        dedicated_time: editDedicatedTime.trim() || null,
+        // `dedicated_time` is deliberately not sent. It is a prose column
+        // nothing schedules from, and sending it is what made this panel look
+        // like it set the group's time. Omitting the key leaves whatever an
+        // older row already has untouched — the server only writes keys that
+        // are present.
       })
+
+      // Then the slot, and only when it is actually new. Every slot here
+      // becomes a series of sessions, so a blind re-post is not harmless: an
+      // exact duplicate is refused with 409, but a start time nudged by a
+      // minute is accepted and quietly doubles the group's calendar. Comparing
+      // against the loaded slots first is the whole guard.
+      if (wantsWeeklySlot && editStartTime && editEndTime && editDay) {
+        const dow = new Date(`${editDay}T12:00:00`).getDay()
+        const alreadyThere = schedules.some(
+          (s) =>
+            s.day_of_week === dow &&
+            hhmm(s.start_time) === editStartTime &&
+            hhmm(s.end_time) === editEndTime,
+        )
+        if (!alreadyThere) {
+          try {
+            await api.post(`/classes/${cls.id}/schedules`, {
+              day_of_week: dow,
+              start_time: editStartTime,
+              end_time: editEndTime,
+            })
+            // Pull the list back so a second Save sees the slot it just added
+            // instead of posting it again.
+            await reloadSchedules()
+          } catch (err) {
+            const res = (err as { response?: { status?: number; data?: { error?: string } } })?.response
+            if (res?.status !== 409) {
+              // The server's own sentence, when it has one, says why — "Assign
+              // a teacher to Group B first" is actionable where "the time was
+              // not saved" is not.
+              toast.error(
+                'Time not saved',
+                res?.data?.error ?? 'The group was saved, but its time was not.',
+              )
+            } else {
+              await reloadSchedules()
+            }
+          }
+        }
+      }
+
       toast.success('Class updated', 'Changes have been saved.')
       setIsEditing(false)
       onUpdated?.()
@@ -477,13 +640,30 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
     } finally {
       setSaving(false)
     }
-  }, [cls, editName, editSubject, editColor, editCapacity, editTeacherId, editNotes, editPriceDa, editBillingModel, editCreditsPerCycle, editGroupName, editAcademicLevel, editClassType, editDedicatedTime, onUpdated])
+  }, [cls, schedules, reloadSchedules, editName, editSubject, editColor, editCapacity, editTeacherId, editNotes, editPriceDa, editBillingModel, editCreditsPerCycle, editGroupName, editAcademicLevel, editClassType, editDay, editStartTime, editEndTime, onUpdated])
 
+  /**
+   * Delete, behind a PIN.
+   *
+   * Two things changed here. The button no longer deletes on the first click —
+   * it opens the confirm, and only an accepted PIN reaches this function. And
+   * the group is no longer dropped from the list when the request FAILS: the
+   * old handler swallowed the error and removed the row anyway, closing the
+   * panel on a group that was still alive on the server, so the desk saw it
+   * vanish and come back on the next refetch. A failed delete now says so, and
+   * leaves the row where it is.
+   */
   const handleDelete = useCallback(async () => {
     if (!cls) return
     try {
       await api.delete(`/classes/${cls.id}`)
-    } catch { /* proceed with local removal regardless */ }
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.error ??
+        'The group was not deleted. Press Retry.'
+      toast.error('Delete failed', msg)
+      throw new Error(msg)
+    }
     onDelete?.(cls.id)
     onClose()
   }, [cls, onDelete, onClose])
@@ -625,7 +805,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     Edit
                   </button>
                   <button
-                    onClick={handleDelete}
+                    onClick={() => setConfirmDelete(true)}
                     className={cn(
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium',
                       'text-[var(--red)] hover:bg-[var(--red-soft)]',
@@ -684,36 +864,34 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Subject</label>
-                    <select
+                    <Select
                       value={editSubject}
-                      onChange={(e) => setEditSubject(e.target.value)}
+                      onChange={setEditSubject}
+                      options={SUBJECT_OPTIONS.map(s => ({ value: s, label: s }))}
                       className={cn(
                         'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
                         'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                         'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
+                        'h-auto',
                       )}
-                    >
-                      {SUBJECT_OPTIONS.map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Teacher</label>
-                    <select
+                    <Select
                       value={editTeacherId}
-                      onChange={(e) => setEditTeacherId(e.target.value)}
+                      onChange={setEditTeacherId}
+                      options={[
+                        { value: '', label: 'None' },
+                        ...teachers.map(t => ({ value: t.id, label: t.name })),
+                      ]}
                       className={cn(
                         'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
                         'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                         'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
+                        'h-auto',
                       )}
-                    >
-                      <option value="">None</option>
-                      {teachers.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -797,20 +975,70 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     ))}
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Dedicated Time</label>
-                  <input
-                    type="text"
-                    value={editDedicatedTime}
-                    onChange={(e) => setEditDedicatedTime(e.target.value)}
-                    placeholder="e.g. Mon/Wed 10:00-12:00"
-                    className={cn(
-                      'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
-                      'bg-[var(--input-bg)] border border-[var(--glass-border)]',
-                      'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
-                    )}
-                  />
-                </div>
+                {/* The group's time, as a day and two clock times — the same
+                    three values the Add form asks for, and the same shape
+                    `POST /classes/:id/schedules` takes. This replaced a
+                    "Dedicated Time" text box that stored a sentence on the
+                    group and produced no sessions at all. */}
+                {editClassType === 'weekly' ? (
+                  <div>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Meets On</label>
+                    <DayPicker
+                      value={editDay}
+                      onChange={setEditDay}
+                      placeholder="Pick the weekly day…"
+                      /* Carries this form's own field geometry. Without it the
+                         picker falls back to its `md` default (`rounded-xl`)
+                         and sits above two `rounded-lg` time fields — and above
+                         the nine other `rounded-lg` inputs in this same form.
+                         The date field was the odd one out, not the times. */
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
+                        'bg-[var(--input-bg)] border border-[var(--glass-border)]',
+                        'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <div>
+                        <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Start At</label>
+                        <TimePicker
+                          value={editStartTime}
+                          onChange={setEditStartTime}
+                          className={cn(
+                            'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
+                            'bg-[var(--input-bg)] border border-[var(--glass-border)]',
+                            'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
+                          )}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-[var(--muted)] mb-1 block">End At</label>
+                        <TimePicker
+                          value={editEndTime}
+                          onChange={setEditEndTime}
+                          className={cn(
+                            'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
+                            'bg-[var(--input-bg)] border border-[var(--glass-border)]',
+                            'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
+                          )}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
+                      {editStartTime && editEndTime && editEndTime > editStartTime
+                        ? `A ${formatDuration(editStartTime, editEndTime)} session, repeating weekly.`
+                        : 'Saving a new time adds a slot and generates its sessions.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Time</label>
+                    <p className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                      A temporary group has no weekly time — its date and hours live on the
+                      one-off session itself, and are edited from that session.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Billing Model</label>
                   <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)]">
@@ -896,7 +1124,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     {cls.name}
                   </h1>
 
-                  {cls.status === 'full' && (
+                  {classStateOf(cls) === 'full' && (
                     <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-[var(--red-soft)] text-[var(--red)]">
                       Full
                     </span>
@@ -936,8 +1164,18 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     </span>
                   )}
                 </div>
+                {/* `classes.dedicated_time` is prose from before slots existed:
+                    it never scheduled anything, and groups made since have none.
+                    Shown as the note it is, never as the group's time — the real
+                    times are the Weekly Schedule below, and the two were easy to
+                    mistake for each other. */}
                 {cls.dedicated_time && (
-                  <p className="text-xs text-[var(--muted)] mt-1">{cls.dedicated_time}</p>
+                  <p
+                    className="text-xs text-[var(--muted)] mt-1"
+                    title="A note stored on this group. It does not create sessions — see Weekly Schedule."
+                  >
+                    Note: {cls.dedicated_time}
+                  </p>
                 )}
                 {cls.notes && (
                   <p className="text-xs text-[var(--muted)] mt-2">{cls.notes}</p>
@@ -1292,6 +1530,24 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
           </div>
         </div>
       )}
+
+      {/* The gate. Portalled by Modal, so its position here is only about
+          ownership — it belongs to the panel whose group it deletes. */}
+      <PinConfirmDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="Delete this group?"
+        confirmLabel="Delete group"
+        message={
+          <>
+            <strong className="font-semibold">{cls.name}</strong>
+            {cls.group_name ? ` (Group ${cls.group_name})` : ''} and its schedule will be
+            removed. Enrolled students keep their records — they are simply no longer in
+            this group.
+          </>
+        }
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

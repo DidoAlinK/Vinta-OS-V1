@@ -1,18 +1,27 @@
 /**
- * Vinta School OS — T3 Hamburger (instance-only, frontend-only)
+ * Vinta School OS — T3 Hamburger (instance-only)
  * Single entry point (☰) on every session card/row. Contextual by lifecycle:
  * - SCHEDULED: Start Class, Edit THIS instance, Reschedule, Cancel Class,
  *   Teacher Absent, Mark NEXT as Free, Show Finances, View Log
- * - IN_PROGRESS: Extend +30, End Class, Edit THIS instance, Mark NEXT as Free,
- *   Void Live Session [Owner PIN], Add Compensatory Session, Show Finances, View Log
+ * - IN_PROGRESS: Log Students Present [register], Extend +15, End Class,
+ *   Mark NEXT as Free, Void Live Session [Owner PIN], Add Compensatory
+ *   Session, Show Finances, View Log
  * - CONDUCTED/CANCELLED: Show Finances, View Log (read-only)
+ *
  * Rule: Edit/Reschedule/Room touch THIS session only — never series, price, N,
- * template. Series edits live in the Classes page. Backend frozen: only existing
- * endpoints (PATCH/DELETE/POST /sessions, /billing/revenue, /billing/payouts,
- * /settings/activity-log, /settings/profile, /settings/staff, /auth/verify-pin).
+ * template. Series edits live in the Classes page.
+ *
+ * A live class is locked to its own ending: the server accepts `end_time` (and
+ * only forward) on an in-progress session and refuses everything else, so
+ * there is no Edit entry here for one — a form that can only be refused is
+ * worse than no form. See LIVE_EDITABLE_FIELDS in scheduling_service.
+ *
+ * Backend frozen: only existing endpoints (PATCH/DELETE/POST /sessions,
+ * /billing/revenue, /billing/payouts, /settings/activity-log, /settings/profile,
+ * /settings/staff, /auth/verify-pin).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Menu,
   Play,
@@ -29,32 +38,25 @@ import {
   Plus,
   Lock,
   RefreshCw,
+  UserCheck,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { toast } from '../../stores/uiStore'
+import PinStep from '../../components/ui/PinStep'
+import { Select } from '../../components/ui/Select'
+import { DayPicker } from '../../components/ui/DayPicker'
+import { TimePicker } from '../../components/ui/TimePicker'
 import { useAuthStore } from '../../stores/authStore'
 import { formatDa } from '../../lib/formatters'
 import { isGrossProfitEnabled } from '../../lib/grossProfit'
 import { getAbsenceConsumesCredit } from '../../lib/billingRules'
 import { recordVoidRestore } from '../../lib/voidedSessions'
 import type { Session } from '../../types/class'
-import { isSessionFree } from '../../lib/freeSessions'
-import {
-  findConflicts,
-  getScheduleDef,
-  getSessionOrigin,
-  saveScheduleDef,
-} from '../../lib/scheduleDefs'
-import {
-  getFreeMark,
-  getLifecycleRecord,
-  isNextFreeMarked,
-  markNextFree,
-  unmarkNextFree,
-  updateLifecycleRecord,
-  type LifecycleStatus,
-} from '../../lib/sessionLifecycle'
+import { isSessionFree, findNextSession, setSessionFree } from '../../lib/freeSessions'
+import { extendSession, EXTEND_MINUTES } from '../../lib/extendSession'
+import { findConflicts } from '../../lib/scheduleDefs'
+import { startBlockReason, type LifecycleStatus } from '../../lib/sessionLifecycle'
 
 // ============================================
 // Props
@@ -68,6 +70,41 @@ export interface SessionMenuProps {
   onStart?: (session: Session) => void
   onFinish?: (session: Session) => void
   onChanged?: () => void
+  /**
+   * Open the attendance register — the false-until-true grid — for a live class.
+   *
+   * Section 1 of the operational model puts the desk's core loop inside a
+   * running class: every enrolled student starts ABSENT, and the desk flips
+   * them to PRESENT as they walk in. On the Dashboard that grid opens by
+   * itself the moment Start Class is pressed, so the menu never needed an
+   * entry for it. On the Classrooms tab it did: a class could be started from
+   * the group's ☰ and then had no way to reach the register at all — the only
+   * two ways to end it were End and Void, and nobody could be marked present
+   * in between. Passing this handler is what closes that gap, which is why the
+   * entry only renders when a parent supplies one.
+   */
+  onOpenRegister?: (session: Session) => void
+  /**
+   * Start with the panel already open, for a parent that owns the click
+   * gesture — the Dashboard's agenda board opens it from a session block, so
+   * there is no ☰ press to hang the panel off.
+   */
+  defaultOpen?: boolean
+  /** Hide the ☰ trigger. Only for a parent that opens the panel itself. */
+  hideTrigger?: boolean
+  /**
+   * Where to pin the panel when a parent opened it, plus the element it was
+   * opened *from*. Clicks inside that element are not "outside" clicks, which
+   * is what lets clicking the same block again toggle the panel shut instead
+   * of closing it and immediately reopening it.
+   */
+  anchor?: { x: number; y: number; el?: HTMLElement | null } | null
+  /**
+   * Told whenever the panel closes — outside click, Escape, scroll, resize, or
+   * an item that does its own work. Nothing is reported on open: the parent is
+   * what opened it.
+   */
+  onOpenChange?: (open: boolean) => void
 }
 
 type ModalKind =
@@ -156,12 +193,15 @@ const dangerBtnCls = cn(
 )
 
 // ============================================
-// T8 Edit scope: WEEKLY offers This / This+following (split) / All series;
-// TEMPORARY edits directly, no prompt. Instance fields: date + times only
-// (PATCH — scheduled only). Series ops touch future non-CONDUCTED sessions.
+// Edit THIS instance — date and times only, and only while SCHEDULED.
+//
+// There used to be a scope selector here (this / this+following / all series)
+// that rewrote the whole series from the hamburger. It is gone: the hamburger
+// edits the occurrence it was opened from, and nothing else. Moving a weekly
+// group's slot is a decision about the GROUP, and it belongs on the Classes
+// page next to the rest of the group's definition — not behind a small ☰ on
+// one card, where the desk would be changing sessions it cannot see.
 // ============================================
-
-type EditScope = 'single' | 'following' | 'all'
 
 function EditSessionModal({ session, sessions, locked, onClose, onChanged }: {
   session: Session
@@ -170,46 +210,11 @@ function EditSessionModal({ session, sessions, locked, onClose, onChanged }: {
   onClose: () => void
   onChanged?: () => void
 }) {
-  const origin = getSessionOrigin(session)
-  const isWeekly = origin.kind === 'WEEKLY'
   const [date, setDate] = useState(session.date)
   const [start, setStart] = useState(session.start_time)
   const [end, setEnd] = useState(session.end_time)
-  const [scope, setScope] = useState<EditScope>('single')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // Series siblings: same definition (or same class+slot fallback), future,
-  // non-CONDUCTED. Cancelled rows stay cancelled — never regen'd.
-  const siblings = useMemo(() => {
-    if (!isWeekly || !sessions) return []
-    const sameDef = origin.defId
-      ? sessions.filter((s: Session) => getSessionOrigin(s).defId === origin.defId)
-      : sessions.filter((s: Session) =>
-        s.class_id === session.class_id &&
-        s.start_time === session.start_time &&
-        s.end_time === session.end_time &&
-        getSessionOrigin(s).kind === 'WEEKLY',
-      )
-    return sameDef
-      .filter((s: Session) => {
-        if (s.id === session.id) return false
-        if (s.status === 'completed') return false
-        if (s.status === 'cancelled') return false
-        return s.date >= session.date
-      })
-      .sort((a: Session, b: Session) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time))
-  }, [isWeekly, sessions, origin.defId, session])
-
-  const inScope = useMemo(() => {
-    if (scope === 'single') return []
-    if (scope === 'following') {
-      // This + following: split the definition at THIS date — same slot,
-      // date >= this date (definition untouched; times shift forward only).
-      return siblings.filter((s: Session) => s.date >= session.date)
-    }
-    return siblings // all series: every future non-CONDUCTED sibling
-  }, [scope, siblings, session.date])
 
   const handleSave = useCallback(async () => {
     if (locked) return
@@ -229,133 +234,59 @@ function EditSessionModal({ session, sessions, locked, onClose, onChanged }: {
       toast.error('Edit blocked', msg)
       return
     }
-    if (isWeekly && scope !== 'single' && inScope.length === 0) {
-      setError('No future sessions in this series to update.')
-      return
-    }
     setError(null)
     setSaving(true)
     try {
-      if (!isWeekly || scope === 'single') {
-        // Cancel-one-occurrence semantics: THIS session only, definition untouched.
-        await api.patch(`/sessions/${session.id}`, { date, start_time: start, end_time: end })
-        toast.success('Session updated', 'THIS instance only — series untouched.')
-      } else {
-        // Series PATCH: times shift, dates preserved per occurrence.
-        // "This and following" splits at THIS date; "All" regens future non-CONDUCTED.
-        let ok = 0
-        let failed = 0
-        const targets = scope === 'following'
-          ? [{ id: session.id, date }, ...inScope.map((s) => ({ id: s.id, date: s.date }))]
-          : inScope.map((s) => ({ id: s.id, date: s.date }))
-        // When dates move, keep each occurrence's own date; only times shift.
-        for (const t of targets) {
-          try {
-            const payload: Record<string, string> = { start_time: start, end_time: end }
-            if (t.id === session.id) payload.date = date
-            await api.patch(`/sessions/${t.id}`, payload)
-            ok += 1
-          } catch {
-            failed += 1
-          }
-        }
-        if (scope === 'following' && origin.defId) {
-          // Split the definition: future occurrences keep the NEW times.
-          const def = getScheduleDef(origin.defId)
-          if (def) {
-            saveScheduleDef({
-              ...def,
-              startTime: start,
-              endTime: end,
-              startsFrom: session.date,
-            })
-          }
-        }
-        if (failed > 0) {
-          const msg = `${ok} updated, ${failed} failed. Press Retry (failed kept old times).`
-          setError(msg)
-          toast.warning('Series partially updated', msg)
-        } else {
-          toast.success(
-            scope === 'following' ? 'This + following updated' : 'All series updated',
-            `${ok} future session${ok === 1 ? '' : 's'} shifted — CONDUCTED untouched.`,
-          )
-        }
-      }
+      // Cancel-one-occurrence semantics: THIS session only, definition untouched.
+      await api.patch(`/sessions/${session.id}`, { date, start_time: start, end_time: end })
+      toast.success('Session updated', 'THIS instance only — series untouched.')
       onChanged?.()
       onClose()
     } catch (err: any) {
+      // 404 covers both "no such session for this academy" and the server's
+      // refusal of an edit it does not allow — a live class accepts a later
+      // end time and nothing else, and a finished one accepts nothing.
       const msg = err?.response?.status === 404
-        ? 'Session already started — times locked.'
+        ? 'Not allowed — a live class can only be extended, and a finished one cannot be edited.'
         : 'Could not save changes. Press Retry.'
       setError(msg)
       toast.error('Update failed', msg)
     } finally {
       setSaving(false)
     }
-  }, [locked, date, start, end, sessions, session, isWeekly, scope, inScope, origin.defId, onChanged, onClose])
+  }, [locked, date, start, end, sessions, session, onChanged, onClose])
 
   return (
-    <ModalShell title={isWeekly ? 'Edit weekly series' : 'Edit THIS instance'} onClose={onClose} wide={isWeekly}>
+    <ModalShell title="Edit THIS instance" onClose={onClose} wide>
       {locked && (
         <p className="flex items-center gap-2 text-xs text-[var(--gold)] bg-[var(--gold-soft)] rounded-xl px-3 py-2.5 mb-4">
           <Lock size={13} className="shrink-0" />
-          Times locked while the class is live. Series edits live in the Classes page.
+          This class is running or finished — its times are locked. Use Extend while it is live.
         </p>
-      )}
-      {isWeekly && !locked && (
-        <div className="mb-3">
-          <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Scope</label>
-          <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)]">
-            {([
-              { k: 'single', label: 'This session only' },
-              { k: 'following', label: `This + following${inScope.length && scope === 'following' ? ` (${inScope.length + 1})` : ''}` },
-              { k: 'all', label: `All series${scope === 'all' && inScope.length ? ` (${inScope.length})` : ''}` },
-            ] as Array<{ k: EditScope; label: string }>).map((o) => (
-              <button
-                key={o.k}
-                type="button"
-                onClick={() => setScope(o.k)}
-                className={cn(
-                  'flex-1 py-2 text-xs font-semibold transition-all',
-                  scope === o.k
-                    ? 'bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] text-white'
-                    : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          <p className="text-[11px] text-[var(--muted)] mt-1.5">
-            {scope === 'single'
-              ? 'Cancels/moves THIS occurrence only — definition untouched.'
-              : scope === 'following'
-                ? 'Splits the definition at THIS date — future keeps the new times.'
-                : 'Regenerates future non-CONDUCTED — CONDUCTED history untouched.'}
-          </p>
-        </div>
       )}
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={locked || saving} className={inputCls} />
+          <DayPicker value={date} onChange={setDate} disabled={locked || saving} allowPast className={inputCls} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Start</label>
-            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} disabled={locked || saving} className={inputCls} />
+            <TimePicker value={start} onChange={setStart} disabled={locked || saving} className={inputCls} />
           </div>
           <div>
             <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">End</label>
-            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} disabled={locked || saving} className={inputCls} />
+            <TimePicker value={end} onChange={setEnd} disabled={locked || saving} className={inputCls} />
           </div>
         </div>
-        <p className="text-[11px] text-[var(--muted)]">Room changes: Classes page (series). THIS modal never touches price, N, or template.</p>
+        <p className="text-[11px] text-[var(--muted)]">
+          This occurrence only — the group's schedule is untouched. Room, price, and the number of
+          sessions live on the Classes page.
+        </p>
         {error && <p className="text-xs text-[var(--red)]">{error}</p>}
         {!locked && (
           <button onClick={() => void handleSave()} disabled={saving} className={primaryBtnCls}>
-            {saving ? 'Saving…' : scope === 'single' || !isWeekly ? 'Save THIS session' : scope === 'following' ? 'Save this + following' : 'Save all series'}
+            {saving ? 'Saving…' : 'Save THIS session'}
           </button>
         )}
       </div>
@@ -401,7 +332,7 @@ function RescheduleModal({ session, onClose, onChanged }: {
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">New date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={saving} className={inputCls} />
+          <DayPicker value={date} onChange={setDate} disabled={saving} allowPast className={inputCls} />
         </div>
         <p className="text-[11px] text-[var(--muted)]">Keeps start/end times. Cancels nothing, moves THIS occurrence only.</p>
         {error && <p className="text-xs text-[var(--red)]">{error}</p>}
@@ -415,12 +346,26 @@ function RescheduleModal({ session, onClose, onChanged }: {
 
 // ============================================
 // Danger confirm (Cancel / Teacher Absent — DELETE, scheduled only)
+//
+// `reason` is sent with the DELETE and stored on the row, because these are
+// two different facts that were being recorded as the same one. "The teacher
+// did not come" is the entry the desk searches for when a parent asks, and
+// it decides whether the seat still spent a credit — a plain cancellation
+// does not. Without it the log said "Session cancelled" for both, and the
+// only way to tell them apart was to remember.
+//
+// The PIN step is INSIDE this dialog rather than a second dialog stacked on
+// top of it. Two modals for one action is two things to dismiss and two places
+// for the same sentence; the reason field, the class name and the dates this
+// dialog already shows are all part of what is being confirmed.
 // ============================================
 
-function DangerConfirmModal({ title, body, confirmLabel, session, onClose, onChanged }: {
+function DangerConfirmModal({ title, body, confirmLabel, reason, session, onClose, onChanged }: {
   title: string
   body: string
   confirmLabel: string
+  /** Recorded on the session and in the log. Omitted for a plain cancellation. */
+  reason?: 'TEACHER_ABSENT' | 'CANCELLED_BY_STAFF' | 'OTHER'
   session: Session
   onClose: () => void
   onChanged?: () => void
@@ -432,8 +377,16 @@ function DangerConfirmModal({ title, body, confirmLabel, session, onClose, onCha
     setError(null)
     setSaving(true)
     try {
-      await api.delete(`/sessions/${session.id}`)
-      toast.success(title, 'THIS instance only — zero credit impact by construction.')
+      await api.delete(`/sessions/${session.id}`, { data: reason ? { reason } : {} })
+      // What happens to the credit is decided by the Billing Rules, not by
+      // this button, so say which rule applied instead of promising either
+      // outcome.
+      const credits = reason === 'TEACHER_ABSENT'
+        ? (getAbsenceConsumesCredit()
+          ? 'Billing Rules have an absence spend the seat.'
+          : 'No credit spent — the seat is restored.')
+        : 'No credit spent by this cancellation.'
+      toast.success(title, `THIS instance only. ${credits}`)
       onChanged?.()
       onClose()
     } catch {
@@ -443,7 +396,7 @@ function DangerConfirmModal({ title, body, confirmLabel, session, onClose, onCha
     } finally {
       setSaving(false)
     }
-  }, [session.id, title, onChanged, onClose])
+  }, [session.id, title, reason, onChanged, onClose])
 
   return (
     <ModalShell title={title} onClose={onClose}>
@@ -451,52 +404,158 @@ function DangerConfirmModal({ title, body, confirmLabel, session, onClose, onCha
       <p className="text-[11px] text-[var(--muted)] mt-2">Series, price, and N are untouched. Cancel is allowed only from SCHEDULED.</p>
       {error && <p className="text-xs text-[var(--red)] mt-3">{error}</p>}
       <div className="mt-4">
-        <button onClick={() => void handleConfirm()} disabled={saving} className={dangerBtnCls}>
-          {saving ? 'Working…' : confirmLabel}
-        </button>
+        {saving ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <PinStep
+            hint="This cancels a scheduled class. Enter your 4-digit PIN to confirm."
+            submitLabel={confirmLabel}
+            busyLabel="Working…"
+            onVerified={handleConfirm}
+          />
+        )}
       </div>
     </ModalShell>
   )
 }
 
 // ============================================
-// Mark NEXT as Free (localStorage flag consumed by T6)
+// Free sessions.
+//
+// The flag is written onto the session it applies to, on the server, so the
+// register, the billing service and the finalise step all read the same
+// answer. Nothing is staged in the browser: the desk picks the occurrence it
+// means, sees its date, and that row is what changes.
+//
+// The panel therefore always shows what it is about to touch — the next
+// session of this group, by date and time. The old one could only say "the
+// next one", which is a sentence the desk had to take on faith and which the
+// server never heard.
 // ============================================
 
-function FreeNextModal({ session, onClose }: {
+function FreeNextModal({ session, onClose, onChanged }: {
   session: Session
   onClose: () => void
+  onChanged?: () => void
 }) {
-  const marked = isNextFreeMarked(session.class_id)
-  const handleToggle = useCallback(() => {
-    if (marked) {
-      unmarkNextFree(session.class_id)
-      toast.info('Free flag removed', 'Next session will bill normally.')
-    } else {
-      // T6 ctx: NEXT = strictly after THIS instance (never self-assign).
-      markNextFree(session.class_id, {
-        markedSessionId: session.id,
-        markedLabel: `${session.date} ${session.start_time}`,
-        afterDate: session.date,
-        afterTime: session.start_time,
-      })
-      toast.success('Next session marked free', `${session.class_name} — teacher pays (T6). Stays until the NEXT session is created.`)
+  const [next, setNext] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [working, setWorking] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setNext(await findNextSession(session))
+    } catch {
+      setError('Could not reach the schedule. Press Retry.')
+    } finally {
+      setLoading(false)
     }
-    onClose()
-  }, [marked, session.class_id, session.class_name, session.date, session.id, session.start_time, onClose])
+  }, [session])
+
+  useEffect(() => { void load() }, [load])
+
+  const toggle = useCallback(async (target: Session, isFree: boolean) => {
+    setWorking(true)
+    setError(null)
+    try {
+      await setSessionFree(target.id, isFree)
+      if (isFree) {
+        toast.success(
+          'Session marked free',
+          `${target.date} ${target.start_time} — teacher pays, no credit spent.`,
+        )
+      } else {
+        toast.info('Free flag removed', 'That session bills normally again.')
+      }
+      onChanged?.()
+      onClose()
+    } catch (err: any) {
+      const msg = err?.response?.status === 404
+        ? 'That session can no longer be changed — it has already run or been cancelled.'
+        : 'Could not save the free flag. Press Retry.'
+      setError(msg)
+      toast.error('Free flag failed', msg)
+    } finally {
+      setWorking(false)
+    }
+  }, [onChanged, onClose])
+
+  // The instance the menu was opened from, if it is already free. Separate
+  // from "next" because it is a different row and the desk has to be able to
+  // undo the one they are looking at.
+  const thisIsFree = isSessionFree(session)
 
   return (
-    <ModalShell title="Mark NEXT as Free" onClose={onClose}>
-      <p className="text-sm text-[var(--text)] leading-relaxed">
-        {marked
-          ? `Next ${session.class_name} session is currently marked FREE. Undo?`
-          : `Teacher says next time free: the NEXT ${session.class_name} session bills 0 and pays 0.`}
-      </p>
-      <div className="mt-4">
-        <button onClick={handleToggle} className={primaryBtnCls}>
-          {marked ? 'Undo — bill normally' : 'Mark NEXT free'}
-        </button>
-      </div>
+    <ModalShell title="Free sessions" onClose={onClose}>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-1.5">
+              Next session of this group
+            </p>
+            {next ? (
+              <>
+                <p className="text-sm text-[var(--text)] leading-relaxed">
+                  {next.date} · {next.start_time}–{next.end_time}
+                  {next.is_free_session && (
+                    <span className="ml-2 text-xs font-semibold text-[var(--emerald)]">FREE</span>
+                  )}
+                </p>
+                <p className="text-[11px] text-[var(--muted)] mt-1">
+                  {next.is_free_session
+                    ? 'Teacher says this one is on the house. Billing 0, no credit spent.'
+                    : 'Teacher says next time free: this one bills 0 and spends no credit.'}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-[var(--text)]">Nothing else scheduled for this group yet.</p>
+            )}
+          </div>
+
+          {thisIsFree && (
+            <div className="rounded-xl bg-[var(--emerald-soft)]/40 px-3 py-2.5">
+              <p className="text-xs font-semibold text-[var(--emerald)]">
+                This session ({session.date} · {session.start_time}) is marked FREE.
+              </p>
+              <button
+                type="button"
+                onClick={() => void toggle(session, false)}
+                disabled={working}
+                className="mt-2 text-xs font-semibold text-[var(--text)] underline underline-offset-2 disabled:opacity-40"
+              >
+                Bill this one normally instead
+              </button>
+            </div>
+          )}
+
+          {error && <p className="text-xs text-[var(--red)]">{error}</p>}
+
+          {next ? (
+            <button
+              onClick={() => void toggle(next, !next.is_free_session)}
+              disabled={working}
+              className={primaryBtnCls}
+            >
+              {working
+                ? 'Saving…'
+                : next.is_free_session
+                  ? 'Undo — next session bills normally'
+                  : 'Mark next session free'}
+            </button>
+          ) : error ? (
+            <button onClick={() => void load()} className={primaryBtnCls}>Retry</button>
+          ) : null}
+        </div>
+      )}
     </ModalShell>
   )
 }
@@ -521,9 +580,9 @@ function FinancesModal({ session, onClose }: {
   const [payout, setPayout] = useState<PayoutRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // T6: frontend free overlay — backend rows may briefly pre-date suppression.
-  const free = isSessionFree(session.id)
-  const pendingForGroup = getFreeMark(session.class_id)
+  // Read straight off the row. This used to be a client-side overlay over
+  // the backend numbers, which could only disagree with them.
+  const free = isSessionFree(session)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -579,11 +638,6 @@ function FinancesModal({ session, onClose }: {
               🎁 FREE session — teacher pays. Revenue 0 · cut 0 · no credits moved.
             </p>
           )}
-          {!free && pendingForGroup && (
-            <p className="text-[11px] text-[var(--gold)] bg-[var(--gold-soft)]/50 rounded-xl px-3 py-2">
-              NEXT session of this group is marked free — lands when it is created.
-            </p>
-          )}
           <div className="flex items-center justify-between rounded-xl bg-[var(--input-bg)] border border-[var(--glass-border)] px-3.5 py-2.5">
             <span className="text-xs text-[var(--muted)]">Revenue (this session)</span>
             <span className="text-sm font-bold text-[var(--text)]">{dispRevenue != null ? formatDa(dispRevenue) : grossOn || free ? 'Not set' : '—'}</span>
@@ -610,7 +664,17 @@ function FinancesModal({ session, onClose }: {
 }
 
 // ============================================
-// View Log (read-only; backend exposes academy log — no per-session key)
+// View Log — this group's own history.
+//
+// The academy-wide log answers "what happened at the desk today" and is on
+// the dashboard. This one answers "what happened to THIS class", which is the
+// question being asked when the menu is opened from a session card, and which
+// the old academy-wide list could not answer at all — it showed other
+// groups' entries and gave no way to tell which were which.
+//
+// `class_id` is filtered server-side against the group's own sessions too, so
+// group-level events (a rename), session events (a cancellation) and the
+// newer entries that carry `class_id` in their metadata all land in one list.
 // ============================================
 
 interface LogEntry {
@@ -622,8 +686,9 @@ interface LogEntry {
   staff_name: string
 }
 
-function LogModal({ onClose }: { onClose: () => void }) {
+function LogModal({ classId, onClose }: { classId: string; onClose: () => void }) {
   const [items, setItems] = useState<LogEntry[]>([])
+  const [retentionDays, setRetentionDays] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -631,8 +696,11 @@ function LogModal({ onClose }: { onClose: () => void }) {
     setLoading(true)
     setError(null)
     try {
-      const { data } = await api.get('/settings/activity-log', { params: { limit: 20 } })
+      const { data } = await api.get('/settings/activity-log', {
+        params: { limit: 100, class_id: classId },
+      })
       setItems(data.activities ?? [])
+      setRetentionDays(data.retention_days ?? null)
     } catch {
       const msg = 'Could not load log.'
       setError(msg)
@@ -640,13 +708,16 @@ function LogModal({ onClose }: { onClose: () => void }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [classId])
 
   useEffect(() => { void load() }, [load])
 
   return (
     <ModalShell title="View Log" onClose={onClose} wide>
-      <p className="text-[11px] text-[var(--muted)] mb-3">Latest academy activity (session-scoped log unavailable — backend frozen).</p>
+      <p className="text-[11px] text-[var(--muted)] mb-3">
+        This class's own activity{retentionDays != null ? ` — the last ${retentionDays} days` : ''}.
+        Older entries are removed automatically.
+      </p>
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
@@ -664,16 +735,21 @@ function LogModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       ) : items.length === 0 ? (
-        <p className="text-xs text-[var(--muted)] text-center py-6">No log entries yet.</p>
+        <p className="text-xs text-[var(--muted)] text-center py-6">Nothing logged for this class yet.</p>
       ) : (
         <div className="space-y-2">
           {items.map((a) => (
             <div key={a.id} className="rounded-xl bg-[var(--input-bg)] border border-[var(--glass-border)] px-3.5 py-2.5">
               <p className="text-xs font-semibold text-[var(--text)] leading-snug">{a.title}</p>
               {a.description && a.description !== a.title && (
-                <p className="text-[11px] text-[var(--muted)] mt-0.5 truncate">{a.description}</p>
+                <p className="text-[11px] text-[var(--muted)] mt-0.5">{a.description}</p>
               )}
-              <p className="text-[10px] text-[var(--muted)]/70 mt-1">{a.staff_name}</p>
+              <p className="text-[10px] text-[var(--muted)]/70 mt-1">
+                {a.staff_name}
+                {a.timestamp ? ` · ${new Date(a.timestamp).toLocaleString('en-GB', {
+                  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                })}` : ''}
+              </p>
             </div>
           ))}
         </div>
@@ -689,7 +765,16 @@ function LogModal({ onClose }: { onClose: () => void }) {
 // mark rows VOIDED. Existing endpoints only (backend frozen).
 // ============================================
 
-function VoidModal({ session, onClose, onChanged }: {
+/**
+ * Void a live class: owner PIN, roster snapshot, then cancel.
+ *
+ * Exported because the end-of-class toast ("Has this class finished?") offers
+ * Void as its third answer, and that toast is raised by the page — not by the
+ * menu this modal was written inside. Rendering a second copy of this flow
+ * there would mean two implementations of the one action that discards money
+ * quietly diverging, so both mount points use this component.
+ */
+export function VoidModal({ session, onClose, onChanged }: {
   session: Session
   onClose: () => void
   onChanged?: () => void
@@ -763,7 +848,7 @@ function VoidModal({ session, onClose, onChanged }: {
 
       // 2. Charged = PRESENT rows + ABSENT rows only when Toggle 1 was ON
       //    (backend consumed the seat). Suppressed T4 swap rows never consumed.
-      const toggle1 = getAbsenceConsumesCredit(new Date())
+      const toggle1 = getAbsenceConsumesCredit()
       const charged = rows
         .filter((r) => !r.is_group_swap)
         .filter((r) => {
@@ -776,7 +861,15 @@ function VoidModal({ session, onClose, onChanged }: {
 
       // 3. Cancel THIS session (backend DELETE; zero payout by construction —
       //    finalize is never called, so no PayoutRecord is created).
-      await api.delete(`/sessions/${session.id}`)
+      //
+      //    The reason is sent rather than left off: without it the row's
+      //    `cancelled_reason` stayed NULL, so a void left no explanation at
+      //    all in the log. CANCELLED_BY_STAFF is the closest value the
+      //    database's enum accepts — a void is not given a value of its own,
+      //    because that means altering a native enum. Nothing is lost by it:
+      //    this session has `actual_start_time` set, which is exactly what
+      //    separates a class that was voided from one cancelled before it ran.
+      await api.delete(`/sessions/${session.id}`, { data: { reason: 'CANCELLED_BY_STAFF' } })
 
       // 4. Per-session restore ONLY: +1 for each charged row of THIS session.
       //    Overlay ledger (no restore endpoint exists); other sessions untouched.
@@ -938,24 +1031,32 @@ function CompensatoryModal({ session, sessions, onClose, onChanged }: {
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={saving} className={inputCls} />
+          <DayPicker value={date} onChange={setDate} disabled={saving} className={inputCls} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Start</label>
-            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} disabled={saving} className={inputCls} />
+            <TimePicker value={start} onChange={setStart} disabled={saving} className={inputCls} />
           </div>
           <div>
             <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">End</label>
-            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} disabled={saving} className={inputCls} />
+            <TimePicker value={end} onChange={setEnd} disabled={saving} className={inputCls} />
           </div>
         </div>
         <div>
           <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Room (THIS session)</label>
-          <select value={roomId} onChange={(e) => setRoomId(e.target.value)} disabled={saving} className={inputCls}>
-            <option value="">— No room —</option>
-            {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
+          <Select
+            value={roomId}
+            onChange={setRoomId}
+            disabled={saving}
+            placeholder="— No room —"
+            options={[
+              { value: '', label: '— No room —' },
+              ...rooms.map((r) => ({ value: r.id, label: r.name })),
+            ]}
+            className={cn(inputCls, 'h-auto')}
+            aria-label="Room (THIS session)"
+          />
           {roomsError && (
             <button
               type="button"
@@ -1019,14 +1120,37 @@ function MenuItem({ icon, label, hint, danger, disabled, onClick }: {
 // Hamburger
 // ============================================
 
-export function SessionMenu({ session, sessions, status, onStart, onFinish, onChanged }: SessionMenuProps) {
-  const [open, setOpen] = useState(false)
+export function SessionMenu({
+  session,
+  sessions,
+  status,
+  onStart,
+  onFinish,
+  onChanged,
+  onOpenRegister,
+  defaultOpen = false,
+  hideTrigger = false,
+  anchor,
+  onOpenChange,
+}: SessionMenuProps) {
+  const [open, setOpenState] = useState(defaultOpen)
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const [modal, setModal] = useState<ModalKind | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const close = useCallback(() => setOpen(false), [])
+  /**
+   * Every close funnels through here — the items, outside clicks, Escape,
+   * scroll and resize — so a parent that opened the panel is always told it
+   * shut. That is what lets the board drop its `menuTarget` and stop rendering
+   * this instance.
+   */
+  const setOpen = useCallback((next: boolean) => {
+    setOpenState(next)
+    if (!next) onOpenChange?.(false)
+  }, [onOpenChange])
+
+  const close = useCallback(() => setOpen(false), [setOpen])
 
   const toggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -1040,17 +1164,23 @@ export function SessionMenu({ session, sessions, status, onStart, onFinish, onCh
         : rect.bottom + 6
       setPos({ x, y })
     }
-    setOpen((o) => !o)
-  }, [])
+    setOpen(!open)
+  }, [open, setOpen])
 
   // Close on outside click / Escape / scroll / resize (fixed position goes stale)
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (
-        menuRef.current && !menuRef.current.contains(e.target as Node) &&
-        btnRef.current && !btnRef.current.contains(e.target as Node)
-      ) close()
+      const target = e.target as Node
+      // The panel, its own ☰, and the element a parent opened it from all read
+      // as "inside". The last one matters: clicking the block the panel came
+      // from is a toggle, and closing here would race the reopen in the same
+      // gesture.
+      const inside =
+        menuRef.current?.contains(target) ||
+        btnRef.current?.contains(target) ||
+        anchor?.el?.contains(target)
+      if (!inside) close()
     }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
     document.addEventListener('mousedown', onDown)
@@ -1063,76 +1193,144 @@ export function SessionMenu({ session, sessions, status, onStart, onFinish, onCh
       window.removeEventListener('scroll', close, true)
       window.removeEventListener('resize', close)
     }
-  }, [open, close])
+  }, [open, close, anchor?.el])
 
   const openModal = useCallback((kind: ModalKind) => {
     setModal(kind)
     setOpen(false)
-  }, [])
+  }, [setOpen])
 
   const fire = useCallback((fn?: (s: Session) => void) => {
     close()
     fn?.(session)
   }, [close, session])
 
-  const handleExtend = useCallback(() => {
-    const rec = getLifecycleRecord(session.id)
-    updateLifecycleRecord(session.id, {
-      lateMinutes: (rec.lateMinutes ?? 0) + 30,
-      endNotified: false,
-    })
-    toast.success('Extended +30m', 'End-of-class check pushed 30 minutes.')
-    close()
-  }, [session.id, close])
+  // Extend pushes the session's end time on the SERVER. It used to be a
+  // localStorage counter that only the end-of-class toast read, so the class
+  // log still said 90 minutes and the extension vanished on reload — or on
+  // the next device. See lib/extendSession.ts.
+  const [extending, setExtending] = useState(false)
+  const handleExtend = useCallback(async () => {
+    if (extending) return
+    setExtending(true)
+    try {
+      const result = await extendSession(session)
+      toast.success(
+        `Extended +${EXTEND_MINUTES} min`,
+        `${session.class_name} now ends at ${result.end_time}` +
+          (result.duration_label ? ` · ${result.duration_label}` : ''),
+      )
+      onChanged?.()
+    } catch (err: any) {
+      const backend = err?.response?.data?.error
+      toast.error(
+        'Could not extend',
+        typeof backend === 'string' && backend
+          ? backend
+          : 'The end time was not changed. Press Retry.',
+      )
+    } finally {
+      setExtending(false)
+      close()
+    }
+  }, [extending, session, onChanged, close])
 
   const isLive = status === 'in_progress'
   const isScheduled = status === 'scheduled'
-  const freeMarked = isNextFreeMarked(session.class_id)
+  // The free flag is a field on the session it applies to, so the menu cannot
+  // answer "is the next one free" without asking the schedule. It does that
+  // once, when the menu opens, and says nothing rather than guessing if the
+  // request fails — a wrong "✓" here would be read as "already handled".
+  const [nextFree, setNextFree] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    findNextSession(session)
+      .then((next) => { if (!cancelled) setNextFree(Boolean(next?.is_free_session)) })
+      .catch(() => { if (!cancelled) setNextFree(null) })
+    return () => { cancelled = true }
+    // Keyed on the id, not the object: a refetch hands this component a new
+    // session object with the same id, and re-asking on every render of the
+    // board would be a request per frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, session.id])
 
   return (
     <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        onKeyDown={(e) => e.stopPropagation()}
-        className={cn(
-          'flex items-center justify-center w-5 h-5 rounded-md shrink-0',
-          'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--glass)]',
-          'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]',
-        )}
-        aria-label="Session menu"
-        title="Session menu"
-      >
-        <Menu size={14} />
-      </button>
+      {!hideTrigger && (
+        <button
+          ref={btnRef}
+          type="button"
+          onClick={toggle}
+          onKeyDown={(e) => e.stopPropagation()}
+          className={cn(
+            'flex items-center justify-center w-5 h-5 rounded-md shrink-0',
+            'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--glass)]',
+            'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]',
+          )}
+          aria-label="Session menu"
+          title="Session menu"
+        >
+          <Menu size={14} />
+        </button>
+      )}
 
       {open && (
         <div
           ref={menuRef}
           className="fixed z-50 w-52 rounded-xl border border-[var(--glass-border)] bg-[var(--card-bg)] shadow-2xl animate-fade-in overflow-hidden"
-          style={{ left: pos.x, top: pos.y }}
+          style={{ left: anchor?.x ?? pos.x, top: anchor?.y ?? pos.y }}
           onClick={(e) => e.stopPropagation()}
         >
           {isScheduled && (
             <>
-              <MenuItem icon={<Play size={13} />} label="Start Class" hint="now" onClick={() => fire(onStart)} />
+              {/* A class may only be started on its own day, and the server
+                  enforces it. "Scheduled" is not enough on its own: every
+                  past instance of a weekly group is still `scheduled`, so
+                  without the date this item would offer Start on last
+                  week's class and a 409 would be the only outcome. Read at
+                  render — the menu opens on a click, so there is nothing to
+                  keep ticking here. */}
+              {(() => {
+                const blocked = startBlockReason(session, new Date())
+                return (
+                  <MenuItem
+                    icon={<Play size={13} />}
+                    label="Start Class"
+                    hint={blocked ? 'own day only' : 'now'}
+                    disabled={blocked !== null}
+                    onClick={() => fire(onStart)}
+                  />
+                )
+              })()}
               <MenuItem icon={<Pencil size={13} />} label="Edit THIS instance" onClick={() => openModal('edit')} />
               <MenuItem icon={<CalendarClock size={13} />} label="Reschedule" onClick={() => openModal('resched')} />
               <MenuItem icon={<XCircle size={13} />} label="Cancel Class" danger onClick={() => openModal('cancel')} />
               <MenuItem icon={<UserX size={13} />} label="Teacher Absent" danger onClick={() => openModal('absent')} />
-              <MenuItem icon={<Gift size={13} />} label={freeMarked ? 'Next marked Free ✓' : 'Mark NEXT as Free'} onClick={() => openModal('free')} />
+              <MenuItem icon={<Gift size={13} />} label={nextFree === true ? 'Next marked Free ✓' : 'Mark NEXT as Free'} onClick={() => openModal('free')} />
               <MenuItem icon={<Wallet size={13} />} label="Show Finances" onClick={() => openModal('fin')} />
               <MenuItem icon={<ScrollText size={13} />} label="View Log" onClick={() => openModal('log')} />
             </>
           )}
           {isLive && (
             <>
-              <MenuItem icon={<Timer size={13} />} label="Extend +30" onClick={handleExtend} />
+              {/* First, because during a live class it is the whole job:
+                  everyone starts ABSENT and the desk marks arrivals present.
+                  Only rendered when the parent can actually open the grid. */}
+              {onOpenRegister && (
+                <MenuItem
+                  icon={<UserCheck size={13} />}
+                  label="Log Students Present"
+                  hint="register"
+                  onClick={() => fire(onOpenRegister)}
+                />
+              )}
+              <MenuItem icon={<Timer size={13} />} label={`Extend +${EXTEND_MINUTES}`} onClick={() => void handleExtend()} disabled={extending} />
               <MenuItem icon={<CheckCircle2 size={13} />} label="End Class" hint="PIN" onClick={() => fire(onFinish)} />
-              <MenuItem icon={<Pencil size={13} />} label="Edit THIS instance" onClick={() => openModal('edit')} />
-              <MenuItem icon={<CalendarClock size={13} />} label="Reschedule" hint="locked live" disabled />
-              <MenuItem icon={<Gift size={13} />} label={freeMarked ? 'Next marked Free ✓' : 'Mark NEXT as Free'} onClick={() => openModal('free')} />
+              {/* No Edit here. A live class accepts a later end time and
+                  nothing else, so the only edits that exist are Extend and
+                  the two ways to stop — End Class, or Void. */}
+              <MenuItem icon={<Gift size={13} />} label={nextFree === true ? 'Next marked Free ✓' : 'Mark NEXT as Free'} onClick={() => openModal('free')} />
               <MenuItem icon={<Ban size={13} />} label="Void Live Session" hint="Owner PIN" danger onClick={() => openModal('void')} />
               <MenuItem icon={<Plus size={13} />} label="Add Compensatory Session" onClick={() => openModal('comp')} />
               <MenuItem icon={<Wallet size={13} />} label="Show Finances" onClick={() => openModal('fin')} />
@@ -1167,21 +1365,22 @@ export function SessionMenu({ session, sessions, status, onStart, onFinish, onCh
       {modal === 'absent' && (
         <DangerConfirmModal
           title="Teacher Absent"
-          body={`Mark the teacher absent for THIS ${session.class_name} session on ${session.date}? The session is cancelled.`}
+          body={`Mark the teacher absent for THIS ${session.class_name} session on ${session.date}? The session is cancelled and the reason is recorded, so it shows in this class's log.`}
           confirmLabel="Mark absent + cancel"
+          reason="TEACHER_ABSENT"
           session={session}
           onClose={() => setModal(null)}
           onChanged={onChanged}
         />
       )}
       {modal === 'free' && (
-        <FreeNextModal session={session} onClose={() => setModal(null)} />
+        <FreeNextModal session={session} onClose={() => setModal(null)} onChanged={onChanged} />
       )}
       {modal === 'fin' && (
         <FinancesModal session={session} onClose={() => setModal(null)} />
       )}
       {modal === 'log' && (
-        <LogModal onClose={() => setModal(null)} />
+        <LogModal classId={session.class_id} onClose={() => setModal(null)} />
       )}
       {modal === 'void' && (
         <VoidModal session={session} onClose={() => setModal(null)} onChanged={onChanged} />

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { X, UserPlus, Search, ChevronDown } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
+import { toast } from '../../stores/uiStore'
 
 // ============================================
 // Types
@@ -168,12 +169,28 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
       })
       if (response.data?.error) {
         setError(response.data.error)
+        toast.error('Student not added', response.data.error)
         return
       }
+      const name = `${trimmedFirst} ${trimmedLast}`.trim()
+      toast.success(
+        'Student added',
+        selectedClassIds.length === 1
+          ? `${name} was enrolled in 1 group.`
+          : `${name} was enrolled in ${selectedClassIds.length} groups.`,
+      )
       onCreated?.()
       onClose()
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? 'Failed to create student. Please try again.')
+      // A refusal here is usually actionable — a full group, a duplicate —
+      // and it was being written only to the banner above the fold, which the
+      // desk reads as nothing having happened.
+      const message =
+        err?.response?.data?.error ??
+        err?.response?.data?.message ??
+        'Failed to create student. Please try again.'
+      setError(message)
+      toast.error('Student not added', message)
     } finally {
       setIsSubmitting(false)
     }

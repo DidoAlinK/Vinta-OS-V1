@@ -1,378 +1,204 @@
 /**
- * Vinta School OS — T5 Credits + Debt-First + N + Toggle 1 (frontend-only)
- * Backend frozen: no absenceConsumesCredit column, no unpaid/debt endpoints.
- * Week-versioning lives in localStorage; backend credit motion is untouched.
+ * Vinta School OS — Billing Rules, as the server records them
  *
- * - CourseGroup.creditsPerCycle: int 1-20 (4 standard, 8 = 2000Da example).
- *   Snapshot to Subscription.totalCredits happens backend-side at payment.
- * - PRESENT in own group decrements immediately (backend check-in path).
- * - ABSENT consumes 1 credit at End-Class finalize when Toggle 1
- *   (absenceConsumesCredit, default true) is ON for the effective week;
- *   when OFF, ABSENT never consumes.
- * - Front-desk CAN check-in with no subscription → unpaid debt rows
- *   (frontend-only `vinta:credit-debt:v1`).
- * - On Record Payment: remaining = N − unpaidDebtCount (oldest first).
- *   Debt 4 + pay N=4 → 0 DEPLETED. Debt 4 + pay N=8 → 4 remaining.
- * - Toggles effective next Monday 00:00 (week-versioning, no retroactive).
+ * The Billing Rules card in Settings used to be a set of localStorage
+ * preferences with week-versioning: a flip was staged and took effect the
+ * following Monday, on the strength of a change log the browser kept for
+ * itself. The server was never told. That meant the rules that actually
+ * decided who was charged were the columns on `academy_settings` — which
+ * every money path reads live (see app/services/academy_rules.py) — and the
+ * screen called "Billing Rules" was a separate, unconnected answer to the
+ * same question. An owner could turn "charge for missed sessions" off and
+ * an absence would still spend a credit, because the only party that counts
+ * had not been asked.
+ *
+ * There is one copy now, and it is the server's. This module reads it, caches
+ * the last answer, and writes changes back.
+ *
+ * Why a cache at all: several of these rules are read synchronously where the
+ * answer is printed — "ABSENT consumes 1" is text on a button, and the void
+ * flow has to know which rows were charged before it acts. Making those call
+ * sites async to fetch a boolean would put a network round trip inside a
+ * render for an answer that changes a few times a year. So the cache holds
+ * the last answer the server gave, and callers read it.
+ *
+ * A cache is not a source of truth, and this one is not allowed to become
+ * one: it is filled on sign-in, replaced on every write, and never consulted
+ * for a decision the server makes. Where it has no answer it falls back to
+ * the default the model column declares, which is the same answer the server
+ * gives for an academy whose settings row has never been written.
  */
 
-// ── Toggle 1: absenceConsumesCredit (default true) ──
+import api from './api'
 
-export interface BillingToggleVersion {
-  value: boolean
-  /** ISO of the Monday 00:00 this version takes effect */
-  effectiveFrom: string
-  updatedAt: string
+// ─────────────────────────────────────────────
+// The rules
+// ─────────────────────────────────────────────
+
+/**
+ * Every toggle the server stores, with the default its column declares.
+ *
+ * These names are the wire names. They are snake_case and read like the
+ * server's own vocabulary on purpose — a translation layer here would be one
+ * more place for the two sides to drift apart, and the drift is what this
+ * whole module exists to remove.
+ */
+export type BillingRuleField =
+  | 'absence_consumes_credit'
+  | 'count_gap_sessions'
+  | 'restore_credits_on_cancellation'
+  | 'free_session_auto_present'
+  | 'share_credits_across_groups'
+  | 'early_payment_on_extra_sessions'
+  | 'allow_makeups_default'
+
+export const BILLING_RULE_DEFAULTS: Record<BillingRuleField, boolean> = {
+  // Toggle 1 — a missed session still spends a credit.
+  absence_consumes_credit: true,
+  // Toggle 2 — sessions missed while overdue are charged against the next plan.
+  count_gap_sessions: false,
+  // Toggle 5 — a cancelled class gives back a credit it already charged.
+  restore_credits_on_cancellation: false,
+  // Toggle 6 — a free session fills its own register.
+  free_session_auto_present: true,
+  // Toggle 7 — one credit pool spans groups of the same subject.
+  share_credits_across_groups: false,
+  // Toggle 8 — ask for renewal as soon as extra sessions drain the credits.
+  early_payment_on_extra_sessions: true,
+  // Default for a new group: absences bank a makeup instead of burning the seat.
+  allow_makeups_default: true,
 }
 
-const TOGGLE_KEY = 'vinta:billing-toggles:v1'
+export const BILLING_RULE_FIELDS = Object.keys(BILLING_RULE_DEFAULTS) as BillingRuleField[]
 
-interface ToggleStore {
-  absenceConsumesCredit: BillingToggleVersion[]
+let cache: Record<BillingRuleField, boolean> = { ...BILLING_RULE_DEFAULTS }
+let hydrated = false
+
+/**
+ * Read the academy's rules into the cache and hand them back.
+ *
+ * Called at sign-in and by the Settings card. A refusal is not an error worth
+ * showing anyone at startup: the endpoint is owner-only, so staff get a 403
+ * every time, and the defaults above are the honest answer for someone who
+ * cannot read the row. Startup failures are swallowed deliberately — nothing
+ * in the app should fail to open because a settings read did not land — but
+ * the caller that *did* ask for them still gets a rejection, because there a
+ * failed read has to be said out loud rather than silently shown as an answer.
+ */
+export async function hydrateBillingRules(): Promise<Record<BillingRuleField, boolean>> {
+  const { data } = await api.get('/settings/billing-config')
+  cache = pickRules(data)
+  hydrated = true
+  return { ...cache }
 }
 
-function loadToggles(): ToggleStore {
-  try {
-    const raw = localStorage.getItem(TOGGLE_KEY)
-    if (!raw) return { absenceConsumesCredit: [] }
-    const parsed = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return { absenceConsumesCredit: [] }
-    const list = (parsed as ToggleStore).absenceConsumesCredit
-    return { absenceConsumesCredit: Array.isArray(list) ? list : [] }
-  } catch {
-    return { absenceConsumesCredit: [] }
+/** The cached rules, copied so a caller cannot write into the cache by accident. */
+export function snapshotBillingRules(): Record<BillingRuleField, boolean> {
+  return { ...cache }
+}
+
+/** Read the booleans out of a settings payload, ignoring anything else. */
+function pickRules(data: unknown): Record<BillingRuleField, boolean> {
+  const next = { ...cache }
+  const row = data as Record<string, unknown> | null
+  for (const field of BILLING_RULE_FIELDS) {
+    const value = row?.[field]
+    if (typeof value === 'boolean') next[field] = value
   }
+  return next
 }
 
-function saveToggles(store: ToggleStore): void {
-  try {
-    localStorage.setItem(TOGGLE_KEY, JSON.stringify(store))
-  } catch {
-    // Storage blocked — version still applies for this tab read cycle
-  }
+/** The cached answer for one rule. */
+export function getBillingRule(field: BillingRuleField): boolean {
+  return cache[field]
 }
 
-/** Next Monday 00:00 local from `from` (a future Monday stays as-is). */
-export function nextMondayMidnight(from: Date = new Date()): Date {
-  const d = new Date(from)
-  d.setHours(0, 0, 0, 0)
-  const dow = d.getDay() // 0=Sun … 1=Mon
-  let add = (8 - dow) % 7
-  if (add === 0) {
-    // Today IS Monday 00:00 exactly → effective now; otherwise next Monday.
-    add = from.getHours() === 0 && from.getMinutes() === 0 &&
-      from.getSeconds() === 0 && from.getMilliseconds() === 0 ? 0 : 7
-  }
-  d.setDate(d.getDate() + add)
-  return d
+/** True once a read has succeeded — i.e. these are the server's answers. */
+export function areBillingRulesLoaded(): boolean {
+  return hydrated
 }
 
 /**
- * Stage Toggle 1 — takes effect NEXT Monday 00:00 (no retroactive).
- * Returns the staged version.
+ * Change one rule, on the server.
+ *
+ * Writes immediately rather than staging: the server reads its columns live
+ * at each decision, so a staged promise ("from next Monday") would be a
+ * description of behaviour the app does not have. What the rules do guarantee
+ * is that a change cannot rewrite the past — every decision is made when a
+ * class is finalised, not when it was scheduled.
+ *
+ * Throws on refusal. The caller shows the server's own sentence: a 403 means
+ * the owner role, and a 400 names the field it did not like.
  */
-export function setAbsenceConsumesCredit(value: boolean, now: Date = new Date()): BillingToggleVersion {
-  const store = loadToggles()
-  const version: BillingToggleVersion = {
-    value,
-    effectiveFrom: nextMondayMidnight(now).toISOString(),
-    updatedAt: now.toISOString(),
-  }
-  store.absenceConsumesCredit.push(version)
-  // Keep the log bounded.
-  if (store.absenceConsumesCredit.length > 52) {
-    store.absenceConsumesCredit = store.absenceConsumesCredit.slice(-52)
-  }
-  saveToggles(store)
-  return version
+export async function setBillingRule(field: BillingRuleField, value: boolean): Promise<void> {
+  await api.put('/settings/billing-config', { [field]: value })
+  // The write response is an acknowledgement, not the row, so the value is
+  // cached from what was sent. That is safe here only because the request
+  // carries a real boolean and the server rejects anything it cannot read as
+  // one — a 200 means the column now holds exactly this.
+  cache = { ...cache, [field]: value }
+  hydrated = true
 }
+
+// ─────────────────────────────────────────────
+// The questions the desk actually asks
+// ─────────────────────────────────────────────
 
 /**
- * Effective Toggle 1 for a reference date (default today).
- * No version yet → default true. Only versions with effectiveFrom <= ref apply.
+ * Toggle 1 — does an absence spend a credit?
+ *
+ * Read in the register, the void flow and the cancellation confirmation, all
+ * of which have to say what will happen before it happens.
  */
-export function getAbsenceConsumesCredit(ref: Date = new Date()): boolean {
-  const store = loadToggles()
-  const refMs = ref.getTime()
-  let value = true // default true
-  let best = -Infinity
-  for (const v of store.absenceConsumesCredit) {
-    const eff = new Date(v.effectiveFrom).getTime()
-    if (Number.isNaN(eff) || eff > refMs) continue
-    if (eff >= best) {
-      best = eff
-      value = v.value
-    }
-  }
-  return value
+export function getAbsenceConsumesCredit(): boolean {
+  return getBillingRule('absence_consumes_credit')
 }
 
-/** Pending (future-dated) Toggle 1 versions — shown as "takes effect Mon". */
-export function getPendingToggleVersions(now: Date = new Date()): BillingToggleVersion[] {
-  const nowMs = now.getTime()
-  return loadToggles().absenceConsumesCredit
-    .filter((v) => new Date(v.effectiveFrom).getTime() > nowMs)
-    .sort((a, b) => +new Date(a.effectiveFrom) - +new Date(b.effectiveFrom))
+/** Toggle 6 — does a free session fill its own register? */
+export function isFreeSessionAutoPresent(): boolean {
+  return getBillingRule('free_session_auto_present')
 }
 
-/** Latest staged version regardless of date (for the Settings label). */
-export function getLatestToggleVersion(): BillingToggleVersion | null {
-  const list = loadToggles().absenceConsumesCredit
-  if (list.length === 0) return null
-  return [...list].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0]
-}
-
-// ── Toggle 6: freeSessionAutoPresent (default true) ──
-// When true, a FREE session auto-marks rows PRESENT and skips tracking.
-// When false, rows track normally for records (still zero billing).
-// Same next-Monday week-versioning as Toggle 1.
-
-interface Toggle6Store {
-  freeSessionAutoPresent: BillingToggleVersion[]
-}
-
-const TOGGLE6_KEY = 'vinta:billing-toggles:t6'
-
-function loadToggle6(): Toggle6Store {
-  try {
-    const raw = localStorage.getItem(TOGGLE6_KEY)
-    if (!raw) return { freeSessionAutoPresent: [] }
-    const parsed = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return { freeSessionAutoPresent: [] }
-    const list = (parsed as Toggle6Store).freeSessionAutoPresent
-    return { freeSessionAutoPresent: Array.isArray(list) ? list : [] }
-  } catch {
-    return { freeSessionAutoPresent: [] }
-  }
-}
-
-function saveToggle6(store: Toggle6Store): void {
-  try {
-    localStorage.setItem(TOGGLE6_KEY, JSON.stringify(store))
-  } catch {
-    // Storage blocked — version still applies for this tab read cycle
-  }
-}
-
-/** Stage Toggle 6 — takes effect NEXT Monday 00:00 (no retroactive). */
-export function setToggle6(value: boolean, now: Date = new Date()): BillingToggleVersion {
-  const store = loadToggle6()
-  const version: BillingToggleVersion = {
-    value,
-    effectiveFrom: nextMondayMidnight(now).toISOString(),
-    updatedAt: now.toISOString(),
-  }
-  store.freeSessionAutoPresent.push(version)
-  if (store.freeSessionAutoPresent.length > 52) {
-    store.freeSessionAutoPresent = store.freeSessionAutoPresent.slice(-52)
-  }
-  saveToggle6(store)
-  return version
-}
-
-/** Effective Toggle 6 for a reference date. No version yet → default true. */
-export function getToggle6(ref: Date = new Date()): boolean {
-  const refMs = ref.getTime()
-  let value = true // default true
-  let best = -Infinity
-  for (const v of loadToggle6().freeSessionAutoPresent) {
-    const eff = new Date(v.effectiveFrom).getTime()
-    if (Number.isNaN(eff) || eff > refMs) continue
-    if (eff >= best) {
-      best = eff
-      value = v.value
-    }
-  }
-  return value
-}
-
-/** Pending (future-dated) Toggle 6 versions. */
-export function getPendingToggle6(now: Date = new Date()): BillingToggleVersion[] {
-  const nowMs = now.getTime()
-  return loadToggle6().freeSessionAutoPresent
-    .filter((v) => new Date(v.effectiveFrom).getTime() > nowMs)
-    .sort((a, b) => +new Date(a.effectiveFrom) - +new Date(b.effectiveFrom))
-}
-
-/** Latest staged Toggle 6 regardless of date (for the Settings label). */
-export function getLatestToggle6(): BillingToggleVersion | null {
-  const list = loadToggle6().freeSessionAutoPresent
-  if (list.length === 0) return null
-  return [...list].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0]
-}
-
-// ── T10 final toggles (frontend-only, same next-Monday versioning) ──
-// - allowMakeups (default false)
-// - shareCreditsAcrossGroups (default false)
-// - earlyPaymentOnExtraSessions (default true)
-// absenceConsumesCredit (T5) + freeSessionAutoPresent (T6) stay separate above.
-
-export type FinalToggleKey = 'allowMakeups' | 'shareCreditsAcrossGroups' | 'earlyPaymentOnExtraSessions'
-
-export const FINAL_TOGGLE_DEFAULTS: Record<FinalToggleKey, boolean> = {
-  allowMakeups: false,
-  shareCreditsAcrossGroups: false,
-  earlyPaymentOnExtraSessions: true,
-}
-
-interface FinalToggleStore {
-  versions: Record<FinalToggleKey, BillingToggleVersion[]>
-}
-
-const FINAL_KEY = 'vinta:billing-toggles:final'
-
-function loadFinal(): FinalToggleStore {
-  const empty: FinalToggleStore = {
-    versions: { allowMakeups: [], shareCreditsAcrossGroups: [], earlyPaymentOnExtraSessions: [] },
-  }
-  try {
-    const raw = localStorage.getItem(FINAL_KEY)
-    if (!raw) return empty
-    const parsed = JSON.parse(raw) as Partial<FinalToggleStore>
-    if (typeof parsed !== 'object' || parsed === null || !parsed.versions) return empty
-    for (const k of Object.keys(empty.versions) as FinalToggleKey[]) {
-      const list = (parsed.versions as Record<string, unknown>)[k]
-      empty.versions[k] = Array.isArray(list) ? (list as BillingToggleVersion[]) : []
-    }
-    return empty
-  } catch {
-    return empty
-  }
-}
-
-function saveFinal(store: FinalToggleStore): void {
-  try {
-    localStorage.setItem(FINAL_KEY, JSON.stringify(store))
-  } catch {
-    // Storage blocked — version still applies for this tab read cycle
-  }
-}
-
-/** Stage a final toggle — takes effect NEXT Monday 00:00 (no retroactive). */
-export function setFinalToggle(key: FinalToggleKey, value: boolean, now: Date = new Date()): BillingToggleVersion {
-  const store = loadFinal()
-  const version: BillingToggleVersion = {
-    value,
-    effectiveFrom: nextMondayMidnight(now).toISOString(),
-    updatedAt: now.toISOString(),
-  }
-  store.versions[key].push(version)
-  if (store.versions[key].length > 52) {
-    store.versions[key] = store.versions[key].slice(-52)
-  }
-  saveFinal(store)
-  return version
-}
-
-/** Effective value for a reference date. No version yet → spec default. */
-export function getFinalToggle(key: FinalToggleKey, ref: Date = new Date()): boolean {
-  const refMs = ref.getTime()
-  let value = FINAL_TOGGLE_DEFAULTS[key]
-  let best = -Infinity
-  for (const v of loadFinal().versions[key]) {
-    const eff = new Date(v.effectiveFrom).getTime()
-    if (Number.isNaN(eff) || eff > refMs) continue
-    if (eff >= best) {
-      best = eff
-      value = v.value
-    }
-  }
-  return value
-}
-
-/** Pending (future-dated) versions for a key. */
-export function getPendingFinal(key: FinalToggleKey, now: Date = new Date()): BillingToggleVersion[] {
-  const nowMs = now.getTime()
-  return loadFinal().versions[key]
-    .filter((v) => new Date(v.effectiveFrom).getTime() > nowMs)
-    .sort((a, b) => +new Date(a.effectiveFrom) - +new Date(b.effectiveFrom))
-}
-
-/** Latest staged version regardless of date (for the Settings label). */
-export function getLatestFinal(key: FinalToggleKey): BillingToggleVersion | null {
-  const list = loadFinal().versions[key]
-  if (list.length === 0) return null
-  return [...list].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0]
-}
-
-// ── T10 swapLinkWindow: SAME_DAY (default) vs OPEN ──
+// ─────────────────────────────────────────────
+// Guest swap window
+//
 // SAME_DAY: link only within the same calendar day (Algiers).
-// OPEN: 7-day rolling window, closes on payout PAID, hard cap 30d.
+// OPEN: 7-day rolling, closes on payout PAID, hard cap 30d.
+//
+// This one has no column on the server, so it stays a preference of this
+// desk, and the Settings card says so. It is not staged for Monday either —
+// there was never anything to stage it into.
+// ─────────────────────────────────────────────
 
 export type SwapLinkWindow = 'SAME_DAY' | 'OPEN'
 
-export interface SwapWindowVersion {
-  value: SwapLinkWindow
-  effectiveFrom: string
-  updatedAt: string
-}
-
 const SWAPWIN_KEY = 'vinta:billing-toggles:swapwin'
 
-function loadSwapWin(): SwapWindowVersion[] {
+export function getSwapWindow(): SwapLinkWindow {
   try {
     const raw = localStorage.getItem(SWAPWIN_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    return raw === 'OPEN' ? 'OPEN' : 'SAME_DAY'
   } catch {
-    return []
+    return 'SAME_DAY'
   }
 }
 
-function saveSwapWin(list: SwapWindowVersion[]): void {
+export function setSwapWindow(value: SwapLinkWindow): void {
   try {
-    localStorage.setItem(SWAPWIN_KEY, JSON.stringify(list))
+    localStorage.setItem(SWAPWIN_KEY, value)
   } catch {
-    // Storage blocked — version still applies for this tab read cycle
+    // Storage blocked — the choice applies for this tab's lifetime only
   }
 }
 
-/** Stage swapLinkWindow — takes effect NEXT Monday 00:00 (no retroactive). */
-export function setSwapWindow(value: SwapLinkWindow, now: Date = new Date()): SwapWindowVersion {
-  const list = loadSwapWin()
-  const version: SwapWindowVersion = {
-    value,
-    effectiveFrom: nextMondayMidnight(now).toISOString(),
-    updatedAt: now.toISOString(),
-  }
-  list.push(version)
-  saveSwapWin(list.length > 52 ? list.slice(-52) : list)
-  return version
-}
-
-/** Effective window for a reference date. No version yet → SAME_DAY. */
-export function getSwapWindow(ref: Date = new Date()): SwapLinkWindow {
-  const refMs = ref.getTime()
-  let value: SwapLinkWindow = 'SAME_DAY'
-  let best = -Infinity
-  for (const v of loadSwapWin()) {
-    const eff = new Date(v.effectiveFrom).getTime()
-    if (Number.isNaN(eff) || eff > refMs) continue
-    if (eff >= best) {
-      best = eff
-      value = v.value
-    }
-  }
-  return value
-}
-
-/** Pending (future-dated) window versions. */
-export function getPendingSwapWindow(now: Date = new Date()): SwapWindowVersion[] {
-  const nowMs = now.getTime()
-  return loadSwapWin()
-    .filter((v) => new Date(v.effectiveFrom).getTime() > nowMs)
-    .sort((a, b) => +new Date(a.effectiveFrom) - +new Date(b.effectiveFrom))
-}
-
-/** Latest staged window regardless of date (for the Settings label). */
-export function getLatestSwapWindow(): SwapWindowVersion | null {
-  const list = loadSwapWin()
-  if (list.length === 0) return null
-  return [...list].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0]
-}
-
-// ── Debt-first ledger (frontend-only unpaid rows) ──
+// ─────────────────────────────────────────────
+// Debt-first ledger
+//
+// Front-desk check-in with no subscription writes an unpaid row here. This
+// is genuinely client-side: there is no endpoint that records "this student
+// attended with nothing to pay from", and the alternative — refusing the
+// check-in — loses the attendance instead of recording the debt.
+// ─────────────────────────────────────────────
 
 export interface DebtRow {
   id: string

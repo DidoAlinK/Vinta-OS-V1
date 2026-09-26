@@ -21,15 +21,18 @@
  * both the lamp and the menu, so the two cannot tell different stories.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Menu, Loader2, CalendarOff, AlertCircle, ArrowRight } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { toast } from '../../stores/uiStore'
 import { Modal } from '../../components/ui/Modal'
 import type { Class, Session } from '../../types/class'
-import { getEffectiveStatus } from '../../lib/sessionLifecycle'
-import SessionMenu from '../dashboard/SessionMenu'
+import { getEffectiveStatus, getSessionPhase } from '../../lib/sessionLifecycle'
+import { useNow } from '../../hooks/useNow'
+import { checkSessionNotifications } from '../../lib/sessionNotifier'
+import { extendSession } from '../../lib/extendSession'
+import SessionMenu, { VoidModal } from '../dashboard/SessionMenu'
 
 /**
  * How many of the group's upcoming sessions to load.
@@ -55,14 +58,16 @@ function serverMessage(err: unknown, fallback: string): string {
 }
 
 /**
- * Is this group running right now?
+ * Does this session still need the desk?
  *
- * `in_progress` and nothing else. A `scheduled` class is one that is expected,
- * and counting that would leave the lamp green from the moment a group has any
- * class on the books — which is every group.
+ * `in_progress` and nothing else — which covers both a class that is running
+ * and one that ran past its end and is still open (the phase below tells those
+ * two apart; this does not need to). A `scheduled` class is only expected, and
+ * counting it would hand the menu a session it can only offer "Start" for,
+ * over one that is actually mid-class.
  *
- * The menu picks its session with this same predicate, so a card can never
- * show a green lamp beside a menu that offers "Start Class".
+ * The menu picks its session with this predicate, so a card can never show a
+ * lamp beside a menu that has nothing to say about it.
  */
 function isRunning(session: Session): boolean {
   return getEffectiveStatus(session) === 'in_progress'
@@ -76,6 +81,8 @@ export interface ClassCardMenuProps {
   onChanged?: () => void
   /** Open the group's own panel, for when there is no session to act on. */
   onOpenGroup?: () => void
+  /** Open the attendance register for a live class. Owned by the page. */
+  onOpenRegister?: (session: Session) => void
 }
 
 export function ClassCardMenu({
@@ -83,11 +90,14 @@ export function ClassCardMenu({
   refreshToken = 0,
   onChanged,
   onOpenGroup,
+  onOpenRegister,
 }: ClassCardMenuProps) {
   /** null until the first read lands — distinct from "read it, nothing there". */
   const [sessions, setSessions] = useState<Session[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [pinFor, setPinFor] = useState<Session | null>(null)
+  /** The session whose void modal is open — raised by the ☰ or the end toast. */
+  const [voidFor, setVoidFor] = useState<Session | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -118,8 +128,25 @@ export function ClassCardMenu({
     onChanged?.()
   }, [load, onChanged])
 
+  /**
+   * Start Class, once.
+   *
+   * The menu closes on click but the ☰ does not go away, so until the reload
+   * lands the same button is still there offering the same thing — and a
+   * desk that presses it twice used to get a second request and a second
+   * toast ("Class already running" over the top of "Class started"), which
+   * reads as the start having gone wrong. The server is idempotent and was
+   * never going to open two registers; the noise was the whole cost, and it
+   * is enough to swallow the repeat here.
+   *
+   * A ref rather than state: the second press can arrive in the same tick as
+   * the first, before a re-render would have disabled anything.
+   */
+  const starting = useRef(false)
   const handleStart = useCallback(
     async (session: Session) => {
+      if (starting.current) return
+      starting.current = true
       try {
         const { data } = await api.post(`/sessions/${session.id}/start`)
         const opened = data?.roster_created ?? 0
@@ -129,11 +156,44 @@ export function ClassCardMenu({
             ? `Register opened — ${opened} student${opened === 1 ? '' : 's'} marked absent until they arrive.`
             : `${session.class_name ?? cls.name} is now in progress.`,
         )
+        // "Register opened" has to be true, not just said: the whole point of
+        // the false-until-true rule is that somebody now walks the list. Same
+        // move the Dashboard makes on Start.
+        onOpenRegister?.(session)
         handleChanged()
       } catch (err) {
         toast.error(
           'Could not start the class',
           serverMessage(err, 'The server refused the request.'),
+        )
+      } finally {
+        starting.current = false
+      }
+    },
+    [cls.name, handleChanged, onOpenRegister],
+  )
+
+  /**
+   * "No, Extend +15" from the end-of-class toast — the same server call the
+   * ☰ menu's Extend makes, because it is the same act: the session's end time
+   * moves and everything else follows from it (see lib/extendSession). The
+   * toast re-arms itself for the new end time, so the desk is asked again when
+   * the extension runs out rather than never.
+   */
+  const handleExtend = useCallback(
+    async (session: Session) => {
+      try {
+        const result = await extendSession(session)
+        toast.success(
+          'Class extended',
+          `${session.class_name ?? cls.name} now ends at ${result.end_time}` +
+            (result.duration_label ? ` · ${result.duration_label}` : ''),
+        )
+        handleChanged()
+      } catch (err) {
+        toast.error(
+          'Could not extend',
+          serverMessage(err, 'The end time was not changed. Please try again.'),
         )
       }
     },
@@ -149,18 +209,83 @@ export function ClassCardMenu({
    */
   const next = sessions?.find(isRunning) ?? sessions?.[0] ?? null
 
-  // `unknown` is not the same as `idle`, and it is worth the third colour:
-  // flashing red on a running class while its first read is still in flight
-  // would be a claim this card has no basis for.
+  /**
+   * The clock, shared, one tick a minute for every card on the page.
+   *
+   * The lamp is derived from session phases, and a phase moves on its own: a
+   * class that is `live` at 08:59 is `overdue` at 09:01 with no data change
+   * and no refetch. Without a tick the card would sit on the phase it last
+   * rendered and keep the green pulse going — the reported staleness. Only
+   * the lamp needs this; the menu below reads the server.
+   */
+  const now = useNow()
+
+  /**
+   * The lamp, from the clock rather than from the status alone.
+   *
+   * Not a `useMemo` for speed — it saves nothing on a list this short. It is
+   * here because `now` changes under the card every minute and would otherwise
+   * rebuild the array on every unrelated render too.
+   *
+   * `live` outranks `overdue`: a group can have both at once when an earlier
+   * class overruns into a later one, and the live one is the stronger claim.
+   *
+   * `unknown` is not the same as `idle`, and it is worth its own state:
+   * showing amber or green on a class while the first read is still in flight
+   * would be a claim this card has no basis for.
+   */
+  const phases = useMemo(
+    () => (sessions ?? []).map((s) => getSessionPhase(s, now)),
+    [sessions, now],
+  )
+
   const light: RunningLightState =
-    sessions === null || failed ? 'unknown' : sessions.some(isRunning) ? 'running' : 'idle'
+    sessions === null || failed
+      ? 'unknown'
+      : phases.includes('live')
+        ? 'running'
+        : phases.includes('overdue')
+          ? 'overdue'
+          : 'idle'
+
+  /**
+   * Tell the desk this group's class is over, and let them answer.
+   *
+   * Mounted here rather than on the page because this is the only component
+   * that has both the session *and* the flows the answer needs: Start, End
+   * Class (PIN) and Void all live in this card's ☰, so the page would have to
+   * reimplement all three to offer the same buttons. The Dashboard mounts the
+   * same notifier for its own day view.
+   *
+   * Driven by `useNow` instead of its own interval: that tick is shared by
+   * every card on the page (see hooks/useNow), so twenty cards cost one timer
+   * rather than twenty. The prompt itself is raised once per session per end
+   * time — the record it writes is keyed on `end_time`, so an extension
+   * re-arms it and a second card asking about the same session is a no-op.
+   */
+  useEffect(() => {
+    if (!next) return
+    checkSessionNotifications(
+      [next],
+      {
+        onStartClass: handleStart,
+        onFinishClass: setPinFor,
+        onExtend: handleExtend,
+        onVoid: setVoidFor,
+        getStatus: getEffectiveStatus,
+      },
+      now,
+    )
+  }, [next, now, handleStart, handleExtend])
 
   return (
     <>
       {/* The card's top-right corner. The lamp sits left of the ☰ because both
-          are fed by the fetch above — wherever the corner goes, they go. */}
+          are fed by the fetch above — wherever the corner goes, they go, and
+          the FREE chip goes with them for the same reason. */}
       <div className="flex items-center gap-1.5">
         <RunningLight state={light} />
+        {next?.is_free_session && <FreeChip />}
 
         {next ? (
           <SessionMenu
@@ -170,6 +295,7 @@ export function ClassCardMenu({
             onStart={handleStart}
             onFinish={setPinFor}
             onChanged={handleChanged}
+            onOpenRegister={onOpenRegister}
           />
         ) : (
           <NoSessionTrigger
@@ -190,6 +316,31 @@ export function ClassCardMenu({
           }}
         />
       )}
+
+      {/* The end-of-class toast's third answer. Same component the ☰ opens, so
+          the owner-PIN check and the roster snapshot before the cancel stay in
+          one place — this is the action that discards money, and a second copy
+          of it is a second chance to get that wrong. */}
+      {voidFor && (
+        <VoidModal
+          session={voidFor}
+          onClose={() => setVoidFor(null)}
+          onChanged={() => {
+            setVoidFor(null)
+            handleChanged()
+          }}
+        />
+      )}
+
+      {/* The register itself is not rendered here on purpose. Both of this
+          card's ways into it — Start, and "Log Students Present" — run through
+          the page's `onOpenRegister`, because a card is the wrong lifetime to
+          own it: `handleChanged` sends the page back for the class list, and
+          while that fetch is in flight ClassGrid swaps the whole grid for
+          skeletons. Every card unmounts, so state kept here was destroyed
+          before the modal could paint and "Register opened" stayed a promise
+          the screen never kept. Held one level up, the grid can come and go
+          around it. */}
     </>
   )
 }
@@ -198,34 +349,52 @@ export function ClassCardMenu({
    The running lamp
    ═══════════════════════════════════════════════════════ */
 
-type RunningLightState = 'running' | 'idle' | 'unknown'
+type RunningLightState = 'running' | 'overdue' | 'idle' | 'unknown'
 
 /**
- * Green while a class of this group is in progress, red when none is.
+ * A green pulse while a class of this group is running; a steady amber dot
+ * once that class is past its end and still open. Nothing otherwise.
  *
- * Red reads as a fault and it is not one — a group that meets on Thursday is
- * simply not running on Tuesday, which is the ordinary state of most cards at
- * any moment. It is the colour asked for, and next to a ☰ that offers "Start
- * Class" it reads as "nothing live here yet" rather than as a problem.
+ * This used to be a two-colour lamp — green live, red idle — and the red one
+ * was the bug the desk reported. It sat immediately beside the card's other
+ * dot, the enrollment state the server sends as `status_color`, so every
+ * ordinary group wore a green dot and a red dot at the same time with nothing
+ * to say which was which. Red is read as a fault; "this group meets on
+ * Thursday and today is Tuesday" is not one, and it is the state of almost
+ * every card at almost every moment. A fault light that is on 95% of the time
+ * carries no information at all.
  *
- * Grey is the third state and exists so the lamp never has to guess: until the
- * first read lands there is no answer, and a lamp that showed one anyway would
- * be inventing it.
+ * So the lamp speaks only when it has something to say. A group that is live
+ * gets a pulsing green dot — a real, rare, actionable fact, and the same one
+ * that unlocks "End Class" in the ☰ beside it. A group that is not gets
+ * nothing, and the card is left with a single dot whose meaning is unambiguous
+ * because there is only one of it.
+ *
+ * Amber is the other half of the same fix. A class whose end time has passed
+ * is *still* `in_progress` on the server — nothing closes a class on a timer
+ * (`tasks/cron_jobs.py` deliberately does not; ending a class is what settles
+ * money and it is PIN-gated) — so a lamp reading the status alone went on
+ * pulsing green for a class that finished at nine. Green now means running and
+ * amber means "this one is over and needs a decision", which is the same fact
+ * the ☰ beside it is waiting to act on.
+ *
+ * It is a different colour rather than the same dot with a different label
+ * because the desk reads this corner at a glance from across the room, and the
+ * two call for opposite actions: extend the class, or close it. It does not
+ * pulse — a pulse says "happening now", and what is happening is that nothing
+ * is. `--gold` matches the "unscheduled" mark in `ClassGrid`, so amber already
+ * means attention in this tab, not running.
+ *
+ * `unknown` (the first read has not landed) renders nothing for the same
+ * reason it always did: guessing would be inventing a fact.
  */
 function RunningLight({ state }: { state: RunningLightState }) {
-  const dot =
-    state === 'running'
-      ? 'bg-[var(--emerald)] ring-2 ring-[var(--emerald)]/25 animate-pulse'
-      : state === 'idle'
-        ? 'bg-[var(--red)]'
-        : 'bg-[var(--muted)]/40'
+  if (state === 'idle' || state === 'unknown') return null
 
-  const label =
-    state === 'running'
-      ? 'A class of this group is in progress'
-      : state === 'idle'
-        ? 'No class of this group is running'
-        : 'Checking whether this group is running…'
+  const overdue = state === 'overdue'
+  const label = overdue
+    ? 'A class of this group is past its end time and still open'
+    : 'A class of this group is in progress'
 
   return (
     <span
@@ -234,8 +403,50 @@ function RunningLight({ state }: { state: RunningLightState }) {
       title={label}
       // ring-2 plus the 2px dot is 6px of paint; `shrink-0` keeps the flex row
       // from eating into the gap between it and the ☰ on a long class name.
-      className={cn('w-2 h-2 rounded-full shrink-0 transition-colors duration-200', dot)}
+      className={cn(
+        'w-2 h-2 rounded-full shrink-0 transition-colors duration-200',
+        overdue
+          ? 'bg-[var(--gold)] ring-2 ring-[var(--gold)]/25'
+          : 'bg-[var(--emerald)] ring-2 ring-[var(--emerald)]/25 animate-pulse',
+      )}
     />
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   The free-session chip
+   ═══════════════════════════════════════════════════════ */
+
+/**
+ * "This group's next class is on the house."
+ *
+ * The free flag is a fact about one session, not about the group, so this
+ * chip reports the session the menu would open — the same `next` the lamp and
+ * the ☰ are built from. It is read off the row the server sent; nothing is
+ * inferred, and a group whose free session has already run shows nothing.
+ *
+ * It exists because the flag's whole purpose is invisible otherwise: a free
+ * session spends no credit and writes no revenue, and without a mark on the
+ * card the only way to know one is coming was to open the menu and look. The
+ * chip is the tell — on the Classes page it is the only place a group's week
+ * is visible at all.
+ */
+function FreeChip() {
+  const label = 'The next class of this group is free — no credit spent, no revenue'
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className={cn(
+        'shrink-0 px-1.5 py-[1px] rounded-full',
+        'text-[9px] font-bold tracking-wide leading-none',
+        'text-[var(--emerald)] bg-[var(--emerald-soft)]/60',
+        'ring-1 ring-[var(--emerald)]/30',
+      )}
+    >
+      FREE
+    </span>
   )
 }
 

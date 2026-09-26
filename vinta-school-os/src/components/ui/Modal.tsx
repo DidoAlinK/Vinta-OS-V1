@@ -115,12 +115,22 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
             'text-[var(--text)]',
             'animate-fade-in-scale',
             'overflow-hidden',
+            /*
+              The panel is centred in a fixed backdrop, so anything taller than
+              the viewport used to overflow *both* ways at once — pushing the
+              header's X and the footer's buttons off screen with no scrollbar
+              to reach them, leaving Escape as the only exit. Capping the panel
+              to the viewport (minus the backdrop's own p-4) and letting the
+              body scroll keeps the header and footer pinned and always
+              reachable, however tall the content grows.
+            */
+            'flex flex-col max-h-[calc(100vh-2rem)]',
           )}
           style={{ maxWidth: maxWidthMap[size] }}
         >
           {/* Header */}
           {(title || !hideCloseButton) && (
-            <div className="flex items-center justify-between gap-3 px-6 pt-5 pb-2">
+            <div className="shrink-0 flex items-center justify-between gap-3 px-6 pt-5 pb-2">
               {title && (
                 <h2 className="text-lg font-semibold font-[family-name:var(--font-heading)] text-[var(--text)] truncate">
                   {title}
@@ -148,14 +158,15 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
             </div>
           )}
 
-          {/* Body */}
-          <div className="px-6 py-4 text-sm text-[var(--text)] leading-relaxed">
+          {/* Body — the scroll region. `min-h-0` is what lets a flex child
+              actually shrink below its content size and scroll. */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 text-sm text-[var(--text)] leading-relaxed">
             {children}
           </div>
 
           {/* Footer */}
           {footer && (
-            <div className="flex items-center justify-end gap-3 px-6 pb-5 pt-0">
+            <div className="shrink-0 flex items-center justify-end gap-3 px-6 pb-5 pt-0">
               {footer}
             </div>
           )}

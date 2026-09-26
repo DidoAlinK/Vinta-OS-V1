@@ -11,8 +11,12 @@ import { X, UserPlus, Phone, BookOpen, ChevronDown, Search, Plus, Trash2 } from 
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { Toggle } from '../../components/ui/Toggle'
+import { DayPicker } from '../../components/ui/DayPicker'
+import { Select } from '../../components/ui/Select'
+import { TimePicker } from '../../components/ui/TimePicker'
 import { toast } from '../../stores/uiStore'
-import { isValidEmail, setTeacherEmail } from '../../lib/teacherEmails'
+import { isValidEmail } from '../../lib/teacherEmails'
+import { formatDuration } from '../../lib/formatters'
 import type { CommissionType } from '../../types/teacher'
 import { COMMISSION_TYPE_LABELS } from '../../types/teacher'
 
@@ -33,7 +37,10 @@ interface TeacherGroup {
   capacity: number
   price_da: number
   class_type: 'weekly' | 'temporary'
-  dedicated_time: string
+  /** Weekday anchor for a weekly group; the exact date for a one-off. */
+  day: string
+  start_time: string
+  end_time: string
   notes: string
 }
 
@@ -104,7 +111,9 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
   const [groupCapacity, setGroupCapacity] = useState(20)
   const [groupPrice, setGroupPrice] = useState(0)
   const [groupClassType, setGroupClassType] = useState<'weekly' | 'temporary'>('weekly')
-  const [groupDedicatedTime, setGroupDedicatedTime] = useState('')
+  const [groupDay, setGroupDay] = useState('')
+  const [groupStartTime, setGroupStartTime] = useState('')
+  const [groupEndTime, setGroupEndTime] = useState('')
   const [groupNotes, setGroupNotes] = useState('')
 
   // Fetch subjects on mount
@@ -194,11 +203,13 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
 
   const validateEmailLive = useCallback((value: string): string | null => {
     const v = value.trim()
-    if (!v) return 'Email is required.'
+    // Email is optional: plenty of teachers here do not have one, and their
+    // profile must still be creatable. Only a value that is present and
+    // malformed blocks the save.
+    if (!v) return null
     if (!isValidEmail(v)) return 'Enter a valid email address.'
-    // Uniqueness is enforced registry-side at save (academy-scoped);
-    // do NOT block the button on the draft value — a stale cache or a
-    // same-browser demo academy would otherwise lock Create forever.
+    // Uniqueness is enforced by the server (academy-scoped, 409). Do NOT block
+    // the button on the draft value.
     return null
   }, [])
 
@@ -224,7 +235,9 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
     setGroupCapacity(20)
     setGroupPrice(0)
     setGroupClassType('weekly')
-    setGroupDedicatedTime('')
+    setGroupDay('')
+    setGroupStartTime('')
+    setGroupEndTime('')
     setGroupNotes('')
   }, [])
 
@@ -236,6 +249,27 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
 
   const handleAddGroup = useCallback(() => {
     if (!groupName.trim()) return
+    // A group with no time is a group that can never produce a session. This
+    // form used to accept a sentence about the time instead ("Mon/Wed
+    // 10:00-12:00"), store it on the group, and leave the calendar empty — so
+    // the desk created a group, enrolled nobody, and only found out later.
+    if (!groupStartTime || !groupEndTime) {
+      toast.error('Set the group time', 'A group needs a Start At and an End At.')
+      return
+    }
+    if (groupEndTime <= groupStartTime) {
+      toast.error('Check the times', 'End At must be after Start At.')
+      return
+    }
+    if (!groupDay) {
+      toast.error(
+        groupClassType === 'weekly' ? 'Pick the weekly day' : 'Pick the date',
+        groupClassType === 'weekly'
+          ? 'The weekday is what the weekly series is built from.'
+          : 'A one-off group needs its date.',
+      )
+      return
+    }
     const newGroup: TeacherGroup = {
       id: `group-${Date.now()}`,
       name: groupName.trim(),
@@ -243,13 +277,15 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
       capacity: groupCapacity,
       price_da: groupPrice,
       class_type: groupClassType,
-      dedicated_time: groupDedicatedTime.trim(),
+      day: groupDay,
+      start_time: groupStartTime,
+      end_time: groupEndTime,
       notes: groupNotes.trim(),
     }
     setGroups(prev => [...prev, newGroup])
     resetGroupForm()
     setShowGroupForm(false)
-  }, [groupName, groupSubject, groupCapacity, groupPrice, groupClassType, groupDedicatedTime, groupNotes, resetGroupForm])
+  }, [groupName, groupSubject, groupCapacity, groupPrice, groupClassType, groupDay, groupStartTime, groupEndTime, groupNotes, resetGroupForm])
 
   const handleRemoveGroup = useCallback((groupId: string) => {
     setGroups(prev => prev.filter(g => g.id !== groupId))
@@ -257,7 +293,9 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
 
   const handleSubmit = useCallback(async () => {
     if (!firstName.trim()) { toast.error('Name is required'); return }
-    // T9: email required, unique per academy, validated (registry; never sent).
+    // Email is optional and round-trips through the API now (it used to live
+    // only in localStorage). Only a value that is present and malformed blocks
+    // the save; uniqueness is the server's job and comes back as a 409.
     const mailErr = validateEmailLive(email)
     setEmailError(mailErr)
     if (mailErr) { toast.error(mailErr); return }
@@ -265,12 +303,15 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
     if (selectedSubjectIds.length === 0) { toast.error('At least one subject is required'); return }
     setIsSubmitting(true)
     try {
-      // 1. Create teacher (backend has no email column — email stored locally after).
-      // No contract/rate fields: hourly model removed. Commission only when the
-      // academy opted into gross-profit; otherwise the backend defaults apply.
+      // 1. Create teacher. No contract/rate fields: hourly model removed.
+      // Commission only when the academy opted into gross-profit; otherwise the
+      // backend defaults apply.
       const payload: Record<string, unknown> = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
+        // Optional — omitted entirely when blank. `undefined` is dropped by
+        // JSON.stringify, so the server sees no email key at all.
+        email: email.trim() || undefined,
         phone: phone.trim() || undefined,
         subject_ids: selectedSubjectIds,
         notes: notes.trim() || undefined,
@@ -283,37 +324,82 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
 
       const { data: teacherData } = await api.post('/teachers', payload)
 
-      // T9: store the validated email in the frontend registry (never sent).
-      if (teacherData?.id) {
-        const storeErr = setTeacherEmail(teacherData.id, email.trim())
-        if (storeErr) toast.warning('Teacher created, email not saved', storeErr)
-      }
-
-      // 2. Create groups for this teacher
+      // 2. Create each group, then give it its time.
+      //
+      // Two calls each, in this order, because creating a group and defining
+      // when it meets are two different resources — `/classes/:id/schedules` is
+      // what owns `generate_sessions_from_schedule`. Skipping the second call is
+      // how every group made from here used to end up with a permanently empty
+      // calendar; a third failure mode was worse than empty, because the catch
+      // below swallowed it and the group looked created.
+      const failed: string[] = []
       for (const group of groups) {
+        let created: { id: string }
         try {
-          await api.post('/classes', {
+          const { data } = await api.post('/classes', {
             name: group.name,
             subject: group.subject || undefined,
             teacher_id: teacherData.id,
             capacity: group.capacity,
             price_da: group.price_da || undefined,
             class_type: group.class_type,
-            dedicated_time: group.dedicated_time || undefined,
             notes: group.notes || undefined,
           })
+          created = data
         } catch {
-          // Group creation failed, continue with others
+          failed.push(group.name)
+          continue
         }
+
+        const anchorDow =
+          group.class_type === 'weekly'
+            ? new Date(`${group.day}T12:00:00`).getDay()
+            : undefined
+        try {
+          if (group.class_type === 'weekly') {
+            await api.post(`/classes/${created.id}/schedules`, {
+              day_of_week: anchorDow,
+              start_time: group.start_time,
+              end_time: group.end_time,
+            })
+          } else {
+            await api.post('/sessions', {
+              class_id: created.id,
+              date: group.day,
+              start_time: group.start_time,
+              end_time: group.end_time,
+            })
+          }
+        } catch (err) {
+          // 409 means this group already meets at exactly these hours — a
+          // re-save, not a failure.
+          const status = (err as { response?: { status?: number } })?.response?.status
+          if (status !== 409) failed.push(group.name)
+        }
+      }
+
+      if (failed.length > 0) {
+        // The teacher exists. Saying "created" over the top of a group that did
+        // not make it is the same lie this handler was fixed for once already.
+        toast.error(
+          'Teacher added, some groups were not',
+          `${failed.join(', ')} — add the time from the group panel, then reload.`,
+        )
       }
 
       resetForm()
       onAdded()
       onClose()
-    } catch {
-      resetForm()
-      onAdded()
-      onClose()
+    } catch (err) {
+      // This used to reset, refresh and close — so a refused create looked
+      // exactly like a created one and the teacher silently never appeared.
+      // Keep the form open and say what the server said.
+      const message =
+        (err as { response?: { data?: { error?: string; message?: string } } })
+          ?.response?.data?.error ??
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'The server refused the request.'
+      toast.error('Teacher not created', message)
     } finally {
       setIsSubmitting(false)
     }
@@ -387,8 +473,10 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
             </Field>
           </div>
 
-          {/* Email — T9 required, unique per academy, validated */}
-          <Field label="Email" required>
+          {/* Email — optional, and the only one that is: plenty of teachers
+              here have no address, and the profile must still be creatable.
+              Validated only when present; uniqueness is the server's call. */}
+          <Field label="Email (optional)">
             <input
               type="email"
               value={email}
@@ -401,8 +489,10 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
             )}
           </Field>
 
-          {/* Phone */}
-          <Field label="Phone">
+          {/* Phone — required, and the label says so. It was silently
+              mandatory before: the button stayed enabled and the save bounced
+              off a toast, which reads as the form being broken. */}
+          <Field label="Phone" required>
             <div className="relative">
               <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
               <input
@@ -655,6 +745,13 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                         {group.price_da > 0 && (
                           <span className="text-[10px] text-[var(--muted)]">{group.price_da} DA</span>
                         )}
+                        {/* The time is on the chip because it is the part that
+                            used to go missing: a group could be added with a
+                            sentence where this belongs and nothing said so. */}
+                        <span className="text-[10px] text-[var(--muted)]">
+                          {group.start_time}–{group.end_time}
+                          {group.class_type === 'temporary' && group.day ? ` · ${group.day}` : ''}
+                        </span>
                         <span className={cn(
                           'text-[10px] font-medium px-1.5 py-0.5 rounded-full',
                           group.class_type === 'weekly'
@@ -692,16 +789,15 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                   autoFocus
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <select
+                  <Select
                     value={groupSubject}
-                    onChange={(e) => setGroupSubject(e.target.value)}
-                    className={inputCls}
-                  >
-                    <option value="">Subject...</option>
-                    {subjects.map(s => (
-                      <option key={s.name} value={s.name}>{s.name}</option>
-                    ))}
-                  </select>
+                    onChange={setGroupSubject}
+                    options={[
+                      { value: '', label: 'Subject...' },
+                      ...subjects.map(s => ({ value: s.name, label: s.name })),
+                    ]}
+                    className={cn(inputCls, 'h-auto')}
+                  />
                   <input
                     type="number"
                     value={groupCapacity}
@@ -738,13 +834,35 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                     ))}
                   </div>
                 </div>
-                <input
-                  type="text"
-                  value={groupDedicatedTime}
-                  onChange={(e) => setGroupDedicatedTime(e.target.value)}
-                  placeholder="Dedicated time (e.g. Mon/Wed 10:00-12:00)"
-                  className={inputCls}
+                {/* The day the series runs on, then its two real times.
+                    This replaced a free-text "Dedicated time" box asking for
+                    prose like "Mon/Wed 10:00-12:00". The server stored the
+                    sentence on the group and nothing could turn it into a
+                    session, so the group's calendar stayed empty forever. */}
+                <DayPicker
+                  value={groupDay}
+                  onChange={setGroupDay}
+                  placeholder={groupClassType === 'weekly' ? 'Pick the weekly day…' : 'Pick the one-off date…'}
                 />
+                <div className="grid grid-cols-2 gap-2">
+                  <TimePicker
+                    value={groupStartTime}
+                    onChange={setGroupStartTime}
+                    aria-label="Start At"
+                    className={inputCls}
+                  />
+                  <TimePicker
+                    value={groupEndTime}
+                    onChange={setGroupEndTime}
+                    aria-label="End At"
+                    className={inputCls}
+                  />
+                </div>
+                <p className="text-[10px] text-[var(--muted)] -mt-1">
+                  {groupStartTime && groupEndTime && groupEndTime > groupStartTime
+                    ? `Start At – End At · a ${formatDuration(groupStartTime, groupEndTime)} session.`
+                    : 'Start At / End At — the class runs between these two times.'}
+                </p>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -787,7 +905,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!firstName.trim() || !lastName.trim() || !email.trim() || !isValidEmail(email.trim()) || selectedSubjectIds.length === 0 || isSubmitting}
+            disabled={!firstName.trim() || !lastName.trim() || !phone.trim() || !!validateEmailLive(email) || selectedSubjectIds.length === 0 || isSubmitting}
             className={cn(
               'flex-1 py-2.5 rounded-xl text-sm font-semibold text-white',
               'bg-gradient-to-r from-[#b3872a] to-[#0f6b4d]',

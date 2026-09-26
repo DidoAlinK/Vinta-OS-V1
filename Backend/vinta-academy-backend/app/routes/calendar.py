@@ -20,6 +20,27 @@ from app.schemas.base import ErrorSchema, MessageSchema
 calendar_bp = Blueprint("calendar", __name__, description="Calendar views & session management")
 
 
+def _duration_label(start, end) -> str:
+    """
+    How long the class runs, in the words the log should read.
+
+    "1 h 45 min", not "105 minutes": this sentence is read at the desk when
+    someone asks how long a class went, and the answer should not need
+    arithmetic. A class of exactly 2 h is "2 h", not "2 h 0 min".
+    """
+    start_min = start.hour * 60 + start.minute
+    end_min = end.hour * 60 + end.minute
+    total = end_min - start_min
+    if total <= 0:
+        return "0 min"
+    hours, minutes = divmod(total, 60)
+    if hours and minutes:
+        return f"{hours} h {minutes} min"
+    if hours:
+        return f"{hours} h"
+    return f"{minutes} min"
+
+
 @calendar_bp.route("/calendar/week", methods=["GET"])
 @jwt_required()
 @tenant_required
@@ -183,27 +204,71 @@ def create_session():
 @tenant_required
 def update_session(session_id):
     """
-    Update session times (drag-to-move / edge-resize).
-    Body: { date?, start_time?, end_time? }
+    Update a session.
+
+    Body: { date?, start_time?, end_time?, is_free_session? }
+
+    A scheduled session is freely movable. A live (in_progress) one accepts
+    a later ``end_time`` and nothing else — that is Extend, and the refusal
+    for every other field is deliberate (see
+    ``scheduling_service.LIVE_EDITABLE_FIELDS``).
     """
     from flask import g
+    from app.models.scheduling import Session
+
     data = request.get_json()
     if not data:
         return jsonify({"error": "Request body is required"}), 400
+
+    # Read the row before touching it: the log line has to say what changed,
+    # and after the update the old end time is gone.
+    before = db.session.get(Session, session_id)
+    was_live = before is not None and before.status == "in_progress"
+    previous_end = before.end_time.strftime("%H:%M") if before else None
 
     session = scheduling_service.update_session_times(
         session_id, g.current_academy_id, data
     )
     if not session:
-        return jsonify({"error": "Session not found or already started"}), 404
+        return jsonify({"error": "Session not found, already finished, or the change is not allowed"}), 404
+
+    # The description is what the class log shows, so it says what happened
+    # in the desk's words — and for an extend, how long the class now runs,
+    # because "longer" is the whole point of pressing the button.
+    if was_live and "end_time" in data:
+        description = (
+            f"Extended to {session.end_time.strftime('%H:%M')} "
+            f"({_duration_label(session.start_time, session.end_time)}) "
+            f"— was {previous_end}"
+        )
+        action = "extended"
+    elif "is_free_session" in data:
+        description = (
+            "Marked as a free session — no credit spent, no revenue"
+            if session.is_free_session
+            else "Free flag removed — this session bills normally"
+        )
+        action = "updated"
+    else:
+        description = (
+            f"Session on {session.date.isoformat()} updated "
+            f"({_duration_label(session.start_time, session.end_time)})"
+        )
+        action = "updated"
 
     log_activity(
         academy_id=g.current_academy_id,
         user_id=g.current_user.id,
         entity_type="session",
         entity_id=session.id,
-        action="updated",
-        description=f"Session on {session.date.isoformat()} updated",
+        action=action,
+        description=description,
+        metadata={
+            "class_id": session.class_id,
+            "session_date": session.date.isoformat(),
+            "start_time": session.start_time.strftime("%H:%M"),
+            "end_time": session.end_time.strftime("%H:%M"),
+        },
     )
 
     db.session.commit()
@@ -212,6 +277,8 @@ def update_session(session_id):
         "date": session.date.isoformat(),
         "start_time": session.start_time.strftime("%H:%M"),
         "end_time": session.end_time.strftime("%H:%M"),
+        "is_free_session": bool(session.is_free_session),
+        "duration_label": _duration_label(session.start_time, session.end_time),
     }), 200
 
 
@@ -219,11 +286,50 @@ def update_session(session_id):
 @jwt_required()
 @tenant_required
 def cancel_session(session_id):
-    """Cancel a session."""
+    """
+    Cancel a session.
+
+    Body (optional): { reason } — TEACHER_ABSENT, CANCELLED_BY_STAFF, OTHER.
+
+    "Cancel Class" and "Teacher Absent" used to write the same row with the
+    same words, so a class the teacher failed to show up for was
+    indistinguishable from one the academy called off. The reason is what
+    lets the register and the credit policy tell them apart.
+
+    A session that has already been settled is refused: see
+    ``scheduling_service.cancel_session``.
+    """
     from flask import g
-    success = scheduling_service.cancel_session(session_id, g.current_academy_id)
-    if not success:
-        return jsonify({"error": "Session not found"}), 404
+    data = request.get_json(silent=True) or {}
+    reason = data.get("reason")
+
+    session = scheduling_service.cancel_session(
+        session_id, g.current_academy_id, reason
+    )
+    if not session:
+        return jsonify({
+            "error": "Session not found, or it has already been settled and cannot be cancelled"
+        }), 404
+
+    if session.cancelled_reason == "TEACHER_ABSENT":
+        # Named, because this is the entry the desk will search for when the
+        # parent asks why the class did not happen.
+        group_name = session.class_.name if session.class_ else "Class"
+        description = (
+            f"Teacher absent — {group_name} on {session.date.isoformat()} cancelled"
+        )
+    elif session.actual_start_time is not None:
+        # A cancelled class that had already started is a void, and a void
+        # discards money — so this is the line that explains why a class the
+        # desk watched run was not charged. It is read off `actual_start_time`
+        # rather than a dedicated reason, because a void shares the
+        # CANCELLED_BY_STAFF value (see CANCEL_REASONS).
+        group_name = session.class_.name if session.class_ else "Class"
+        description = (
+            f"Live session voided — {group_name} on {session.date.isoformat()}"
+        )
+    else:
+        description = f"Session on {session.date.isoformat()} cancelled"
 
     log_activity(
         academy_id=g.current_academy_id,
@@ -231,11 +337,19 @@ def cancel_session(session_id):
         entity_type="session",
         entity_id=session_id,
         action="deleted",
-        description="Session cancelled",
+        description=description,
+        metadata={
+            "class_id": session.class_id,
+            "session_date": session.date.isoformat(),
+            "cancelled_reason": session.cancelled_reason,
+        },
     )
 
     db.session.commit()
-    return jsonify({"message": "Session cancelled"}), 200
+    return jsonify({
+        "message": "Session cancelled",
+        "cancelled_reason": session.cancelled_reason,
+    }), 200
 
 
 @calendar_bp.route("/sessions/<session_id>/start", methods=["POST"])

@@ -7,6 +7,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '../../lib/cn'
 import { SUBJECT_COLORS } from '../../lib/constants'
+import { classFillPercent, classStateOf, type ClassState } from '../../lib/classState'
 import type { Class } from '../../types/class'
 
 // ============================================
@@ -44,26 +45,33 @@ function resolveColor(cls: Class): string {
 }
 
 /** Status dot color */
-function statusDotColor(status: Class['status']): string {
-  switch (status) {
+function statusDotColor(state: ClassState): string {
+  switch (state) {
     case 'full':
       return 'bg-[var(--red)]'
     case 'active':
       return 'bg-[var(--emerald)]'
     case 'empty':
       return 'bg-[var(--muted)]/40'
+    case 'unscheduled':
+      return 'bg-[var(--gold)]'
   }
 }
 
 /** Status label */
-function statusLabel(status: Class['status']): string {
-  switch (status) {
+function statusLabel(state: ClassState): string {
+  switch (state) {
     case 'full':
       return 'Full'
     case 'active':
       return 'Active'
     case 'empty':
       return 'Empty'
+    // Says what is missing rather than what is wrong: the group has students
+    // and no time, and the fix is to give it one. "Inactive" would leave the
+    // desk asking what to do about it; this names the missing step.
+    case 'unscheduled':
+      return 'No schedule'
   }
 }
 
@@ -165,8 +173,14 @@ interface ClassCardProps {
 
 function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
   const color = resolveColor(cls)
-  const isFull = cls.status === 'full'
-  const isEmpty = cls.status === 'empty'
+  // One reading of the group's state, used by the dot, the label and the bar.
+  // These were three separate reads of `cls.status`, a field the API has never
+  // sent — so the dot rendered transparent, the label rendered nothing, and the
+  // bar was never coloured for a full room.
+  const state = classStateOf(cls)
+  const isFull = state === 'full'
+  const isEmpty = state === 'empty'
+  const isUnscheduled = state === 'unscheduled'
 
   // `relative flex` on the wrapper, not just `relative`: the card used to be
   // the grid item and stretched to the row height, and moving it inside a
@@ -213,7 +227,7 @@ function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
 
             <div className="flex items-center gap-1.5 shrink-0">
               <span
-                className={cn('w-2 h-2 rounded-full', statusDotColor(cls.status))}
+                className={cn('w-2 h-2 rounded-full', statusDotColor(state))}
               />
             </div>
           </div>
@@ -253,10 +267,12 @@ function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
                     ? 'text-[var(--red)]'
                     : isEmpty
                       ? 'text-[var(--muted)]'
-                      : 'text-[var(--emerald)]',
+                      : isUnscheduled
+                        ? 'text-[var(--gold)]'
+                        : 'text-[var(--emerald)]',
                 )}
               >
-                {statusLabel(cls.status)}
+                {statusLabel(state)}
               </span>
             </div>
 
@@ -265,7 +281,7 @@ function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
               <div
                 className="h-full rounded-full transition-all duration-300"
                 style={{
-                  width: `${Math.min((cls.enrolled_count / cls.capacity) * 100, 100)}%`,
+                  width: `${classFillPercent(cls)}%`,
                   backgroundColor: isFull
                     ? 'var(--red)'
                     : isEmpty

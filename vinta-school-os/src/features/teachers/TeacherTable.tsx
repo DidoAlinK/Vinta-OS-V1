@@ -122,6 +122,22 @@ function TeacherTable({ teachers, onSelect, isLoading }: TeacherTableProps) {
             <p className="text-sm font-medium text-[var(--text)] truncate">
               {teacher.full_name}
             </p>
+            {/* Status — the chips mark the exception, not the rule. An active
+                teacher is the default and a badge on every row is noise; an
+                inactive one is off the assignment pickers, which is worth
+                seeing before you wonder why they never come up. */}
+            {teacher.status === 'INACTIVE' && (
+              <span
+                className={cn(
+                  'inline-flex px-1.5 py-0.5 rounded shrink-0',
+                  'text-[10px] font-medium',
+                  'bg-[var(--glass)] border border-[var(--glass-border)]',
+                  'text-[var(--muted)]',
+                )}
+              >
+                Inactive
+              </span>
+            )}
           </div>
 
           {/* Subject */}

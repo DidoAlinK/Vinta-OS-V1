@@ -23,8 +23,16 @@ export interface Teacher {
   academy_id: string
   first_name: string
   last_name: string
-  /** T9: frontend registry (teacherEmails.ts) — backend has no email column. */
+  /**
+   * Optional. Some teachers have no address, and the profile is still
+   * creatable — the server stores NULL and the (academy_id, email) unique
+   * index treats NULLs as distinct, so any number of teachers may have none.
+   */
   email?: string
+  /** ACTIVE (default) or INACTIVE. Inactive teachers stay on the roster and on
+   *  past sessions but are kept out of the class/session assignment pickers,
+   *  which opt in with ?status=ACTIVE. */
+  status?: 'ACTIVE' | 'INACTIVE'
   phone?: string
   subject?: string
   subjects?: { id: string; name: string; color: string }[]
@@ -92,7 +100,7 @@ export interface TeacherHoursLog {
 export interface CreateTeacherRequest {
   first_name: string
   last_name: string
-  /** T9: validated frontend-side, stored in the email registry (never sent). */
+  /** Optional. Format-checked when present, unique per academy when given. */
   email?: string
   phone?: string
   subject?: string
@@ -104,8 +112,9 @@ export interface CreateTeacherRequest {
 export interface UpdateTeacherRequest {
   first_name?: string
   last_name?: string
-  /** T9: validated frontend-side, stored in the email registry (never sent). */
-  email?: string
+  /** Optional. Send null or "" to clear it. */
+  email?: string | null
+  status?: 'ACTIVE' | 'INACTIVE'
   phone?: string
   subject?: string
   notes?: string

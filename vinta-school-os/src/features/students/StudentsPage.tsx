@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
+import { useUIStore } from '../../stores/uiStore'
 import StudentTable from './StudentTable'
 import StudentDrawer from './StudentDrawer'
 import AddStudentModal from './AddStudentModal'
@@ -59,15 +60,29 @@ function activePillClass(key: FilterKey): string {
 // Component
 // ============================================
 
+/** Ask for the server's own ceiling. More than this is clamped, not honoured. */
+const PAGE_SIZE = 100
+
+/**
+ * How many pages to walk before giving up.
+ *
+ * 60 pages is 6,000 students — far past any academy this is built for, and the
+ * point of the number is that a bad `pages` value on the wire cannot turn this
+ * into an unbounded loop of requests. If it is ever reached the table says it
+ * is showing a slice, so the cap can never be mistaken for the whole roster.
+ */
+const MAX_PAGES = 60
+
 export default function StudentsPage() {
   /* ── State ── */
   const [students, setStudents] = useState<Student[]>([])
-  /* How many students matched on the server — the loaded page may be smaller,
-     because `GET /students` caps at 50 rows. Only used to say so honestly. */
+  /* Every student the server matched. `students` now holds all of them unless
+     the walk hit MAX_PAGES, so this is only larger when the table is a slice. */
   const [totalMatching, setTotalMatching] = useState(0)
-  /* Counts for the whole roster, straight from the API — never derived from
-     the loaded page: `GET /students` is capped (50), so counting `students`
-     would report "students on this page" and quietly understate the roster. */
+  /* Counts for the whole roster, straight from the API. Not derived from
+     `students` even though that is now the whole set: these are the server's
+     own numbers, and keeping them independent is what lets the two disagree
+     loudly if a walk ever comes back short. */
   const [stats, setStats] = useState<StudentStats>({
     total: 0,
     paid: 0,
@@ -82,22 +97,61 @@ export default function StudentsPage() {
   const [filter, setFilter] = useState<FilterKey>('all')
 
   /* ── Fetch students ──
-     `q` is sent to the server rather than filtering the loaded array in the
-     browser. `GET /students` is capped at 50 rows per page, so client-side
-     filtering would silently miss every student past the first page — search
-     would appear to work right up until the roster outgrew one page. */
+     `q` is still sent to the server rather than filtering a loaded array in the
+     browser: the roster is the academy's, not this page's, and a search that
+     only looked at what had already been fetched would miss students it had
+     never asked for.
+
+     What changed is that the page no longer stops at the first twenty. It used
+     to render `GET /students` once and show whichever fifty came back, which
+     meant a 437-student academy could only ever see its first fifty — the rail
+     said 437, the table showed 50, and every filter below counted the fifty.
+     Now the first response's `pages` is used to pull the rest, so `students` is
+     the whole match set and the pills count the roster instead of the page.
+
+     `per_page` asks for the server's own ceiling; asking for more is silently
+     clamped, so the page count is read back rather than computed here. */
   const fetchStudents = useCallback(async (query: string) => {
     setIsLoading(true)
     try {
       const trimmed = query.trim()
-      const { data } = await api.get<StudentsListResponse>('/students', {
-        params: trimmed ? { q: trimmed } : undefined,
+      const params = trimmed ? { q: trimmed } : {}
+      const first = await api.get<StudentsListResponse>('/students', {
+        params: { ...params, per_page: PAGE_SIZE },
       })
-      const rows = Array.isArray(data) ? data : data.students ?? []
-      setStudents(rows)
-      // `total` is every match on the server, not just the page returned, so the
-      // table can admit when it is showing only part of the result.
-      setTotalMatching(Array.isArray(data) ? rows.length : (data.total ?? rows.length))
+      const data = first.data
+
+      // A bare array means a response that predates paging — one page, no more
+      // to ask for.
+      if (Array.isArray(data)) {
+        setStudents(data)
+        setTotalMatching(data.length)
+        return
+      }
+
+      const head = data.students ?? []
+      const pageCount = Math.min(data.pages ?? 1, MAX_PAGES)
+      const rest =
+        pageCount > 1
+          ? await Promise.all(
+              Array.from({ length: pageCount - 1 }, (_, i) =>
+                api
+                  .get<StudentsListResponse>('/students', {
+                    params: { ...params, per_page: PAGE_SIZE, page: i + 2 },
+                  })
+                  // One page failing must not throw away the ones that landed:
+                  // a partial roster the desk can see beats an empty table.
+                  .then(r => (Array.isArray(r.data) ? r.data : (r.data.students ?? [])))
+                  .catch(() => [] as Student[]),
+              ),
+            )
+          : []
+
+      const all = [head, ...rest].flat()
+      setStudents(all)
+      // `total` is every match on the server. If the two disagree the walk was
+      // cut short, and the caller says so rather than implying this is all.
+      setTotalMatching(data.total ?? all.length)
     } catch {
       // Error handled by empty state
     } finally {
@@ -153,20 +207,36 @@ export default function StudentsPage() {
     setTimeout(() => setSelectedStudent(null), 200)
   }, [])
 
+  /* ── Arriving from the global search ──
+     The search already holds the same row this page's table would pass, so the
+     drawer opens on the spot instead of the page re-fetching what it was just
+     handed. Cleared synchronously — a React double-invoke in development must
+     not open the same drawer twice. */
+  const focusTarget = useUIStore((s) => s.focusTarget)
+  const clearFocusTarget = useUIStore((s) => s.clearFocusTarget)
+
+  useEffect(() => {
+    if (focusTarget?.kind !== 'student') return
+    clearFocusTarget()
+    handleSelectStudent(focusTarget.student)
+  }, [focusTarget, clearFocusTarget, handleSelectStudent])
+
   /* ── Filtered list ──
      `students` is already the server's answer for the current search, so only
      the status pill is applied here. */
   const filteredStudents =
     filter === 'all' ? students : students.filter((s) => s.status === filter)
 
-  /* Pill counts are page-local by construction — they count what the server
-     returned, not the roster. The stats rail above is the authority on totals. */
+  /* Pill counts describe the whole match set. They used to be page-local and
+     the rail had to be pointed at instead; now that every page is fetched they
+     count the same students the pills filter, which is what a pill is for. */
   const countFor = (key: FilterKey) =>
     key === 'all' ? students.length : students.filter((s) => s.status === key).length
 
-  /* The server matched more students than it returned, so the table is showing
-     a slice. Saying so is the difference between "this is everyone" and "this is
-     the first 50" — the table would otherwise imply the latter is the former. */
+  /* The server matched more students than were walked, so the table is showing
+     a slice. Only reachable if the walk hit MAX_PAGES. Saying so is the
+     difference between "this is everyone" and "this is the first 6,000" — the
+     table would otherwise imply the latter is the former. */
   const truncated = totalMatching > students.length
 
   /* ── Render ── */
@@ -291,11 +361,8 @@ export default function StudentsPage() {
         {/* ── Filter Pills ──
             One pill per status the backend emits. `unpaid` and `no_plan` are
             "nothing recorded yet" states, not money, so they stay neutral.
-            The counts are of the loaded page — the rail carries the totals. */}
-        <div
-          className="flex items-center gap-2 mt-3"
-          title="Counts cover the students loaded on this page, not the whole roster"
-        >
+            Each count is of the whole roster for the current search. */}
+        <div className="flex items-center gap-2 mt-3">
           {([
             { key: 'all', label: 'All' },
             { key: 'paid', label: 'Paid' },

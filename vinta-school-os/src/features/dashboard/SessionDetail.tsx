@@ -52,6 +52,12 @@ export interface SessionDetailProps extends HTMLAttributes<HTMLDivElement> {
   onChanged?: () => void
   /** T8: all sessions for edit-scope siblings + conflict checks */
   sessions?: Session[]
+  /**
+   * Open a live class's attendance register. The ☰ menu only offers
+   * "Log Students Present" when a parent supplies this, and the panel's own
+   * ☰ is the only trigger on this card.
+   */
+  onOpenRegister?: (session: Session) => void
 }
 
 /* ─── Helpers ─── */
@@ -200,6 +206,7 @@ export const SessionDetail = forwardRef<HTMLDivElement, SessionDetailProps>(
       onFinishRequest,
       onChanged,
       sessions,
+      onOpenRegister,
       className,
       ...rest
     },
@@ -257,7 +264,7 @@ export const SessionDetail = forwardRef<HTMLDivElement, SessionDetailProps>(
                 {SESSION_STATUS_LABELS[session.status]}
               </span>
               {/* T6: FREE badge — teacher pays, revenue 0 / cut 0 */}
-              {isSessionFree(session.id) && (
+              {isSessionFree(session) && (
                 <span
                   className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-[var(--emerald)] text-white"
                   style={{ borderRadius: 100 }}
@@ -279,6 +286,7 @@ export const SessionDetail = forwardRef<HTMLDivElement, SessionDetailProps>(
               onStart={onSessionStarted}
               onFinish={onFinishRequest}
               onChanged={onChanged}
+              onOpenRegister={onOpenRegister}
             />
             <button
               type="button"

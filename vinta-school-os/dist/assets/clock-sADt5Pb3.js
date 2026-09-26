@@ -1,2 +1,0 @@
-import{j as e}from"./index-_s2NeC87.js";var t={name:`clock`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`M12 6v6l4 2`,key:`mmk7yg`}]]};t.node;var n=e(t);export{n as t};
-//# sourceMappingURL=clock-sADt5Pb3.js.map

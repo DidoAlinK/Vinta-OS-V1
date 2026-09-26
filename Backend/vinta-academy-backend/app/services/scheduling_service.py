@@ -144,39 +144,129 @@ def create_session(academy_id: str, data: dict, created_by: str) -> Session:
     return session
 
 
+# Fields a session may be PATCHed with while it is live.
+#
+# A class that is under way is history in progress, and the hamburger's
+# "Edit THIS instance" is refused for it precisely so the record cannot be
+# rewritten. Extend is the one exception, and it is a narrow one: the class
+# is running long and the desk is saying so. Nothing about the past moves,
+# so `date` and `start_time` stay locked.
+LIVE_EDITABLE_FIELDS = frozenset({"end_time"})
+
+# These must match ``session_cancel_reason_enum`` on Session.cancelled_reason —
+# a value that is not in the database's enum is rejected by the column.
+#
+# A voided live class is recorded as ``CANCELLED_BY_STAFF`` rather than given a
+# value of its own. It is tempting to add ``LIVE_VOID``, but that is a change to
+# a native database enum, which means a migration and (on MySQL) a rewrite of
+# the column — too much to hang off a UI fix, and it would be a lie to say the
+# distinction is otherwise lost: a voided class has ``actual_start_time`` set,
+# because it really did start, while a class cancelled before it ran does not.
+# The row already carries the difference; the label is not the only witness.
+CANCEL_REASONS = ("TEACHER_ABSENT", "CANCELLED_BY_STAFF", "OTHER")
+
+# A cancellation describes a class that has NOT been settled: either it has not
+# run yet (``scheduled``) or it is running and is being abandoned
+# (``in_progress``, a "void"). Terminal rows are history — see cancel_session.
+CANCELLABLE_STATUSES = frozenset({"scheduled", "in_progress"})
+
+
 def update_session_times(session_id: str, academy_id: str, data: dict) -> Session | None:
     """
     Update session date/times (drag-to-move or edge-resize).
-    Only updates on scheduled (not yet started) sessions.
+
+    Scheduled sessions are freely movable. A session that has already
+    started may only have its ``end_time`` pushed *later* — that is Extend,
+    and it is the one edit that describes a class still in progress rather
+    than revising one that happened. Any other field, or an end time that
+    does not move forward, returns None so the caller can refuse it.
+
+    ``is_free_session`` is settable on both: the free flag is a billing
+    decision about a session, not a property of when it runs, and the desk
+    sets it on the next scheduled class.
     """
     session = Session.query.filter_by(
         id=session_id, academy_id=academy_id
     ).first()
-    if not session or session.status != "scheduled":
+    if not session:
         return None
+
+    if session.status != "scheduled":
+        if session.status != "in_progress":
+            return None
+        if set(data) - LIVE_EDITABLE_FIELDS:
+            return None
+        if "end_time" not in data:
+            return None
+        new_end = snap_time_obj(_parse_time(data["end_time"]))
+        # Forward only: "extend" that shortens the class is not an extend,
+        # and a live class's end time can only ever grow.
+        if new_end <= session.end_time:
+            return None
+        session.end_time = new_end
+        db.session.flush()
+        return session
 
     if "date" in data:
         session.date = date.fromisoformat(data["date"])
     if "start_time" in data:
         session.start_time = snap_time_obj(_parse_time(data["start_time"]))
     if "end_time" in data:
-        session.end_time = snap_time_obj(_parse_time(data["end_time"]))
+        new_end = snap_time_obj(_parse_time(data["end_time"]))
+        # A scheduled session may be shortened or lengthened freely — nothing
+        # has happened yet — but it must still end after it starts.
+        if new_end <= session.start_time:
+            return None
+        session.end_time = new_end
+    if "is_free_session" in data:
+        session.is_free_session = bool(data["is_free_session"])
 
     db.session.flush()
     return session
 
 
-def cancel_session(session_id: str, academy_id: str) -> bool:
-    """Cancel a session."""
+def cancel_session(
+    session_id: str, academy_id: str, reason: str | None = None
+) -> Session | None:
+    """
+    Cancel a session, recording *why*.
+
+    The reason is not decoration: ``TEACHER_ABSENT`` is what tells the
+    register, the credit policy and the teacher's pay that this class did
+    not happen for a reason that is nobody at the desk's fault, and it is
+    the difference between "the academy cancelled" and "the teacher did not
+    turn up". Without it every cancellation looked identical.
+
+    An unrecognised reason is recorded as ``OTHER`` rather than rejected:
+    the session is cancelled either way, and losing the cancellation to
+    save a label would be the worse trade.
+
+    Refuses a session that is already settled. ``conducted`` has already
+    written payouts, consumed credits and closed the register against this
+    row, and setting it to ``cancelled`` undoes none of that — it only makes
+    the record disagree with the money, leaving charges standing against a
+    class the app now says never happened. The same applies to a row that is
+    already ``cancelled``. A void is the ``in_progress`` case and is allowed.
+
+    Returns the cancelled session, or None if there is no such session or the
+    session cannot be cancelled.
+    """
     session = Session.query.filter_by(
         id=session_id, academy_id=academy_id
     ).first()
     if not session:
-        return False
+        return None
+
+    if session.status not in CANCELLABLE_STATUSES:
+        return None
 
     session.status = "cancelled"
+    if reason:
+        session.cancelled_reason = (
+            reason if reason in CANCEL_REASONS else "OTHER"
+        )
     db.session.flush()
-    return True
+    return session
 
 
 def generate_sessions_from_schedule(schedule_id: str, weeks_ahead: int = 12) -> int:
@@ -198,8 +288,14 @@ def generate_sessions_from_schedule(schedule_id: str, weeks_ahead: int = 12) -> 
     start_date = today
 
     for week in range(weeks_ahead):
-        # Find the next occurrence of this day_of_week
-        days_ahead = schedule.day_of_week - start_date.weekday()
+        # Find the next occurrence of this day_of_week.
+        #
+        # The two scales are not the same one, and subtracting them directly is
+        # how every session came out a day late: `Schedule.day_of_week` is
+        # 0=Sun…6=Sat (what the API accepts and what `Date.getDay()` returns,
+        # so it is what the desk picks), while `date.weekday()` is 0=Mon…6=Sun.
+        # A Monday slot generated Tuesdays, for all twelve weeks. Convert first.
+        days_ahead = schedule.day_of_week - (start_date.weekday() + 1)
         if days_ahead < 0:
             days_ahead += 7
         session_date = start_date + timedelta(days=days_ahead + (week * 7))

@@ -9,6 +9,7 @@ import {
 } from '../../lib/billingRules'
 import { formatCurrency } from '../../lib/formatters'
 import { Modal } from '../../components/ui/Modal'
+import { Select } from '../../components/ui/Select'
 import type { PaymentMethod, MultiPayRequest } from '../../types/billing'
 import type { Student } from '../../types/student'
 import type { Class } from '../../types/class'
@@ -534,26 +535,38 @@ export function MultiPayModal({
                 >
                   <div className="flex items-center gap-2">
 
-                  {/* Group selector */}
-                  <select
-                    value={item.group_id}
-                    onChange={(e) => updateItem(item.id, 'group_id', e.target.value)}
-                    className={cn(
-                      'flex-1 px-3 py-2 rounded-[var(--radius-sm)] text-sm',
-                      'bg-[var(--input-bg)] border border-[var(--glass-border)]',
-                      'text-[var(--text)] outline-none',
-                      'focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]/30',
-                      'transition-colors',
-                      !item.group_id && 'text-[var(--muted)]',
-                    )}
-                  >
-                    <option value="">Select group…</option>
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.name} {cls.subject ? `(${cls.subject})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  {/* Group selector.
+                      The `div` is what flexes, not the Select: `Select` wraps
+                      its trigger in a `w-full` column that `className` cannot
+                      reach, so as a direct child it would take a 100% basis,
+                      shrink to fit the row, and drag the amount field
+                      (deliberately `w-32`) in with it on every line. The
+                      wrapper also keeps the trigger at this row's 38px instead
+                      of `Select`'s default `h-11` (`h-auto` below).
+
+                      No muted class for the empty case: `Select` already
+                      renders an empty value muted, which is what the native
+                      `<select>` was doing by hand here. */}
+                  <div className="flex-1 min-w-0">
+                    <Select
+                      value={item.group_id}
+                      onChange={(v) => updateItem(item.id, 'group_id', v)}
+                      options={[
+                        { value: '', label: 'Select group…' },
+                        ...classes.map((cls) => ({
+                          value: cls.id,
+                          label: `${cls.name}${cls.subject ? ` (${cls.subject})` : ''}`,
+                        })),
+                      ]}
+                      className={cn(
+                        'px-3 py-2 h-auto rounded-[var(--radius-sm)] text-sm',
+                        'bg-[var(--input-bg)] border border-[var(--glass-border)]',
+                        'text-[var(--text)] outline-none',
+                        'focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]/30',
+                        'transition-colors',
+                      )}
+                    />
+                  </div>
 
                   {/* Amount */}
                   <div className="relative w-32">
