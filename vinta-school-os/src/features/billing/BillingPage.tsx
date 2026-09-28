@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { Toggle } from '../../components/ui/Toggle'
-import { GROSS_PROFIT_LABEL } from '../../lib/constants'
 import { isGrossProfitEnabled, setGrossProfitEnabled } from '../../lib/grossProfit'
 import { formatCurrency, formatNumber } from '../../lib/formatters'
 import type { BillingStats, RevenueDataPoint, BillingRingData } from '../../types/billing'
@@ -26,14 +26,18 @@ import {
 
 type BillingTab = 'subscriptions' | 'payouts'
 
-const TABS: { key: BillingTab; label: string; icon: React.ElementType }[] = [
-  { key: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
-  { key: 'payouts', label: 'Payouts', icon: Wallet },
+/* Keys, not sentences. This array is built once at import, in whatever language
+   happened to be active then, so it holds the key and the render body looks it
+   up — a translated label here would survive a language switch untouched. */
+const TABS: { key: BillingTab; labelKey: string; icon: React.ElementType }[] = [
+  { key: 'subscriptions', labelKey: 'tabs.subscriptions', icon: CreditCard },
+  { key: 'payouts', labelKey: 'tabs.payouts', icon: Wallet },
 ]
 
 /* ─── Component ─── */
 
 export function BillingPage() {
+  const { t } = useTranslation('billing')
   const [stats, setStats] = useState<BillingStats | null>(null)
   const [revenueData, setRevenueData] = useState<RevenueDataPoint[]>([])
   const [revenueProperty, setRevenueProperty] = useState('income')
@@ -95,17 +99,17 @@ export function BillingPage() {
   /* ── Derived data ── */
   const studentRing: BillingRingData[] = stats
     ? [
-        { name: 'Paid', value: stats.student_paid, color: 'var(--emerald)' },
-        { name: 'Due', value: stats.student_due, color: 'var(--gold)' },
-        { name: 'Overdue', value: stats.student_overdue, color: 'var(--red)' },
+        { name: t('donut.paid'), value: stats.student_paid, color: 'var(--emerald)' },
+        { name: t('donut.due'), value: stats.student_due, color: 'var(--gold)' },
+        { name: t('donut.overdue'), value: stats.student_overdue, color: 'var(--red)' },
       ]
     : []
 
   const teacherRing: BillingRingData[] = stats
     ? [
-        { name: 'Settled', value: stats.teacher_settled, color: 'var(--emerald)' },
-        { name: 'Pending', value: stats.teacher_pending, color: 'var(--gold)' },
-        { name: 'Overdue', value: stats.teacher_overdue, color: 'var(--red)' },
+        { name: t('donut.settled'), value: stats.teacher_settled, color: 'var(--emerald)' },
+        { name: t('donut.pending'), value: stats.teacher_pending, color: 'var(--gold)' },
+        { name: t('donut.overdue'), value: stats.teacher_overdue, color: 'var(--red)' },
       ]
     : []
 
@@ -127,7 +131,7 @@ export function BillingPage() {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center gap-3 text-[var(--muted)]">
           <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm">Loading billing data…</span>
+          <span className="text-sm">{t('page.loading')}</span>
         </div>
       </div>
     )
@@ -139,10 +143,10 @@ export function BillingPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-[var(--text)] font-[family-name:var(--font-heading)]">
-            Billing
+            {t('page.title')}
           </h1>
           <p className="text-xs text-[var(--muted)] mt-0.5">
-            Manage subscriptions, payouts, and payments
+            {t('page.subtitle')}
           </p>
         </div>
 
@@ -163,7 +167,7 @@ export function BillingPage() {
           )}
         >
           <Banknote className="w-4 h-4" />
-          Multi-Teacher Payment
+          {t('page.multiPay')}
         </button>
       </div>
 
@@ -174,9 +178,9 @@ export function BillingPage() {
           onClick={() => handleOpenBreakdown('students')}
         >
           <DonutCards
-            title="Student Tuition"
+            title={t('donut.studentTuition')}
             data={studentRing}
-            centerLabel="Total"
+            centerLabel={t('common:label.total')}
             centerValue={formatNumber(stats?.student_total ?? 0)}
           />
         </div>
@@ -185,9 +189,9 @@ export function BillingPage() {
           onClick={() => handleOpenBreakdown('teachers')}
         >
           <DonutCards
-            title="Teacher Payroll"
+            title={t('donut.teacherPayroll')}
             data={teacherRing}
-            centerLabel="Total"
+            centerLabel={t('common:label.total')}
             centerValue={formatNumber(stats?.teacher_total ?? 0)}
           />
         </div>
@@ -213,7 +217,7 @@ export function BillingPage() {
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="text-xs text-[var(--muted)] font-medium">This month's income</span>
+                <span className="text-xs text-[var(--muted)] font-medium">{t('kpi.monthIncome')}</span>
                 <span className="text-lg font-bold text-[var(--text)] font-[family-name:var(--font-heading)] tabular-nums">
                   {formatCurrency(stats?.month_income ?? 0)}
                 </span>
@@ -233,7 +237,7 @@ export function BillingPage() {
                 <Users className="w-5 h-5" />
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="text-xs text-[var(--muted)] font-medium">Total enrolled</span>
+                <span className="text-xs text-[var(--muted)] font-medium">{t('kpi.totalEnrolled')}</span>
                 <span className="text-lg font-bold text-[var(--text)] font-[family-name:var(--font-heading)] tabular-nums">
                   {formatNumber(stats?.total_enrolled ?? 0)}
                 </span>
@@ -247,7 +251,7 @@ export function BillingPage() {
           type="button"
           onClick={() => handleOpenBreakdown('students')}
           className={cn(
-            'flex items-center gap-3 p-4 rounded-[var(--radius-md)] text-left',
+            'flex items-center gap-3 p-4 rounded-[var(--radius-md)] text-start',
             'bg-[var(--glass)] backdrop-blur-[22px]',
             'border border-[var(--glass-border)]',
             'hover:bg-[var(--glass-strong)] hover:scale-[1.01]',
@@ -261,9 +265,9 @@ export function BillingPage() {
             <Receipt className="w-5 h-5" />
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-xs text-[var(--muted)] font-medium">Finance breakdown</span>
+            <span className="text-xs text-[var(--muted)] font-medium">{t('kpi.financeBreakdown')}</span>
             <span className="text-sm font-semibold text-[var(--text)] font-[family-name:var(--font-heading)]">
-              View details →
+              {t('kpi.viewDetails')}
             </span>
           </div>
         </button>
@@ -272,11 +276,9 @@ export function BillingPage() {
       {/* ── Gross-profit opt-in ─── */}
       <div className="flex items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass)] backdrop-blur-[22px] px-4 py-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-[var(--text)]">{GROSS_PROFIT_LABEL}</p>
+          <p className="text-sm font-semibold text-[var(--text)]">{t('grossProfit.label')}</p>
           <p className="text-xs text-[var(--muted)] mt-0.5">
-            {grossOn
-              ? 'On — commission model visible, gross/cut math shown.'
-              : 'Off — teachers paid per session formula, no gross/cut math.'}
+            {grossOn ? t('grossProfit.on') : t('grossProfit.off')}
           </p>
         </div>
         <Toggle
@@ -289,7 +291,7 @@ export function BillingPage() {
       <div className="rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass)] backdrop-blur-[22px] shadow-[var(--glass-shadow)] overflow-hidden">
         {/* Tab bar */}
         <div className="flex items-center gap-0 border-b border-[var(--glass-border)]">
-          {TABS.map(({ key, label, icon: Icon }) => (
+          {TABS.map(({ key, labelKey, icon: Icon }) => (
             <button
               key={key}
               type="button"
@@ -303,10 +305,10 @@ export function BillingPage() {
               )}
             >
               <Icon className="w-4 h-4" />
-              {label}
+              {t(labelKey)}
               {/* Gold underline for active tab */}
               {activeTab === key && (
-                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--gold)] rounded-full" />
+                <span className="absolute bottom-0 start-0 end-0 h-[2px] bg-[var(--gold)] rounded-full" />
               )}
             </button>
           ))}

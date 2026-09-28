@@ -61,11 +61,21 @@ class StudentListResponseSchema(Schema):
 
 
 class StudentStatsResponseSchema(Schema):
-    """GET /api/students/stats response."""
-    total = fields.Integer(metadata={"description": "Total students"})
-    active = fields.Integer(metadata={"description": "Active students"})
-    inactive = fields.Integer(metadata={"description": "Inactive students"})
-    new_this_month = fields.Integer(metadata={"description": "New students this month"})
+    """GET /api/students/stats response.
+
+    Documents the shape `student_service.get_student_stats` actually returns.
+    It previously described `active` / `inactive` / `new_this_month`, which no
+    endpoint has ever produced — the service has always counted billing status.
+    Every student has exactly one status, so the five buckets sum to `total`.
+    """
+    total = fields.Integer(
+        metadata={"description": "Students matching the search (whole roster when q is absent)"}
+    )
+    paid = fields.Integer(metadata={"description": "Active plan, inside its cycle window"})
+    due = fields.Integer(metadata={"description": "Money owed — cycle closed, expired or depleted"})
+    overdue = fields.Integer(metadata={"description": "Plan suspended"})
+    unpaid = fields.Integer(metadata={"description": "Enrolled in a group, never bought a plan"})
+    no_plan = fields.Integer(metadata={"description": "Not enrolled in anything"})
 
 
 class GuardianSchema(Schema):

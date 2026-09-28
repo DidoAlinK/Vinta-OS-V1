@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
-import { formatCurrency } from '../../lib/formatters'
+import { formatCurrency, formatNumber } from '../../lib/formatters'
 import {
   AreaChart,
   Area,
@@ -15,11 +16,14 @@ import { ChevronDown } from 'lucide-react'
 
 /* ─── Property options ─── */
 
+/* `value` is the data field name the chart plots and must stay as it is; only
+   the label is text. Kept as keys because this array is evaluated at import,
+   before any language is known — see the lookup in the render body. */
 const PROPERTIES = [
-  { value: 'income', label: 'Total Income' },
-  { value: 'paid', label: 'Paid vs Overdue' },
-  { value: 'overdue', label: 'Overdue' },
-  { value: 'enrollments', label: 'Enrollments' },
+  { value: 'income', labelKey: 'revenue.property.income' },
+  { value: 'paid', labelKey: 'revenue.property.paid' },
+  { value: 'overdue', labelKey: 'revenue.property.overdue' },
+  { value: 'enrollments', labelKey: 'revenue.property.enrollments' },
 ] as const
 
 const isCurrencyProp = (p: string) =>
@@ -49,7 +53,7 @@ function CustomTooltip({ active, payload, label }: any) {
     >
       <p className="text-[var(--muted)] text-xs mb-1">{label}</p>
       <p className="font-semibold text-[var(--text)] font-[family-name:var(--font-heading)]">
-        {isCurrencyProp(payload[0].dataKey) ? formatCurrency(val) : val.toLocaleString()}
+        {isCurrencyProp(payload[0].dataKey) ? formatCurrency(val) : formatNumber(val)}
       </p>
     </div>
   )
@@ -58,14 +62,16 @@ function CustomTooltip({ active, payload, label }: any) {
 /* ─── Component ─── */
 
 export function RevenueChart({ data, property, onPropertyChange }: RevenueChartProps) {
+  const { t } = useTranslation('billing')
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
-  const currentLabel = PROPERTIES.find((p) => p.value === property)?.label ?? property
+  const currentLabelKey =
+    PROPERTIES.find((p) => p.value === property)?.labelKey ?? 'revenue.property.income'
 
   return (
     <Card>
       <CardHeader
-        title="Revenue"
+        title={t('revenue.title')}
         actions={
           <div className="flex items-center gap-2">
             {/* Property dropdown */}
@@ -81,7 +87,7 @@ export function RevenueChart({ data, property, onPropertyChange }: RevenueChartP
                   'hover:bg-[var(--glass-strong)] transition-colors',
                 )}
               >
-                {currentLabel}
+                {t(currentLabelKey)}
                 <ChevronDown className="w-3.5 h-3.5 text-[var(--muted)]" />
               </button>
 
@@ -93,7 +99,7 @@ export function RevenueChart({ data, property, onPropertyChange }: RevenueChartP
                   />
                   <div
                     className={cn(
-                      'absolute right-0 top-full mt-1 z-20 w-44',
+                      'absolute end-0 top-full mt-1 z-20 w-44',
                       'rounded-[var(--radius-sm)]',
                       'bg-[var(--glass-strong)] backdrop-blur-xl',
                       'border border-[var(--glass-border)]',
@@ -111,14 +117,14 @@ export function RevenueChart({ data, property, onPropertyChange }: RevenueChartP
                           setDropdownOpen(false)
                         }}
                         className={cn(
-                          'w-full text-left px-3 py-2 text-sm',
+                          'w-full text-start px-3 py-2 text-sm',
                           'transition-colors',
                           property === opt.value
                             ? 'bg-[var(--gold-soft)] text-[var(--gold)] font-medium'
                             : 'text-[var(--text)] hover:bg-[var(--glass)]',
                         )}
                       >
-                        {opt.label}
+                        {t(opt.labelKey)}
                       </button>
                     ))}
                   </div>
@@ -136,8 +142,8 @@ export function RevenueChart({ data, property, onPropertyChange }: RevenueChartP
               <div className="w-16 h-16 rounded-full bg-[var(--input-bg)] flex items-center justify-center">
                 <div className="w-8 h-8 rounded-full border-2 border-dashed border-[var(--muted)]/30" />
               </div>
-              <p className="text-sm text-[var(--muted)]">No revenue data yet</p>
-              <p className="text-xs text-[var(--muted)]/60">Data will appear here once billing records exist</p>
+              <p className="text-sm text-[var(--muted)]">{t('revenue.empty.title')}</p>
+              <p className="text-xs text-[var(--muted)]/60">{t('revenue.empty.body')}</p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">

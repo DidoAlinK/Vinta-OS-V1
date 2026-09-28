@@ -27,11 +27,12 @@
  */
 
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '../../../lib/cn'
 import type { AttendanceCalendarEntry, AttendanceDayState } from '../../../types/student'
 import { EmptyLine, InlineSpinner, ProfileCard } from './ProfileCard'
-import { parseISODate } from './BillingSummaryCard'
+import { activeLocale, parseISODate } from './BillingSummaryCard'
 
 export interface StudentAttendanceCalendarProps {
   calendar: { joined_on: string; today: string; entries: AttendanceCalendarEntry[] } | undefined
@@ -49,7 +50,13 @@ interface StateStyle {
   tint: string
   /** The day number's colour. */
   fg: string
-  label: string
+  /**
+   * A translation KEY, not the sentence. This map is module-level, so a map of
+   * rendered strings would be frozen in whichever language was active at import
+   * and the legend, the cell titles and the aria-labels would all stop following
+   * a language switch together.
+   */
+  labelKey: string
   /** Drawn as an outline instead of a fill — "no claim about this student". */
   outline?: boolean
   /** The day number is struck through — the class did not happen. */
@@ -61,31 +68,31 @@ const STATE_STYLES: Record<AttendanceDayState, StateStyle> = {
     dot: 'var(--emerald)',
     tint: 'var(--emerald-soft)',
     fg: 'var(--emerald)',
-    label: 'Attended',
+    labelKey: 'attendance.state.attended',
   },
   unpaid: {
     dot: 'var(--gold)',
     tint: 'var(--gold-soft)',
     fg: 'var(--gold)',
-    label: 'Attended, not paid',
+    labelKey: 'attendance.state.unpaid',
   },
   absent: {
     dot: 'var(--red)',
     tint: 'var(--red-soft)',
     fg: 'var(--red)',
-    label: 'Absent',
+    labelKey: 'attendance.state.absent',
   },
   upcoming: {
     dot: 'var(--muted)',
     tint: 'var(--glass)',
     fg: 'var(--muted)',
-    label: 'Upcoming',
+    labelKey: 'attendance.state.upcoming',
   },
   cancelled: {
     dot: 'var(--muted)',
     tint: 'transparent',
     fg: 'var(--muted)',
-    label: 'Cancelled',
+    labelKey: 'attendance.state.cancelled',
     outline: true,
     strike: true,
   },
@@ -93,14 +100,14 @@ const STATE_STYLES: Record<AttendanceDayState, StateStyle> = {
     dot: 'var(--divider)',
     tint: 'transparent',
     fg: 'var(--muted)',
-    label: 'Not in this group yet',
+    labelKey: 'attendance.state.notEnrolled',
     outline: true,
   },
   unrecorded: {
     dot: 'var(--divider)',
     tint: 'transparent',
     fg: 'var(--muted)',
-    label: 'No register taken',
+    labelKey: 'attendance.state.unrecorded',
     outline: true,
   },
 }
@@ -130,13 +137,22 @@ function dominantState(states: AttendanceDayState[]): AttendanceDayState {
 }
 
 /**
- * Duplicated from DayPicker so the two calendars agree on the week's shape.
+ * The week's shape, matching `ui/DayPicker`: seven cells, Sunday first. The
+ * blank padding in `monthCells` below counts from `Date#getDay()`, which is also
+ * 0 = Sunday, so the header and the grid cannot drift apart.
  *
  * Unlike DayPicker there is no weekend tint here: every cell's colour already
  * carries a state, and a second colour axis would make Friday-afternoon
  * unreadable.
+ *
+ * The NAMES come from `Intl.DateTimeFormat` rather than a hardcoded array, so
+ * they are the reader's own words in French and Arabic. `1 March 2026` is a
+ * Sunday, so stepping seven days from it walks Sunday → Saturday in order.
  */
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+function weekdayNames(locale: string): string[] {
+  const format = new Intl.DateTimeFormat(locale, { weekday: 'short' })
+  return Array.from({ length: 7 }, (_, i) => format.format(new Date(2026, 2, 1 + i)))
+}
 
 // ============================================
 // Date helpers
@@ -169,6 +185,10 @@ export function StudentAttendanceCalendar({
   calendar,
   loading = false,
 }: StudentAttendanceCalendarProps) {
+  const { t } = useTranslation('students')
+  // Read live on every render: `useTranslation` above subscribes to language
+  // changes, so this re-reads and the month and weekday names re-format with it.
+  const locale = activeLocale()
   const entries = calendar?.entries ?? []
   const joinedOn = calendar?.joined_on ?? ''
   const serverToday = calendar?.today ?? ''
@@ -194,6 +214,7 @@ export function StudentAttendanceCalendar({
   const [showYear, setShowYear] = useState(false)
 
   const cells = useMemo(() => monthCells(viewYear, viewMonth), [viewYear, viewMonth])
+  const weekdays = useMemo(() => weekdayNames(locale), [locale])
 
   const step = (delta: number) => {
     const next = new Date(viewYear, viewMonth + delta, 1)
@@ -206,10 +227,10 @@ export function StudentAttendanceCalendar({
     setShowYear(false)
   }
 
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString('en-GB', {
+  const monthLabel = new Intl.DateTimeFormat(locale, {
     month: 'long',
     year: 'numeric',
-  })
+  }).format(new Date(viewYear, viewMonth, 1))
 
   /* ── A single day cell ── */
   const renderDay = (cell: { day: number; iso: string }) => {
@@ -223,7 +244,7 @@ export function StudentAttendanceCalendar({
       return (
         <span
           key={cell.iso}
-          aria-label={`${cell.day}: nothing scheduled`}
+          aria-label={t('attendance.nothingScheduled', { day: cell.day })}
           className={cn(
             'aspect-square rounded-lg flex items-center justify-center text-[11px]',
             isToday && 'ring-1 ring-[var(--gold)]/50',
@@ -241,7 +262,10 @@ export function StudentAttendanceCalendar({
     const states = dayEntries.map((e) => e.state)
     const style = STATE_STYLES[dominantState(states)]
     const detail = dayEntries
-      .map((e) => `${e.class_name ?? 'Group'} · ${formatTime(e)} · ${STATE_STYLES[e.state].label}`)
+      .map(
+        (e) =>
+          `${e.class_name ?? t('attendance.groupFallback')} · ${formatTime(e)} · ${t(STATE_STYLES[e.state].labelKey)}`,
+      )
       .join('\n')
 
     return (
@@ -249,7 +273,10 @@ export function StudentAttendanceCalendar({
         key={cell.iso}
         role="img"
         title={detail}
-        aria-label={`${cell.day}: ${dayEntries.map((e) => STATE_STYLES[e.state].label).join(', ')}`}
+        aria-label={t('attendance.dayStates', {
+          day: cell.day,
+          states: dayEntries.map((e) => t(STATE_STYLES[e.state].labelKey)).join(', '),
+        })}
         className={cn(
           'relative aspect-square rounded-lg flex items-center justify-center',
           'text-[11px] font-semibold transition-transform duration-150 hover:scale-105',
@@ -290,11 +317,11 @@ export function StudentAttendanceCalendar({
 
   return (
     <ProfileCard
-      title="Attendance"
+      title={t('attendance.title')}
       icon={<CalendarCheck size={13} />}
       action={
         loading ? (
-          <InlineSpinner label="Loading attendance" />
+          <InlineSpinner label={t('attendance.loadingAria')} />
         ) : isEmpty ? undefined : (
           <button
             type="button"
@@ -307,31 +334,29 @@ export function StudentAttendanceCalendar({
                 : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--glass)]',
             )}
           >
-            {showYear ? 'Month' : 'Year'}
+            {showYear ? t('attendance.month') : t('attendance.year')}
           </button>
         )
       }
     >
       {isEmpty ? (
         <EmptyLine>
-          {loading
-            ? 'Loading…'
-            : 'No sessions yet — this student is not enrolled in a group that has any.'}
+          {loading ? t('common:state.loading') : t('attendance.empty')}
         </EmptyLine>
       ) : showYear ? (
         /* ── Year view: twelve months at a glance ── */
         <div className="grid grid-cols-3 gap-x-2 gap-y-3">
           {Array.from({ length: 12 }, (_, month) => {
-            const label = new Date(viewYear, month, 1).toLocaleDateString('en-GB', {
-              month: 'short',
-            })
+            const label = new Intl.DateTimeFormat(locale, { month: 'short' }).format(
+              new Date(viewYear, month, 1),
+            )
             return (
               <button
                 key={month}
                 type="button"
                 onClick={() => openMonth(month)}
-                className="text-left rounded-lg p-1 hover:bg-[var(--glass)] transition-colors duration-150"
-                aria-label={`Open ${label} ${viewYear}`}
+                className="text-start rounded-lg p-1 hover:bg-[var(--glass)] transition-colors duration-150"
+                aria-label={t('attendance.openMonth', { month: label, year: viewYear })}
               >
                 <p
                   className="text-[10px] font-semibold mb-1 text-center"
@@ -388,7 +413,7 @@ export function StudentAttendanceCalendar({
             <button
               type="button"
               onClick={() => step(-1)}
-              aria-label="Previous month"
+              aria-label={t('attendance.prevMonth')}
               className="p-1 rounded-lg text-[var(--muted)] hover:bg-[var(--glass)] hover:text-[var(--text)] transition-colors duration-150"
             >
               <ChevronLeft size={14} />
@@ -399,7 +424,7 @@ export function StudentAttendanceCalendar({
             <button
               type="button"
               onClick={() => setShowYear(true)}
-              title="Show the whole year"
+              title={t('attendance.showYear')}
               className="text-xs font-bold rounded-lg px-2 py-0.5 hover:bg-[var(--glass)] transition-colors duration-150"
               style={{ color: 'var(--text)', fontFamily: 'var(--font-heading)' }}
             >
@@ -408,7 +433,7 @@ export function StudentAttendanceCalendar({
             <button
               type="button"
               onClick={() => step(1)}
-              aria-label="Next month"
+              aria-label={t('attendance.nextMonth')}
               className="p-1 rounded-lg text-[var(--muted)] hover:bg-[var(--glass)] hover:text-[var(--text)] transition-colors duration-150"
             >
               <ChevronRight size={14} />
@@ -416,10 +441,10 @@ export function StudentAttendanceCalendar({
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-1">
-            {WEEKDAYS.map((w) => (
+            {weekdays.map((w, i) => (
               <span
-                key={w}
-                className="text-center text-[10px] font-semibold py-0.5"
+                key={`${w}-${i}`}
+                className="text-center text-[10px] font-semibold py-0.5 truncate"
                 style={{ color: 'var(--muted)' }}
               >
                 {w}
@@ -442,6 +467,7 @@ export function StudentAttendanceCalendar({
 
 /** The key. Only the states actually useful to read at a glance are spelled out. */
 function AttendanceLegend() {
+  const { t } = useTranslation('students')
   const items: AttendanceDayState[] = ['attended', 'unpaid', 'absent', 'upcoming']
   return (
     <div className="mt-3 pt-2.5 border-t border-[var(--glass-border)]">
@@ -456,15 +482,14 @@ function AttendanceLegend() {
                 style={{ background: style.dot }}
               />
               <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                {style.label}
+                {t(style.labelKey)}
               </span>
             </span>
           )
         })}
       </div>
       <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: 'var(--muted)' }}>
-        A faint day is one before this student joined, or before they joined that
-        group. A dashed day is one where no register was taken.
+        {t('attendance.legendNote')}
       </p>
     </div>
   )

@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 
 /* ─── Column definition ─── */
@@ -21,7 +22,7 @@ export interface TableProps<T> {
   data: T[]
   /** Called when a row is clicked */
   onRowClick?: (item: T) => void
-  /** Shown when data is empty */
+  /** Shown when data is empty (default: common:table.empty) */
   emptyMessage?: string
 }
 
@@ -31,8 +32,10 @@ export function Table<T extends Record<string, unknown>>({
   columns,
   data,
   onRowClick,
-  emptyMessage = 'No data to display',
+  emptyMessage,
 }: TableProps<T>) {
+  const { t } = useTranslation('common')
+
   return (
     <div
       className={cn(
@@ -52,7 +55,7 @@ export function Table<T extends Record<string, unknown>>({
                 <th
                   key={col.key}
                   className={cn(
-                    'px-4 py-3 text-left',
+                    'px-4 py-3 text-start',
                     'text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wider',
                     col.className,
                   )}
@@ -71,7 +74,7 @@ export function Table<T extends Record<string, unknown>>({
                   colSpan={columns.length}
                   className="px-4 py-12 text-center text-sm text-[var(--muted)]"
                 >
-                  {emptyMessage}
+                  {emptyMessage ?? t('table.empty')}
                 </td>
               </tr>
             ) : (

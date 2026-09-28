@@ -1,0 +1,196 @@
+{
+  "page": {
+    "title": "Élèves",
+    "subtitle": "Gérer les fiches élèves et leur statut de paiement",
+    "addStudent": "Ajouter un élève",
+    "searchPlaceholder": "Rechercher par nom ou téléphone…",
+    "showing_one": "Affichage de {{shown}} sur {{total}} élève",
+    "showing_other": "Affichage de {{shown}} sur {{total}} élèves",
+    "scrollForMore": "— faites défiler pour en voir plus"
+  },
+  "status": {
+    "paid": "Payé",
+    "due": "À échéance",
+    "overdue": "En retard",
+    "unpaid": "Impayé",
+    "noPlan": "Sans abonnement"
+  },
+  "stat": {
+    "total": "Total élèves",
+    "totalHint": "Chaque élève correspondant à la recherche en cours — inclut les élèves impayés et sans abonnement, qui ont leurs propres filtres ci-dessous",
+    "paidHint": "Abonnement actif, dans sa période de validité",
+    "dueHint": "Somme due — cycle clos, expiré ou épuisé",
+    "overdueHint": "Abonnement suspendu"
+  },
+  "table": {
+    "column": {
+      "student": "Élève",
+      "class": "Classe",
+      "sessions": "Séances",
+      "status": "Statut",
+      "plan": "Abonnement",
+      "renewal": "Renouvellement"
+    },
+    "empty": {
+      "title": "Aucun élève trouvé",
+      "body": "Ajoutez votre premier élève pour commencer"
+    },
+    "loadingMore": "Chargement de la suite…",
+    "endOfList": "Fin de la liste"
+  },
+  "card": {
+    "loading": "Chargement"
+  },
+  "drawer": {
+    "title": "Fiche élève",
+    "editTitle": "Modifier la fiche",
+    "editStudent": "Modifier l'élève",
+    "backToProfile": "Retour à la fiche",
+    "details": "Coordonnées",
+    "profileError": "Impossible de charger la fiche complète.",
+    "parentPhone": "Téléphone du parent",
+    "enrolledSince": "Inscrit depuis",
+    "enrollment": "Inscription",
+    "noNotes": "Aucune remarque",
+    "recordPayment": "Enregistrer un paiement",
+    "call": "Appeler",
+    "message": "Message",
+    "field": {
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "parentPhone": "Téléphone du parent"
+    },
+    "placeholder": {
+      "phone": "ex. 0555123456",
+      "parentPhone": "ex. 0555789012",
+      "notes": "Remarques sur cet élève…"
+    },
+    "toast": {
+      "updated": {
+        "title": "Élève mis à jour",
+        "body": "La fiche a été enregistrée."
+      },
+      "updateFailed": {
+        "title": "Échec de la mise à jour",
+        "body": "Impossible d'enregistrer les modifications. Veuillez réessayer."
+      }
+    }
+  },
+  "enrollment": {
+    "active": "Actif",
+    "withdrawn": "Retiré",
+    "expired": "Expiré",
+    "overdue": "En retard",
+    "transferred": "Transféré",
+    "notEnrolled": "Non inscrit dans un groupe"
+  },
+  "classes": {
+    "title": "Classes",
+    "empty": "Inscrit dans aucun groupe pour le moment."
+  },
+  "guardians": {
+    "title": "Responsables",
+    "empty": "Aucun responsable enregistré.",
+    "emergency": "Urgence",
+    "emergencyContact": "Contact d'urgence",
+    "parentFallback": "Parent / Responsable",
+    "call": "Appeler {{name}}"
+  },
+  "summary": {
+    "title": "Résumé de facturation",
+    "loadingAria": "Chargement du résumé de facturation",
+    "plan": "Abonnement",
+    "sessionsPerMonth": "Séances par mois",
+    "creditsLeft": "Crédits restants",
+    "creditsOf": "sur {{total}}",
+    "renewsOn": "Renouvellement le",
+    "dateRange": "{{start}} → {{end}}",
+    "from": "À partir du {{date}}",
+    "until": "Jusqu'au {{date}}"
+  },
+  "calendar": {
+    "title": "Calendrier de facturation",
+    "loadingAria": "Chargement du calendrier de facturation",
+    "empty": "Aucun cycle de facturation pour le moment {{dash}} rien n'a été enregistré pour cet élève.",
+    "partialPaid": "{{paid}} payés sur {{total}}"
+  },
+  "history": {
+    "title": "Historique des paiements",
+    "loadingAria": "Chargement de l'historique des paiements",
+    "empty": "Aucun paiement enregistré pour le moment.",
+    "error": "Impossible de charger l'historique des paiements.",
+    "credits": "Crédits",
+    "access": "Accès",
+    "method": {
+      "cash": "Espèces",
+      "ccp": "CCP",
+      "baridiMob": "Baridi Mob"
+    },
+    "status": {
+      "active": "Actif",
+      "suspended": "Suspendu",
+      "expired": "Expiré",
+      "depleted": "Épuisé",
+      "expiringSoon": "Bientôt expiré",
+      "renewRequired": "Renouvellement requis",
+      "attendanceWarning": "Alerte présence"
+    }
+  },
+  "attendance": {
+    "title": "Présences",
+    "loadingAria": "Chargement des présences",
+    "empty": "Aucune séance pour le moment — cet élève n'est inscrit dans aucun groupe qui en propose.",
+    "month": "Mois",
+    "year": "Année",
+    "showYear": "Afficher toute l'année",
+    "prevMonth": "Mois précédent",
+    "nextMonth": "Mois suivant",
+    "openMonth": "Ouvrir {{month}} {{year}}",
+    "nothingScheduled": "{{day}} : rien de programmé",
+    "dayStates": "{{day}} : {{states}}",
+    "groupFallback": "Groupe",
+    "legendNote": "Un jour pâle précède l'arrivée de cet élève, ou son inscription dans ce groupe. Un jour en pointillés est un jour où aucune feuille de présence n'a été remplie.",
+    "state": {
+      "attended": "Présent",
+      "unpaid": "Présent, non payé",
+      "absent": "Absent",
+      "upcoming": "À venir",
+      "cancelled": "Annulé",
+      "notEnrolled": "Pas encore dans ce groupe",
+      "unrecorded": "Aucun appel fait"
+    }
+  },
+  "modal": {
+    "title": "Ajouter un élève",
+    "submit": "Ajouter un élève",
+    "adding": "Ajout…",
+    "section": {
+      "studentInfo": "Informations sur l'élève",
+      "groupEnrollment": "Inscription aux groupes"
+    },
+    "groupEnrollmentHint": "L'élève doit être inscrit dans au moins un groupe.",
+    "searchGroups": "Rechercher des groupes à rejoindre…",
+    "noClasses": "Aucune classe trouvée",
+    "groupRequired": "Au moins une inscription à un groupe est requise",
+    "field": {
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "parentPhone": "Téléphone du parent"
+    },
+    "placeholder": {
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "notes": "Remarques facultatives sur l'élève…"
+    },
+    "error": {
+      "noGroup": "Veuillez sélectionner au moins un groupe pour inscrire l'élève.",
+      "createFailed": "Impossible de créer l'élève. Veuillez réessayer."
+    },
+    "toast": {
+      "addedTitle": "Élève ajouté",
+      "notAdded": "Élève non ajouté",
+      "enrolled_one": "{{name}} a été inscrit dans {{count}} groupe.",
+      "enrolled_other": "{{name}} a été inscrit dans {{count}} groupes."
+    }
+  }
+}

@@ -17,6 +17,8 @@
  * (`Student.group_name`, e.g. "A"). Same words, different values.
  */
 
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { Receipt, RefreshCw } from 'lucide-react'
 import { cn } from '../../../lib/cn'
 import { formatDa } from '../../../lib/formatters'
@@ -40,14 +42,23 @@ export interface PaymentHistoryListProps {
 /** Payment methods arrive as enum codes; widen the canonical map for lookup. */
 const METHOD_LABELS: Record<string, string> = { ...PAYMENT_METHOD_LABELS }
 
+/** The method codes this app knows, mapped to keys rather than to sentences. */
+const METHOD_LABEL_KEYS: Record<string, string> = {
+  CASH: 'history.method.cash',
+  CCP: 'history.method.ccp',
+  BARIDI_MOB: 'history.method.baridiMob',
+}
+
 /**
- * A humanised fallback for a method the canonical map does not know: showing the
- * raw code is honest, silently dropping the field is not.
+ * The codes the app knows are translated. Anything else falls back to the
+ * canonical `PAYMENT_METHOD_LABELS` map and then to the raw code: showing the
+ * code is honest, silently dropping the field is not.
  */
-function methodLabel(method: string | null | undefined): string | null {
+function methodLabel(t: TFunction, method: string | null | undefined): string | null {
   const raw = (method ?? '').trim()
   if (!raw) return null
-  return METHOD_LABELS[raw] ?? raw
+  const key = METHOD_LABEL_KEYS[raw]
+  return key ? t(key) : (METHOD_LABELS[raw] ?? raw)
 }
 
 /** `created_at` is a full ISO timestamp, so `new Date()` is correct here. */
@@ -79,7 +90,22 @@ function statusPillClasses(status: string): string {
   }
 }
 
-/** `ATTENDANCE_WARNING` → "Attendance warning". The raw code stays in `title`. */
+/** The subscription codes this app knows, mapped to keys. */
+const SUB_STATUS_KEYS: Record<string, string> = {
+  ACTIVE: 'history.status.active',
+  SUSPENDED: 'history.status.suspended',
+  EXPIRED: 'history.status.expired',
+  DEPLETED: 'history.status.depleted',
+  EXPIRING_SOON: 'history.status.expiringSoon',
+  RENEW_REQUIRED: 'history.status.renewRequired',
+  ATTENDANCE_WARNING: 'history.status.attendanceWarning',
+}
+
+/**
+ * `ATTENDANCE_WARNING` → "Attendance warning". This is the fallback for a code
+ * the map above does not know — a status a later server adds shows up here
+ * rather than disappearing from the row.
+ */
 function humaniseStatus(status: string): string {
   const words = status.toLowerCase().split('_').filter(Boolean)
   if (words.length === 0) return status
@@ -87,14 +113,20 @@ function humaniseStatus(status: string): string {
   return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(' ')
 }
 
+/** Known codes are translated; unknown ones keep the humanised code. */
+function subscriptionStatusLabel(t: TFunction, status: string): string {
+  const key = SUB_STATUS_KEYS[status]
+  return key ? t(key) : humaniseStatus(status)
+}
+
 /** What the purchase bought: credits, or a window of access. */
-function purchaseShape(sub: Subscription): React.ReactNode {
+function purchaseShape(t: TFunction, sub: Subscription): React.ReactNode {
   if (sub.billing_model === 'CREDIT_BASED') {
     const remaining = sub.remaining_credits
     const total = sub.total_credits
     return (
       <span>
-        Credits{' '}
+        {t('history.credits')}{' '}
         <span style={{ color: remaining == null ? 'var(--muted)' : 'var(--text)' }}>
           {remaining ?? DASH}
         </span>
@@ -109,8 +141,12 @@ function purchaseShape(sub: Subscription): React.ReactNode {
   if (sub.billing_model === 'TIME_BASED') {
     return (
       <span>
-        Access{' '}
-        {formatDateRange(parseISODate(sub.access_start_date), parseISODate(sub.access_end_date))}
+        {t('history.access')}{' '}
+        {formatDateRange(
+          t,
+          parseISODate(sub.access_start_date),
+          parseISODate(sub.access_end_date),
+        )}
       </span>
     )
   }
@@ -125,6 +161,7 @@ export function PaymentHistoryList({
   error,
   onRetry,
 }: PaymentHistoryListProps) {
+  const { t } = useTranslation('students')
   const purchases = Array.isArray(subscriptions) ? subscriptions : []
   const isEmpty = purchases.length === 0
 
@@ -136,15 +173,21 @@ export function PaymentHistoryList({
       style={{ color: 'var(--gold)' }}
     >
       <RefreshCw size={11} aria-hidden="true" />
-      Retry
+      {t('common:action.retry')}
     </button>
   )
 
   return (
     <ProfileCard
-      title="Payment history"
+      title={t('history.title')}
       icon={<Receipt size={13} />}
-      action={loading ? <InlineSpinner label="Loading payment history" /> : error ? retryButton : undefined}
+      action={
+        loading ? (
+          <InlineSpinner label={t('history.loadingAria')} />
+        ) : error ? (
+          retryButton
+        ) : undefined
+      }
     >
       {error ? (
         <p className="text-xs leading-relaxed" style={{ color: 'var(--red)' }}>
@@ -152,15 +195,15 @@ export function PaymentHistoryList({
         </p>
       ) : isEmpty ? (
         loading ? (
-          <EmptyLine>{'Loading…'}</EmptyLine>
+          <EmptyLine>{t('common:state.loading')}</EmptyLine>
         ) : (
-          <EmptyLine>No payments recorded yet.</EmptyLine>
+          <EmptyLine>{t('history.empty')}</EmptyLine>
         )
       ) : (
         <ul className="m-0 p-0 list-none space-y-2">
           {purchases.map((sub) => {
             const groupName = (sub.group_name ?? '').trim()
-            const method = methodLabel(sub.payment_method)
+            const method = methodLabel(t, sub.payment_method)
             const purchased = parseTimestamp(sub.created_at)
             const amount = sub.amount_paid_da
             const dateText = purchased ? formatDisplayDate(purchased) : DASH
@@ -189,28 +232,31 @@ export function PaymentHistoryList({
                     </p>
                   </div>
 
-                  <div className="text-right shrink-0">
+                  <div className="text-end shrink-0">
                     <p
                       className="text-sm font-semibold"
                       style={{ color: amount == null ? 'var(--muted)' : 'var(--text)' }}
                     >
                       {amount == null ? DASH : formatDa(amount)}
                     </p>
+                    {/* The tooltip carries the same words as the pill: a status
+                        code printed raw would be untranslated text in an
+                        otherwise translated row. */}
                     <span
                       className={cn(
                         'inline-flex items-center px-2 py-0.5 rounded-full',
                         'text-[10px] font-semibold',
                         statusPillClasses(sub.status),
                       )}
-                      title={sub.status}
+                      title={subscriptionStatusLabel(t, sub.status)}
                     >
-                      {humaniseStatus(sub.status)}
+                      {subscriptionStatusLabel(t, sub.status)}
                     </span>
                   </div>
                 </div>
 
                 <div className="text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
-                  {purchaseShape(sub)}
+                  {purchaseShape(t, sub)}
                 </div>
               </li>
             )

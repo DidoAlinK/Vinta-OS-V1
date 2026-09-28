@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, BookOpen } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
@@ -36,6 +37,7 @@ const COLOR_PRESETS = [
 // ============================================
 
 export default function SubjectsSettings() {
+  const { t } = useTranslation('settings')
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [newName, setNewName] = useState('')
@@ -73,14 +75,14 @@ export default function SubjectsSettings() {
       setSubjects(prev => [...prev, { id: data.id, name: data.name, color: data.color }])
       setNewName('')
       setNewColor(COLOR_PRESETS[0])
-      toast.success('Subject created', `"${data.name}" has been added.`)
+      toast.success(t('subjects.toast.created'), t('subjects.toast.createdBody', { name: data.name }))
     } catch (err: any) {
-      const msg = err?.response?.data?.error || err?.message || 'Unknown error'
-      toast.error('Failed to create subject', msg)
+      const msg = err?.response?.data?.error || err?.message || t('subjects.toast.unknownError')
+      toast.error(t('subjects.toast.createFailedTitle'), msg)
     } finally {
       setCreating(false)
     }
-  }, [newName, newColor])
+  }, [t, newName, newColor])
 
   /* ── Delete subject ──
      Two steps: the trash icon opens the PIN confirmation, and only an accepted
@@ -90,11 +92,11 @@ export default function SubjectsSettings() {
      through to a request against `null`. */
   const handleDelete = useCallback((subject: Subject) => {
     if (!subject.id) {
-      toast.error('Cannot delete', 'This subject is derived from a class and cannot be removed here.')
+      toast.error(t('subjects.toast.deleteBlockedTitle'), t('subjects.toast.deleteBlockedBody'))
       return
     }
     setSubjectToDelete(subject)
-  }, [])
+  }, [t])
 
   const confirmDelete = useCallback(async () => {
     const subject = subjectToDelete
@@ -102,13 +104,15 @@ export default function SubjectsSettings() {
     try {
       await api.delete(`/subjects/${subject.id}`)
     } catch {
-      const msg = 'Could not remove the subject.'
-      toast.error('Failed to delete', msg)
+      // The PIN dialog re-renders this as its own error, so the message has to
+      // outlive the toast.
+      const msg = t('subjects.toast.deleteFailedBody')
+      toast.error(t('subjects.toast.deleteFailedTitle'), msg)
       throw new Error(msg)
     }
     setSubjects(prev => prev.filter(s => s.id !== subject.id))
-    toast.success('Subject deleted', `"${subject.name}" has been removed.`)
-  }, [subjectToDelete])
+    toast.success(t('subjects.toast.deleted'), t('subjects.toast.deletedBody', { name: subject.name }))
+  }, [t, subjectToDelete])
 
   /* ── Handle Enter key ── */
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -123,10 +127,10 @@ export default function SubjectsSettings() {
           className="text-base font-bold text-[var(--text)] mb-1"
           style={{ fontFamily: 'var(--font-heading)' }}
         >
-          Subjects That We Teach
+          {t('subjects.title')}
         </h3>
         <p className="text-xs text-[var(--muted)]">
-          Create custom subjects for teacher profiles and class assignment.
+          {t('subjects.description')}
         </p>
       </div>
 
@@ -138,17 +142,17 @@ export default function SubjectsSettings() {
         )}
       >
         <p className="text-[10px] uppercase tracking-wider font-semibold text-[var(--gold)] mb-3">
-          Add New Subject
+          {t('subjects.add.title')}
         </p>
         <div className="flex gap-3 items-end">
           <div className="flex-1">
-            <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Subject Name</label>
+            <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('subjects.add.name')}</label>
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="e.g. Physics, Arabic, Music..."
+              placeholder={t('subjects.add.namePlaceholder')}
               className={cn(
                 'w-full px-3 py-2 rounded-xl text-sm text-[var(--text)]',
                 'bg-[var(--input-bg)] border border-[var(--glass-border)]',
@@ -167,12 +171,12 @@ export default function SubjectsSettings() {
             )}
           >
             <Plus size={14} />
-            {creating ? 'Adding...' : 'Add'}
+            {creating ? t('subjects.add.busy') : t('common:action.add')}
           </button>
         </div>
         {/* Color picker */}
         <div className="mt-3">
-          <label className="text-xs font-medium text-[var(--muted)] mb-1.5 block">Color</label>
+          <label className="text-xs font-medium text-[var(--muted)] mb-1.5 block">{t('subjects.add.color')}</label>
           <div className="flex gap-2 flex-wrap">
             {COLOR_PRESETS.map((color) => (
               <button
@@ -193,16 +197,16 @@ export default function SubjectsSettings() {
       {/* Subject list */}
       <div>
         <p className="text-[10px] uppercase tracking-wider font-semibold text-[var(--gold)] mb-3">
-          Current Subjects ({subjects.length})
+          {t('subjects.currentTitle', { count: subjects.length })}
         </p>
         {isLoading ? (
-          <p className="text-sm text-[var(--muted)]">Loading subjects...</p>
+          <p className="text-sm text-[var(--muted)]">{t('subjects.loading')}</p>
         ) : subjects.length === 0 ? (
           <div className="text-center py-8">
             <BookOpen size={24} className="text-[var(--muted)] mx-auto mb-2" style={{ opacity: 0.5 }} />
-            <p className="text-sm text-[var(--muted)]">No subjects created yet</p>
+            <p className="text-sm text-[var(--muted)]">{t('subjects.empty.title')}</p>
             <p className="text-xs text-[var(--muted)]" style={{ opacity: 0.6 }}>
-              Add your first subject above
+              {t('subjects.empty.hint')}
             </p>
           </div>
         ) : (
@@ -225,7 +229,7 @@ export default function SubjectsSettings() {
                     {subject.name}
                   </span>
                   {!subject.id && (
-                    <span className="text-[10px] text-[var(--muted)] italic">(from class)</span>
+                    <span className="text-[10px] text-[var(--muted)] italic">{t('subjects.fromClass')}</span>
                   )}
                 </div>
                 {subject.id && (
@@ -236,7 +240,7 @@ export default function SubjectsSettings() {
                       'text-[var(--muted)] hover:text-[var(--red)] hover:bg-[var(--red)]/10',
                       'transition-colors duration-150',
                     )}
-                    title="Delete subject"
+                    title={t('subjects.delete.label')}
                   >
                     <Trash2 size={13} />
                   </button>
@@ -252,13 +256,15 @@ export default function SubjectsSettings() {
       <PinConfirmDialog
         open={!!subjectToDelete}
         onClose={() => setSubjectToDelete(null)}
-        title="Delete this subject?"
-        confirmLabel="Delete subject"
+        title={t('subjects.delete.title')}
+        confirmLabel={t('subjects.delete.label')}
         message={
           subjectToDelete ? (
+            // The subject's own name leads the sentence — a proper noun the
+            // academy typed, never translated — so the rest is one key.
             <>
-              <strong className="font-semibold">{subjectToDelete.name}</strong> will be
-              removed from the subject list. Classes already using it keep their name.
+              <strong className="font-semibold">{subjectToDelete.name}</strong>{' '}
+              {t('subjects.delete.message')}
             </>
           ) : null
         }

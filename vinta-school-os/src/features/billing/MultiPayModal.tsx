@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { toast } from '../../stores/uiStore'
@@ -44,10 +45,13 @@ interface LineItem {
 
 /* ─── Payment method config ─── */
 
-const PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: React.ElementType }[] = [
-  { key: 'CASH', label: 'Cash', icon: Banknote },
-  { key: 'CCP', label: 'CCP', icon: CreditCard },
-  { key: 'BARIDI_MOB', label: 'Baridi Mob', icon: Smartphone },
+/* `key` is the API's `PaymentMethod` enum and must survive verbatim; only the
+   label is text, and it is looked up in the render body — this array is built
+   once at import, before a language has been chosen. */
+const PAYMENT_METHODS: { key: PaymentMethod; labelKey: string; icon: React.ElementType }[] = [
+  { key: 'CASH', labelKey: 'multiPay.method.cash', icon: Banknote },
+  { key: 'CCP', labelKey: 'multiPay.method.ccp', icon: CreditCard },
+  { key: 'BARIDI_MOB', labelKey: 'multiPay.method.baridiMob', icon: Smartphone },
 ]
 
 /* ─── PIN input ─── */
@@ -64,6 +68,7 @@ function PinInput({
   /** Shown under the boxes. A shake alone does not tell the user what to do. */
   errorText?: string | null
 }) {
+  const { t } = useTranslation('billing')
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => {
@@ -118,7 +123,7 @@ function PinInput({
               : '2px solid var(--glass-border)',
             boxShadow: digit && !error ? '0 4px 16px rgba(179,135,42,.15)' : 'none',
           }}
-          aria-label={`PIN digit ${i + 1}`}
+          aria-label={t('multiPay.pin.digit', { index: i + 1 })}
         />
       ))}
       </div>
@@ -141,6 +146,8 @@ export function MultiPayModal({
   onSuccess,
   presetStudent = null,
 }: MultiPayModalProps) {
+  const { t } = useTranslation('billing')
+
   /* ── State ── */
   const [studentQuery, setStudentQuery] = useState('')
   const [studentResults, setStudentResults] = useState<Student[]>([])
@@ -304,7 +311,7 @@ export function MultiPayModal({
     if (items.some((it) => !it.group_id || it.amount_da <= 0)) return
     if (pin.some((d) => !d)) {
       setPinError(true)
-      setPinMessage('Enter all 4 digits of the owner PIN.')
+      setPinMessage(t('multiPay.pin.incomplete'))
       return
     }
 
@@ -339,14 +346,23 @@ export function MultiPayModal({
           const n = nByGroup.get(ch.group_id) ?? 4
           const preview = previewDebtSettlement(debt, n)
           const cleared = clearDebtFifo(activeStudent.id, ch.group_id, preview.cleared, receipt.data?.id ?? `pay-${Date.now()}`)
-          settled.push(`${cleared.length} cleared → ${preview.remaining} left (N=${n})`)
+          settled.push(
+            t('multiPay.toast.settled.line', {
+              cleared: cleared.length,
+              remaining: preview.remaining,
+              n,
+            }),
+          )
         }
         if (settled.length > 0) {
-          toast.success('Debt settled oldest-first', settled.join(' · '), { duration: 8000 })
+          toast.success(t('multiPay.toast.settled.title'), settled.join(' · '), { duration: 8000 })
         }
       } catch {
         // Settlement preview is advisory — payment already landed.
-        toast.warning('Payment recorded, debt preview failed', 'Reopen Billing to settle unpaid rows.')
+        toast.warning(
+          t('multiPay.toast.previewFailed.title'),
+          t('multiPay.toast.previewFailed.body'),
+        )
       }
       onSuccess?.()
       onClose()
@@ -355,7 +371,7 @@ export function MultiPayModal({
         err as { response?: { status?: number; data?: { error?: string; message?: string } } }
       )?.response
       const status = res?.status
-      const msg = res?.data?.error || res?.data?.message || 'Payment failed'
+      const msg = res?.data?.error || res?.data?.message || t('multiPay.error.failed')
 
       /* Wrong PIN. The backend answers **403** with `{"error": "Invalid PIN"}`;
          older builds answered 401 with the same body, hence the message check
@@ -368,14 +384,14 @@ export function MultiPayModal({
       const isPinError = status === 403 || msg.toLowerCase().includes('pin')
       if (isPinError) {
         setPinError(true)
-        setPinMessage('Incorrect PIN. Try again.')
+        setPinMessage(t('multiPay.pin.incorrect'))
         setPin(['', '', '', ''])
       } else if (status === 401) {
         /* The request was rejected unauthenticated, so nothing was recorded —
            and the PIN was not the reason, so do not shake it. The interceptor
            in lib/api.ts owns the sign-out; this modal must not add a second,
            competing one. */
-        setSubmitError('Session expired. Sign in again — the payment was not recorded.')
+        setSubmitError(t('multiPay.error.sessionExpired'))
       } else {
         setSubmitError(msg)
       }
@@ -397,14 +413,14 @@ export function MultiPayModal({
     <Modal
       open={isOpen}
       onClose={onClose}
-      title="Multi-Teacher Payment"
+      title={t('multiPay.title')}
       size="lg"
     >
       <div className="flex flex-col gap-5">
         {/* ── Step 1: Select student ── */}
         <div>
           <label className="block text-xs font-medium text-[var(--muted)] uppercase tracking-wide mb-2">
-            1. Select Student
+            {t('multiPay.step.student')}
           </label>
           {presetStudent ? (
             /* Preset by the caller: the student is fixed. No search input, no
@@ -432,19 +448,19 @@ export function MultiPayModal({
                 }}
                 className="text-xs text-[var(--red)] hover:underline"
               >
-                Change
+                {t('multiPay.change')}
               </button>
             </div>
           ) : (
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
               <input
                 type="text"
-                placeholder="Search student by name…"
+                placeholder={t('multiPay.searchPlaceholder')}
                 value={studentQuery}
                 onChange={(e) => handleStudentSearch(e.target.value)}
                 className={cn(
-                  'w-full pl-9 pr-4 py-2.5 rounded-[var(--radius-sm)]',
+                  'w-full ps-9 pe-4 py-2.5 rounded-[var(--radius-sm)]',
                   'text-sm text-[var(--text)] placeholder:text-[var(--muted)]/50',
                   'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                   'outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]/30',
@@ -452,7 +468,7 @@ export function MultiPayModal({
                 )}
               />
               {studentSearching && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <div className="absolute end-3 top-1/2 -translate-y-1/2">
                   <div className="w-4 h-4 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
@@ -477,7 +493,7 @@ export function MultiPayModal({
                         setStudentResults([])
                       }}
                       className={cn(
-                        'w-full text-left px-3 py-2.5 text-sm',
+                        'w-full text-start px-3 py-2.5 text-sm',
                         'hover:bg-[var(--glass-strong)] transition-colors',
                         'border-b border-[var(--glass-border)]/30 last:border-b-0',
                       )}
@@ -496,7 +512,7 @@ export function MultiPayModal({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wide">
-                2. Payment Items
+                {t('multiPay.step.items')}
               </label>
               <button
                 type="button"
@@ -510,13 +526,13 @@ export function MultiPayModal({
                 )}
               >
                 <Plus className="w-3.5 h-3.5" />
-                Add
+                {t('common:action.add')}
               </button>
             </div>
 
             {items.length === 0 && (
               <p className="text-sm text-[var(--muted)]/60 py-4 text-center border border-dashed border-[var(--glass-border)] rounded-[var(--radius-sm)]">
-                Click "Add" to add a payment line
+                {t('multiPay.empty')}
               </p>
             )}
 
@@ -552,7 +568,7 @@ export function MultiPayModal({
                       value={item.group_id}
                       onChange={(v) => updateItem(item.id, 'group_id', v)}
                       options={[
-                        { value: '', label: 'Select group…' },
+                        { value: '', label: t('multiPay.selectGroup') },
                         ...classes.map((cls) => ({
                           value: cls.id,
                           label: `${cls.name}${cls.subject ? ` (${cls.subject})` : ''}`,
@@ -573,7 +589,7 @@ export function MultiPayModal({
                     <input
                       type="number"
                       min={0}
-                      placeholder="Amount"
+                      placeholder={t('multiPay.amountPlaceholder')}
                       value={item.amount_da || ''}
                       onChange={(e) =>
                         updateItem(item.id, 'amount_da', Math.max(0, parseInt(e.target.value) || 0))
@@ -586,7 +602,7 @@ export function MultiPayModal({
                         'transition-colors',
                       )}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted)] pointer-events-none">
+                    <span className="absolute end-3 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted)] pointer-events-none">
                       DA
                     </span>
                   </div>
@@ -606,8 +622,12 @@ export function MultiPayModal({
                   </button>
                   </div>
                   {preview && (
-                    <p className="text-[11px] text-[var(--muted)] pl-1">
-                      Debt {debt} + pay N={n} → {preview.remaining} remaining (oldest first)
+                    <p className="text-[11px] text-[var(--muted)] ps-1">
+                      {t('multiPay.line.debtPreview', {
+                        debt,
+                        n,
+                        remaining: preview.remaining,
+                      })}
                     </p>
                   )}
                 </div>
@@ -618,7 +638,7 @@ export function MultiPayModal({
             {/* Total */}
             {items.length > 0 && (
               <div className="flex items-center justify-between mt-3 px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--input-bg)] border border-[var(--glass-border)]">
-                <span className="text-xs font-medium text-[var(--muted)] uppercase">Total</span>
+                <span className="text-xs font-medium text-[var(--muted)] uppercase">{t('common:label.total')}</span>
                 <span className="text-base font-bold text-[var(--gold)] tabular-nums font-[family-name:var(--font-heading)]">
                   {formatCurrency(totalReceived)}
                 </span>
@@ -631,10 +651,10 @@ export function MultiPayModal({
         {activeStudent && items.length > 0 && (
           <div>
             <label className="block text-xs font-medium text-[var(--muted)] uppercase tracking-wide mb-2">
-              3. Payment Method
+              {t('multiPay.step.method')}
             </label>
             <div className="flex gap-2">
-              {PAYMENT_METHODS.map(({ key, label, icon: Icon }) => (
+              {PAYMENT_METHODS.map(({ key, labelKey, icon: Icon }) => (
                 <button
                   key={key}
                   type="button"
@@ -648,7 +668,7 @@ export function MultiPayModal({
                   )}
                 >
                   <Icon className="w-4 h-4" />
-                  {label}
+                  {t(labelKey)}
                 </button>
               ))}
             </div>
@@ -659,7 +679,7 @@ export function MultiPayModal({
         {activeStudent && items.length > 0 && (
           <div>
             <label className="block text-xs font-medium text-[var(--muted)] uppercase tracking-wide mb-3">
-              4. PIN Verification
+              {t('multiPay.step.pin')}
             </label>
             <PinInput
               value={pin}
@@ -703,7 +723,9 @@ export function MultiPayModal({
             ) : (
               <Check className="w-4 h-4" />
             )}
-            {submitting ? 'Processing…' : `Pay ${formatCurrency(totalReceived)}`}
+            {submitting
+              ? t('multiPay.submit.processing')
+              : t('multiPay.submit.pay', { amount: formatCurrency(totalReceived) })}
           </button>
         )}
       </div>

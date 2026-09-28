@@ -216,15 +216,22 @@ export interface CreateGuardianRequest {
 /**
  * Counts by billing state, from `GET /students/stats`.
  *
- * `unpaid` and `no_plan` are deliberately absent as their own buckets — they
- * are not states anyone acts on at a glance, and they roll into `total`. That
- * means `total` is not the sum of the other three; it is the real roster size.
+ * All five states have their own bucket, so these DO sum to `total`. Every
+ * student has exactly one status; `unpaid` (enrolled, never paid) and
+ * `no_plan` (enrolled in nothing) are simply the two that mean "nothing
+ * recorded yet", and they now have pills of their own rather than being
+ * invisible outside `total`.
+ *
+ * `q` on the request narrows every number here to the students that search
+ * matched, so these describe the same set the table is paging through.
  */
 export interface StudentStats {
   total: number
   paid: number
   due: number
   overdue: number
+  unpaid: number
+  no_plan: number
 }
 
 // ============================================

@@ -12,6 +12,7 @@
  * Rendered without a card: it is the drawer's header block, not a titled panel.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Phone } from 'lucide-react'
 import { cn } from '../../../lib/cn'
 import {
@@ -21,7 +22,7 @@ import {
   getStatusColor,
 } from '../../../lib/formatters'
 import type { Student } from '../../../types/student'
-import { STUDENT_STATUS_LABELS } from './BillingSummaryCard'
+import { STUDENT_STATUS_KEYS } from './BillingSummaryCard'
 
 export interface StudentIdentityProps {
   student: Student
@@ -38,6 +39,7 @@ function safePhone(raw: string | null | undefined): string | null {
 }
 
 export function StudentIdentity({ student }: StudentIdentityProps) {
+  const { t } = useTranslation('students')
   const phone = safePhone(student.phone)
 
   return (
@@ -82,7 +84,7 @@ export function StudentIdentity({ student }: StudentIdentityProps) {
               getStatusColor(student.status),
             )}
           >
-            {STUDENT_STATUS_LABELS[student.status]}
+            {t(STUDENT_STATUS_KEYS[student.status])}
           </span>
 
           {/* The group's plan — a fact about the group, so it is shown muted and

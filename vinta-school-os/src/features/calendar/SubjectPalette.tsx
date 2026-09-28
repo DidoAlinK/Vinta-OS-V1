@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   GripVertical,
   Plus,
@@ -33,6 +34,7 @@ export default function SubjectPalette({
   onAddSubject,
   onDeleteSubject,
 }: SubjectPaletteProps) {
+  const { t } = useTranslation('calendar')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
@@ -67,7 +69,7 @@ export default function SubjectPalette({
       <aside
         className={cn(
           'flex flex-col h-full w-[180px] min-w-[180px]',
-          'bg-[var(--glass)] border-r border-[var(--glass-border)]',
+          'bg-[var(--glass)] border-e border-[var(--glass-border)]',
           'backdrop-blur-xl',
         )}
       >
@@ -77,7 +79,7 @@ export default function SubjectPalette({
             className="text-sm font-bold text-[var(--text)]"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
-            Subjects
+            {t('palette.title')}
           </h2>
         </div>
 
@@ -118,6 +120,7 @@ export default function SubjectPalette({
                       onDeleteSubject(subject.id)
                     }}
                     className="p-0.5 rounded hover:bg-[var(--red-soft)] transition-colors"
+                    aria-label={t('palette.remove')}
                   >
                     <Trash2 size={12} className="text-[var(--red)]" />
                   </button>
@@ -141,14 +144,14 @@ export default function SubjectPalette({
             )}
           >
             <Plus size={14} />
-            <span>Add subject</span>
+            <span>{t('palette.add')}</span>
           </button>
         </div>
 
         {/* Helper text */}
         <div className="px-4 pb-4">
           <p className="text-[10px] leading-relaxed text-[var(--muted)]/60 text-center">
-            Drag a subject onto the grid to create a new session
+            {t('palette.hint')}
           </p>
         </div>
       </aside>

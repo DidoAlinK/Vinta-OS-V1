@@ -74,10 +74,22 @@ export interface Class {
   billing_info?: ClassBillingInfo | null
 
   /**
-   * The enrollment dot the server decided, from the same count and the same
-   * capacity guard: red = full, green = has students, grey = empty.
+   * What the server says is happening in this group, as a colour:
+   * red = Empty with somebody missing (the class is running with nobody in it,
+   * or the group has students and no time at all), amber = Scheduled (students
+   * and a time, class not started), green = Active (running, students present),
+   * grey = Empty with nothing to teach.
    */
   status_color?: 'red' | 'amber' | 'green' | 'grey'
+
+  /**
+   * A session of this group is in progress right now, today. The server's own
+   * fact about its own clock, sent so a screen never has to infer it.
+   */
+  is_running?: boolean
+
+  /** Students marked present on that running session; 0 when none is running. */
+  students_present?: number
 
   /**
    * Not sent by the API — nothing computes it. It was declared here as a
@@ -86,7 +98,14 @@ export interface Class {
    * `classStateOf(cls)` from `lib/classState` instead.
    */
   status?: 'full' | 'active' | 'empty'
-  schedules: Schedule[]
+
+  /**
+   * Present on the detail payload, absent from the list payload — so it is
+   * optional, and a reader that needs it has to say what it does when the field
+   * is missing rather than trusting it to be there. Declaring it required is
+   * how the grid ended up unable to tell "no time set" from "not asked".
+   */
+  schedules?: Schedule[]
 }
 
 /** Billing snapshot shown as a badge on the group detail */
@@ -301,8 +320,15 @@ export interface FinalizeSessionRequest {
 
 export interface ClassStats {
   total: number
-  full: number
+  /** Students enrolled and a time on the books, class not started — gold dot. */
+  scheduled: number
+  /** A class is running with somebody in it — emerald dot. */
   active: number
+  /**
+   * Both empty states at once: the grey one (nothing to teach) and the red one
+   * (running with nobody in it, or students with no time). They share a word on
+   * the card, so they share a tile.
+   */
   empty: number
 }
 

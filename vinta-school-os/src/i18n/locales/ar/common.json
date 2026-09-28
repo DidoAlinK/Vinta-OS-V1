@@ -1,0 +1,112 @@
+{
+  "action": {
+    "add": "إضافة",
+    "apply": "تطبيق",
+    "back": "رجوع",
+    "cancel": "إلغاء",
+    "clear": "مسح",
+    "close": "إغلاق",
+    "confirm": "تأكيد",
+    "create": "إنشاء",
+    "delete": "حذف",
+    "done": "تم",
+    "edit": "تعديل",
+    "next": "التالي",
+    "refresh": "تحديث",
+    "remove": "إزالة",
+    "reset": "إعادة تعيين",
+    "retry": "إعادة المحاولة",
+    "save": "حفظ",
+    "search": "بحث",
+    "update": "تحديث",
+    "view": "عرض"
+  },
+  "state": {
+    "loading": "جارٍ التحميل…",
+    "saving": "جارٍ الحفظ…",
+    "noResults": "لا توجد نتائج",
+    "error": "حدث خطأ ما",
+    "empty": "لا يوجد شيء بعد",
+    "optional": "اختياري",
+    "required": "مطلوب",
+    "unsavedChanges": "لديك تغييرات غير محفوظة",
+    "loadingApp": "جارٍ تحميل Vinta School OS…"
+  },
+  "label": {
+    "all": "الكل",
+    "none": "لا شيء",
+    "yes": "نعم",
+    "no": "لا",
+    "name": "الاسم",
+    "phone": "الهاتف",
+    "notes": "ملاحظات",
+    "date": "التاريخ",
+    "time": "الوقت",
+    "status": "الحالة",
+    "actions": "إجراءات",
+    "total": "المجموع"
+  },
+  "confirm": {
+    "discardTitle": "هل تريد تجاهل التغييرات؟",
+    "discardBody": "سيتم فقدان تعديلاتك.",
+    "deleteTitle": "هل تريد حذف هذا العنصر؟",
+    "deleteBody": "لا يمكن التراجع عن هذا الإجراء.",
+    "yes": "نعم، متابعة",
+    "no": "لا، رجوع"
+  },
+  "avatar": {
+    "label": "الصورة الرمزية"
+  },
+  "table": {
+    "empty": "لا توجد بيانات للعرض"
+  },
+  "select": {
+    "placeholder": "اختر…",
+    "empty": "لا توجد خيارات",
+    "search": "بحث…"
+  },
+  "dayPicker": {
+    "placeholder": "اختر تاريخاً…",
+    "previousMonth": "الشهر السابق",
+    "nextMonth": "الشهر التالي"
+  },
+  "timePicker": {
+    "placeholder": "اختر وقتاً…"
+  },
+  "pinInput": {
+    "group": "إدخال الرمز السري",
+    "digit": "الرقم {{index}} من {{total}}"
+  },
+  "pinStep": {
+    "submit": "تأكيد الرمز",
+    "busy": "جارٍ التحقق…"
+  },
+  "pinConfirm": {
+    "warning": "لا يمكن التراجع عن هذا الإجراء. يلزم إدخال رمزك السري للمتابعة.",
+    "hint": "أدخل رمزك السري المكوّن من 4 أرقام للتأكيد.",
+    "cancel": "إلغاء — عدم الحذف",
+    "busy": "جارٍ التنفيذ…",
+    "failed": "لم تكتمل العملية. اضغط على إعادة المحاولة."
+  },
+  "errorBoundary": {
+    "detail": "حدث خطأ غير متوقع",
+    "retry": "إعادة المحاولة"
+  },
+  "notify": {
+    "dismiss": "إغلاق الإشعار",
+    "saved": "تم الحفظ",
+    "created": "تم الإنشاء",
+    "deleted": "تم الحذف",
+    "updated": "تم التحديث"
+  },
+  "duration": {
+    "hours": "{{count}} س",
+    "minutes": "{{count}} د",
+    "hoursMinutes": "{{hours}} س {{minutes}} د"
+  },
+  "time": {
+    "am": "ص",
+    "pm": "م"
+  },
+  "dash": "—"
+}

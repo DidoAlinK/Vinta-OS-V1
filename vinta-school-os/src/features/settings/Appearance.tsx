@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import { Card, CardHeader, CardBody } from '../../components/ui/Card'
 import { Toggle } from '../../components/ui/Toggle'
@@ -43,6 +44,7 @@ function OptionChip({
 /* ─── Component ─── */
 
 export function Appearance({ settings, onUpdate }: AppearanceProps) {
+  const { t } = useTranslation('settings')
   const { theme, setTheme, fontSize: storeFontSize, setFontSize, language: storeLanguage, setLanguage } = useThemeStore()
   const isDark = theme === 'dark'
   const fontSize = settings.default_font_size || storeFontSize || 'normal'
@@ -69,7 +71,7 @@ export function Appearance({ settings, onUpdate }: AppearanceProps) {
       {/* Theme */}
       <Card>
         <CardHeader
-          title="Theme"
+          title={t('appearance.theme.title')}
           actions={
             <div className="flex items-center gap-2">
               <Sun className={cn('w-4 h-4', !isDark && 'text-[var(--gold)]')} />
@@ -83,31 +85,31 @@ export function Appearance({ settings, onUpdate }: AppearanceProps) {
         />
         <CardBody>
           <p className="text-sm text-[var(--muted)]">
-            {isDark ? 'Dark mode is active — easy on the eyes.' : 'Light mode is active — clean and bright.'}
+            {isDark ? t('appearance.theme.darkActive') : t('appearance.theme.lightActive')}
           </p>
         </CardBody>
       </Card>
 
       {/* Font Size */}
       <Card>
-        <CardHeader title="Font Size" />
+        <CardHeader title={t('appearance.fontSize.title')} />
         <CardBody>
           <p className="text-sm text-[var(--muted)] mb-3">
-            Adjust the text size for comfortable reading.
+            {t('appearance.fontSize.hint')}
           </p>
           <div className="flex gap-2">
             <OptionChip
-              label="Small"
+              label={t('appearance.fontSize.small')}
               selected={fontSize === 'small'}
               onClick={() => handleFontSize('small')}
             />
             <OptionChip
-              label="Normal"
+              label={t('appearance.fontSize.normal')}
               selected={fontSize === 'normal'}
               onClick={() => handleFontSize('normal')}
             />
             <OptionChip
-              label="Large"
+              label={t('appearance.fontSize.large')}
               selected={fontSize === 'large'}
               onClick={() => handleFontSize('large')}
             />
@@ -118,13 +120,17 @@ export function Appearance({ settings, onUpdate }: AppearanceProps) {
       {/* Language */}
       <Card>
         <CardHeader
-          title="Language"
+          title={t('appearance.language.title')}
           actions={<Globe className="w-4 h-4 text-[var(--muted)]" />}
         />
         <CardBody>
           <p className="text-sm text-[var(--muted)] mb-3">
-            Interface language for labels and navigation.
+            {t('appearance.language.hint')}
           </p>
+          {/* The three chips keep their own script on purpose: Français,
+              English and العربية are all written in the language they select,
+              so someone who cannot read the current interface language can
+              still find their own. Do not translate these labels. */}
           <div className="flex gap-2">
             <OptionChip
               label="Français"

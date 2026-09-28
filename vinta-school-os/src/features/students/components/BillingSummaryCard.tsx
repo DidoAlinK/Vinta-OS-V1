@@ -20,9 +20,12 @@
  * a local date.
  */
 
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { CreditCard } from 'lucide-react'
 import { cn } from '../../../lib/cn'
 import { formatDa, getStatusBg, getStatusColor } from '../../../lib/formatters'
+import i18n, { DEFAULT_LANGUAGE, isLanguage, localeTag } from '../../../i18n'
 import type { StudentStatus } from '../../../types/student'
 import type { Student } from '../../../types/student'
 import { InlineSpinner, ProfileCard } from './ProfileCard'
@@ -31,13 +34,36 @@ import { InlineSpinner, ProfileCard } from './ProfileCard'
 // Shared exports
 // ============================================
 
-/** The only place a student status becomes words. */
-export const STUDENT_STATUS_LABELS: Record<StudentStatus, string> = {
-  paid: 'Paid',
-  due: 'Due',
-  overdue: 'Overdue',
-  unpaid: 'Unpaid',
-  no_plan: 'No plan',
+/**
+ * The only place a student status becomes words.
+ *
+ * Keys, not sentences: a module-level map of rendered strings would be
+ * evaluated once, at import, in whatever language happened to be active then
+ * and would never follow a language switch.
+ */
+export const STUDENT_STATUS_KEYS: Record<StudentStatus, string> = {
+  paid: 'status.paid',
+  due: 'status.due',
+  overdue: 'status.overdue',
+  unpaid: 'status.unpaid',
+  no_plan: 'status.noPlan',
+}
+
+// ============================================
+// Locale
+// ============================================
+
+/**
+ * The BCP-47 tag month and weekday names below are rendered in.
+ *
+ * `ar-DZ` rather than `ar`: the bare Arabic locale defaults to the `arab`
+ * numbering system, so a year would print as ٢٠٢٦ where these academies read
+ * 2026. Mirrors the private helper in `lib/formatters.ts`, and like it reads
+ * the live instance on every call so a language switch re-formats the next
+ * thing that renders.
+ */
+export function activeLocale(): string {
+  return localeTag(isLanguage(i18n.language) ? i18n.language : DEFAULT_LANGUAGE)
 }
 
 /** An absent scalar. One codepoint, so the UI can never disagree with itself. */
@@ -73,13 +99,13 @@ export function parseISODate(iso: string | null | undefined): Date | null {
   return date
 }
 
-/** "22 Sep 2026" — day-first, unambiguous, locale-pinned. */
+/** "22 Sep 2026" — day-first and unambiguous, in the active language. */
 export function formatDisplayDate(date: Date): string {
-  return date.toLocaleDateString('en-GB', {
+  return new Intl.DateTimeFormat(activeLocale(), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-  })
+  }).format(date)
 }
 
 /**
@@ -89,17 +115,27 @@ export function formatDisplayDate(date: Date): string {
  * A cycle with only one end recorded prints which end it is — a lone date would
  * read as a one-day cycle, which is a different claim entirely. Neither end
  * recorded is an em dash.
+ *
+ * `t` is passed in rather than imported: the arrow is part of the sentence and
+ * has to mirror in Arabic (`←`), which the bidi algorithm cannot do for us.
  */
-export function formatDateRange(start: Date | null, end: Date | null): string {
+export function formatDateRange(
+  t: TFunction,
+  start: Date | null,
+  end: Date | null,
+): string {
   if (start && end) {
     const startText =
       start.getFullYear() === end.getFullYear()
-        ? start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+        ? new Intl.DateTimeFormat(activeLocale(), {
+            day: 'numeric',
+            month: 'short',
+          }).format(start)
         : formatDisplayDate(start)
-    return `${startText} → ${formatDisplayDate(end)}`
+    return t('summary.dateRange', { start: startText, end: formatDisplayDate(end) })
   }
-  if (start) return `From ${formatDisplayDate(start)}`
-  if (end) return `Until ${formatDisplayDate(end)}`
+  if (start) return t('summary.from', { date: formatDisplayDate(start) })
+  if (end) return t('summary.until', { date: formatDisplayDate(end) })
   return DASH
 }
 
@@ -123,6 +159,11 @@ export interface BillingSummaryCardProps {
 // ============================================
 
 interface SummaryRow {
+  /**
+   * A translation KEY, resolved at render. Holding the key rather than the
+   * sentence keeps `key={row.label}` below stable across a language switch and
+   * keeps the map out of the language that happened to be active at import.
+   */
   label: string
   /** Secondary line under the label — the plan amount, when it is not already in the plan text. */
   hint: string | null
@@ -137,6 +178,7 @@ interface SummaryRow {
 }
 
 export function BillingSummaryCard({ student, loading = false }: BillingSummaryCardProps) {
+  const { t } = useTranslation('students')
   const plan = knownText(student.plan)
   const planAmount = student.plan_amount
   const sessions = student.sessions_per_month
@@ -159,13 +201,13 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
 
   const rows: SummaryRow[] = [
     {
-      label: 'Plan',
+      label: 'summary.plan',
       hint: planHint,
       value: plan ?? DASH,
       unknown: plan === null,
     },
     {
-      label: 'Sessions per month',
+      label: 'summary.sessionsPerMonth',
       hint: null,
       // 0 is a real value; only null/undefined is unknown.
       value: sessions != null ? String(sessions) : DASH,
@@ -180,8 +222,11 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
       //
       // Only shown when a subscription exists: `null` means "no subscription",
       // which is a different fact from "none left", and 0 is a real value.
-      label: 'Credits left',
-      hint: creditsTotal != null && creditsRemaining != null ? `of ${creditsTotal}` : null,
+      label: 'summary.creditsLeft',
+      hint:
+        creditsTotal != null && creditsRemaining != null
+          ? t('summary.creditsOf', { total: creditsTotal })
+          : null,
       value: creditsRemaining != null ? String(creditsRemaining) : DASH,
       unknown: creditsRemaining == null,
       // Credited colour follows the same rule as everywhere else: 0 left is
@@ -189,7 +234,7 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
       tone: creditsRemaining == null ? undefined : creditsRemaining <= 0 ? 'red' : 'text',
     },
     {
-      label: 'Renews on',
+      label: 'summary.renewsOn',
       hint: null,
       // Legitimately empty before a cycle starts. The group's duration is not
       // substituted here — that would be a different fact stated as this one.
@@ -197,7 +242,7 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
       unknown: renews === null,
     },
     {
-      label: 'Status',
+      label: 'common:label.status',
       hint: null,
       value: (
         <span
@@ -207,7 +252,7 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
             getStatusColor(student.status),
           )}
         >
-          {STUDENT_STATUS_LABELS[student.status]}
+          {t(STUDENT_STATUS_KEYS[student.status])}
         </span>
       ),
       unknown: false,
@@ -216,11 +261,11 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
 
   return (
     <ProfileCard
-      title="Billing summary"
+      title={t('summary.title')}
       icon={<CreditCard size={13} />}
       // A refresh in flight shows here; the values that are already known stay
       // on screen rather than blanking out.
-      action={loading ? <InlineSpinner label="Loading billing summary" /> : undefined}
+      action={loading ? <InlineSpinner label={t('summary.loadingAria')} /> : undefined}
     >
       <dl className="m-0">
         {rows.map((row, i) => (
@@ -230,7 +275,7 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
             style={i > 0 ? { borderTop: '1px solid var(--divider)' } : undefined}
           >
             <dt className="text-xs shrink-0" style={{ color: 'var(--muted)' }}>
-              {row.label}
+              {t(row.label)}
               {row.hint ? (
                 <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
                   {row.hint}
@@ -238,7 +283,7 @@ export function BillingSummaryCard({ student, loading = false }: BillingSummaryC
               ) : null}
             </dt>
             <dd
-              className="m-0 text-sm text-right min-w-0"
+              className="m-0 text-sm text-end min-w-0"
               style={{
                 color: row.unknown
                   ? 'var(--muted)'

@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X, UserPlus, Search, ChevronDown } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
@@ -31,6 +32,8 @@ interface ClassOption {
 // ============================================
 
 export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStudentModalProps) {
+  const { t } = useTranslation('students')
+
   /* ── Form state ── */
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -151,7 +154,7 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
     const trimmedLast = lastName.trim()
     if (!trimmedFirst || !trimmedLast) return
     if (selectedClassIds.length === 0) {
-      setError('Please select at least one group to enroll the student in.')
+      setError(t('modal.error.noGroup'))
       return
     }
 
@@ -168,16 +171,18 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
         class_ids: selectedClassIds,
       })
       if (response.data?.error) {
+        // A server message is data, not copy — it is shown as the server wrote it.
         setError(response.data.error)
-        toast.error('Student not added', response.data.error)
+        toast.error(t('modal.toast.notAdded'), response.data.error)
         return
       }
       const name = `${trimmedFirst} ${trimmedLast}`.trim()
+      /* One toast key, two plural forms: the count of groups is the only thing
+         that varies, so English, French and the six Arabic forms all agree with
+         it rather than the branch being spelled out here. */
       toast.success(
-        'Student added',
-        selectedClassIds.length === 1
-          ? `${name} was enrolled in 1 group.`
-          : `${name} was enrolled in ${selectedClassIds.length} groups.`,
+        t('modal.toast.addedTitle'),
+        t('modal.toast.enrolled', { name, count: selectedClassIds.length }),
       )
       onCreated?.()
       onClose()
@@ -188,13 +193,13 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
       const message =
         err?.response?.data?.error ??
         err?.response?.data?.message ??
-        'Failed to create student. Please try again.'
+        t('modal.error.createFailed')
       setError(message)
-      toast.error('Student not added', message)
+      toast.error(t('modal.toast.notAdded'), message)
     } finally {
       setIsSubmitting(false)
     }
-  }, [firstName, lastName, phone, parentPhone, notes, selectedClassIds, onCreated, onClose])
+  }, [t, firstName, lastName, phone, parentPhone, notes, selectedClassIds, onCreated, onClose])
 
   /* ── Keyboard submit ── */
   const handleKeyDown = useCallback(
@@ -239,7 +244,7 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
               className="text-base font-bold text-[var(--text)]"
               style={{ fontFamily: 'var(--font-heading)' }}
             >
-              Add Student
+              {t('modal.title')}
             </h3>
           </div>
           <button
@@ -266,36 +271,37 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
           {/* Student Info */}
           <div>
             <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-3">
-              Student Information
+              {t('modal.section.studentInfo')}
             </h4>
             <div className="space-y-3">
               {/* First + Last Name row */}
               <div className="grid grid-cols-2 gap-3">
-                <FormField label="First Name" required>
+                <FormField label={t('modal.field.firstName')} required>
                   <input
                     type="text"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="First name"
+                    placeholder={t('modal.placeholder.firstName')}
                     autoFocus
                     className={inputClass}
                   />
                 </FormField>
-                <FormField label="Last Name" required>
+                <FormField label={t('modal.field.lastName')} required>
                   <input
                     type="text"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Last name"
+                    placeholder={t('modal.placeholder.lastName')}
                     className={inputClass}
                   />
                 </FormField>
               </div>
 
-              {/* Phone */}
-              <FormField label="Phone">
+              {/* Phone — the placeholder stays the Algerian `+213` shape in every
+                  language: it is the format the field accepts, not a sentence. */}
+              <FormField label={t('common:label.phone')}>
                 <input
                   type="tel"
                   value={phone}
@@ -307,7 +313,7 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
               </FormField>
 
               {/* Parent Phone */}
-              <FormField label="Parent Phone">
+              <FormField label={t('modal.field.parentPhone')}>
                 <input
                   type="tel"
                   value={parentPhone}
@@ -319,11 +325,11 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
               </FormField>
 
               {/* Notes */}
-              <FormField label="Notes">
+              <FormField label={t('common:label.notes')}>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Optional notes about the student..."
+                  placeholder={t('modal.placeholder.notes')}
                   rows={3}
                   className={cn(inputClass, 'resize-none')}
                 />
@@ -334,10 +340,11 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
           {/* Class Enrollment — Mandatory Multi-Select */}
           <div>
             <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1">
-              Group Enrollment <span className="text-[var(--red)]">*</span>
+              {t('modal.section.groupEnrollment')}{' '}
+              <span className="text-[var(--red)]">*</span>
             </h4>
             <p className="text-[10px] text-[var(--muted)] mb-3">
-              Student must be enrolled in at least one group.
+              {t('modal.groupEnrollmentHint')}
             </p>
 
             {/* Selected chips */}
@@ -389,7 +396,7 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
                     setClassDropdownOpen(true)
                   }}
                   onFocus={() => setClassDropdownOpen(true)}
-                  placeholder="Search groups to enroll..."
+                  placeholder={t('modal.searchGroups')}
                   className={cn(
                     'flex-1 bg-transparent outline-none text-sm text-[var(--text)]',
                     'placeholder:text-[var(--muted)]/50',
@@ -422,7 +429,7 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
                           type="button"
                           onClick={() => toggleClass(cls.id)}
                           className={cn(
-                            'w-full flex items-center gap-2.5 px-3 py-2.5 text-left',
+                            'w-full flex items-center gap-2.5 px-3 py-2.5 text-start',
                             'text-sm transition-colors duration-100',
                             isSelected
                               ? 'bg-[var(--gold-soft)]'
@@ -452,7 +459,7 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
                     })
                   ) : (
                     <p className="px-3 py-3 text-xs text-[var(--muted)] text-center">
-                      No classes found
+                      {t('modal.noClasses')}
                     </p>
                   )}
                 </div>
@@ -460,7 +467,9 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
             </div>
 
             {selectedClassIds.length === 0 && (
-              <p className="text-[10px] text-[var(--red)] mt-1">At least one group enrollment is required</p>
+              <p className="text-[10px] text-[var(--red)] mt-1">
+                {t('modal.groupRequired')}
+              </p>
             )}
           </div>
         </div>
@@ -477,7 +486,7 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
               'disabled:opacity-40',
             )}
           >
-            Cancel
+            {t('common:action.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -492,7 +501,7 @@ export default function AddStudentModal({ isOpen, onClose, onCreated }: AddStude
               background: 'linear-gradient(135deg, var(--gold), var(--emerald))',
             }}
           >
-            {isSubmitting ? 'Adding...' : 'Add Student'}
+            {isSubmitting ? t('modal.adding') : t('modal.submit')}
           </button>
         </div>
       </div>

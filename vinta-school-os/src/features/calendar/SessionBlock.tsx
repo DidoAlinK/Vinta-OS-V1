@@ -138,14 +138,14 @@ export default function SessionBlock({
       onPointerDown={handlePointerDown}
       className={cn(
         'group absolute inset-x-0.5 flex flex-col rounded-lg cursor-grab active:cursor-grabbing select-none',
-        'border-l-[3px] transition-[background-color] duration-150',
+        'border-s-[3px] transition-[background-color] duration-150',
         'overflow-hidden',
       )}
       style={{
         top: overrideTop ?? session.top,
         height: overrideHeight ?? session.height,
         backgroundColor: bg,
-        borderLeftColor: color,
+        borderInlineStartColor: color,
       }}
       onMouseEnter={(e) => {
         ;(e.currentTarget as HTMLDivElement).style.backgroundColor = hoverBg

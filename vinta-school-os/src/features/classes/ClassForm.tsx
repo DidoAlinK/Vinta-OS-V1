@@ -13,6 +13,7 @@
  * the billing model, so the two forms cannot drift apart.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Toggle } from '../../components/ui/Toggle'
 import { cn } from '../../lib/cn'
 import type { BillingModel } from '../../types/class'
@@ -44,7 +45,11 @@ export const classSubmitBtnCls = cn(
   'transition-all duration-150',
 )
 
-/* ─── Palette + subjects ─── */
+/* ─── Palette + subjects ───
+   These labels are subject names, not UI copy: the same strings are posted as
+   `subject` and matched against the school's own Settings → Subjects list, so
+   they stay in whatever language the school names its subjects in. Translating
+   them here would file a class under a subject the academy does not have. */
 
 export const CLASS_COLOR_PRESETS = [
   { color: '#b3872a', label: 'Math' },
@@ -191,13 +196,14 @@ export function ClassBillingFields({
   values: ClassFormValues
   onChange: (patch: Partial<ClassFormValues>) => void
 }) {
+  const { t } = useTranslation('classes')
   const credit = values.billingModel === 'CREDIT_BASED'
 
   return (
     <div className="space-y-3">
       {/* Model */}
       <div>
-        <label className={classLabelCls} style={{ color: 'var(--muted)' }}>Billing Model</label>
+        <label className={classLabelCls} style={{ color: 'var(--muted)' }}>{t('form.billingModel')}</label>
         <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)]">
           {(['CREDIT_BASED', 'TIME_BASED'] as const).map((m) => (
             <button
@@ -211,7 +217,7 @@ export function ClassBillingFields({
                   : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
               )}
             >
-              {m === 'CREDIT_BASED' ? 'Credit-Based' : 'Time-Based'}
+              {m === 'CREDIT_BASED' ? t('form.creditBased') : t('form.timeBased')}
             </button>
           ))}
         </div>
@@ -219,7 +225,7 @@ export function ClassBillingFields({
 
       {/* Price */}
       <div>
-        <label className={classLabelCls} style={{ color: 'var(--muted)' }}>Price (DA)</label>
+        <label className={classLabelCls} style={{ color: 'var(--muted)' }}>{t('form.price')}</label>
         <div className="relative">
           <input
             type="number"
@@ -227,9 +233,12 @@ export function ClassBillingFields({
             onChange={(e) => onChange({ priceDa: Number(e.target.value) })}
             placeholder="0"
             min={0}
-            className={cn(classInputCls, 'pr-10')}
+            className={cn(classInputCls, 'pe-10')}
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[var(--muted)]">
+          {/* The currency code, not a translated word — it reads `DA` in all
+              three languages, and the suffix sits at the inline end so it
+              follows the field into Arabic. */}
+          <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[var(--muted)]">
             DA
           </span>
         </div>
@@ -240,7 +249,7 @@ export function ClassBillingFields({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={classLabelCls} style={{ color: 'var(--muted)' }}>
-                Credits / Cycle (N · 1–20)
+                {t('form.creditsPerCycle')}
               </label>
               <input
                 type="number"
@@ -257,13 +266,13 @@ export function ClassBillingFields({
             </div>
             <div>
               <label className={classLabelCls} style={{ color: 'var(--muted)' }}>
-                Cycle Week Limit
+                {t('form.cycleWeekLimit')}
               </label>
               <input
                 type="number"
                 value={values.cycleWeekLimit}
                 onChange={(e) => onChange({ cycleWeekLimit: e.target.value })}
-                placeholder="Optional"
+                placeholder={t('form.optional')}
                 min={0}
                 className={classInputCls}
               />
@@ -278,9 +287,9 @@ export function ClassBillingFields({
               <Toggle
                 checked={values.allowRollover}
                 onCheckedChange={(v) => onChange({ allowRollover: v })}
-                aria-label="Allow Rollover"
+                aria-label={t('form.allowRollover')}
               />
-              Allow Rollover
+              {t('form.allowRollover')}
             </div>
             <div
               className="flex items-center gap-2 text-xs"
@@ -289,22 +298,22 @@ export function ClassBillingFields({
               <Toggle
                 checked={values.allowMakeups}
                 onCheckedChange={(v) => onChange({ allowMakeups: v })}
-                aria-label="Allow Makeups"
+                aria-label={t('form.allowMakeups')}
               />
-              Allow Makeups
+              {t('form.allowMakeups')}
             </div>
           </div>
         </>
       ) : (
         <div>
           <label className={classLabelCls} style={{ color: 'var(--muted)' }}>
-            Access Duration (weeks)
+            {t('form.accessDuration')}
           </label>
           <input
             type="number"
             value={values.accessDurationWeeks}
             onChange={(e) => onChange({ accessDurationWeeks: e.target.value })}
-            placeholder="Optional"
+            placeholder={t('form.optional')}
             min={1}
             className={classInputCls}
           />

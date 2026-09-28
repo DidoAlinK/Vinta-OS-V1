@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
@@ -10,6 +11,7 @@ import { Save, User, Check, X } from 'lucide-react'
 /* ─── Component ─── */
 
 export function MyAccount() {
+  const { t } = useTranslation('settings')
   const user = useAuthStore((s) => s.user)
 
   const [name, setName] = useState(user?.name ?? '')
@@ -36,7 +38,7 @@ export function MyAccount() {
       setTimeout(() => setProfileSaved(false), 2000)
     } catch (err: unknown) {
       const e = err as { response?: { data?: { error?: string } } }
-      setProfileError(e.response?.data?.error || 'Failed to save profile')
+      setProfileError(e.response?.data?.error || t('account.error.saveProfile'))
     } finally {
       setIsSavingProfile(false)
     }
@@ -48,22 +50,22 @@ export function MyAccount() {
 
     if (!currentPin || currentPin.length !== 4) {
       setPinResult('error')
-      setPinMessage('Enter your current 4-digit PIN')
+      setPinMessage(t('account.error.currentPinRequired'))
       return
     }
     if (!newPin || newPin.length !== 4) {
       setPinResult('error')
-      setPinMessage('New PIN must be 4 digits')
+      setPinMessage(t('account.error.newPinLength'))
       return
     }
     if (newPin !== confirmPin) {
       setPinResult('error')
-      setPinMessage('New PINs do not match')
+      setPinMessage(t('account.error.pinMismatch'))
       return
     }
     if (newPin === currentPin) {
       setPinResult('error')
-      setPinMessage('New PIN must be different from current')
+      setPinMessage(t('account.error.pinReused'))
       return
     }
 
@@ -77,7 +79,7 @@ export function MyAccount() {
       // If that succeeded, update PIN via settings
       await api.put('/settings/profile', { pin: newPin })
       setPinResult('success')
-      setPinMessage('PIN changed successfully!')
+      setPinMessage(t('account.pinChanged'))
       setCurrentPin('')
       setNewPin('')
       setConfirmPin('')
@@ -85,7 +87,7 @@ export function MyAccount() {
     } catch (err: unknown) {
       setPinResult('error')
       const e = err as { response?: { data?: { error?: string } } }
-      setPinMessage(e.response?.data?.error || 'Current PIN is incorrect')
+      setPinMessage(e.response?.data?.error || t('account.error.currentPinWrong'))
     } finally {
       setIsChangingPin(false)
     }
@@ -96,19 +98,19 @@ export function MyAccount() {
       {/* Profile card */}
       <Card>
         <CardHeader
-          title="My Account"
+          title={t('account.title')}
           actions={<User className="w-4 h-4 text-[var(--muted)]" />}
         />
         <CardBody>
           <div className="flex flex-col gap-4">
             <Input
-              label="Full Name"
+              label={t('account.fullName')}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
+              placeholder={t('account.namePlaceholder')}
             />
             <Input
-              label="Phone"
+              label={t('common:label.phone')}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+213 5## ## ## ##"
@@ -119,14 +121,14 @@ export function MyAccount() {
 
       {/* Change PIN */}
       <Card>
-        <CardHeader title="Change PIN" />
+        <CardHeader title={t('account.changePin.title')} />
         <CardBody>
           <p className="text-sm text-[var(--muted)] mb-3">
-            Update your 4-digit PIN used for login.
+            {t('account.changePin.hint')}
           </p>
           <div className="flex flex-col gap-3">
             <Input
-              label="Current PIN"
+              label={t('account.changePin.current')}
               type="password"
               placeholder="••••"
               maxLength={4}
@@ -138,7 +140,7 @@ export function MyAccount() {
             />
             <div className="flex gap-3">
               <Input
-                label="New PIN"
+                label={t('account.changePin.new')}
                 type="password"
                 placeholder="••••"
                 maxLength={4}
@@ -149,7 +151,7 @@ export function MyAccount() {
                 }}
               />
               <Input
-                label="Confirm PIN"
+                label={t('account.changePin.confirm')}
                 type="password"
                 placeholder="••••"
                 maxLength={4}
@@ -183,7 +185,7 @@ export function MyAccount() {
             variant="primary"
             className="mt-3"
           >
-            Change PIN
+            {t('account.changePin.submit')}
           </Button>
         </CardBody>
       </Card>
@@ -192,11 +194,11 @@ export function MyAccount() {
       <div className="flex items-center gap-3">
         <Button onClick={handleSaveProfile} loading={isSavingProfile} variant="primary">
           <Save className="w-4 h-4" />
-          Save Changes
+          {t('account.action.save')}
         </Button>
         {profileSaved && (
           <span className="text-sm text-[var(--emerald)] font-medium animate-fade-in">
-            Saved ✓
+            {t('account.saved')}
           </span>
         )}
         {profileError && (

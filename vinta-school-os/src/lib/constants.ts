@@ -26,18 +26,26 @@ export type AvatarPreset = typeof AVATAR_PRESETS[number]
 
 export interface NavItem {
   key: string
-  label: string
   icon: string
 }
 
+/**
+ * Navigation entries.
+ *
+ * There is deliberately no `label` here. The label is the translation key, and
+ * `key` already is it — the sidebar renders `t(item.key)` against the `nav`
+ * namespace. A `label` field would be a second place holding the same word,
+ * and it is the one that would silently stop being read the moment anything
+ * was translated.
+ */
 export const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { key: 'students', label: 'Students', icon: 'students' },
-  { key: 'teachers', label: 'Teachers', icon: 'teachers' },
-  { key: 'classes', label: 'Classrooms', icon: 'classes' },
-  { key: 'calendar', label: 'Calendar', icon: 'calendar' },
-  { key: 'billing', label: 'Billing', icon: 'billing' },
-  { key: 'settings', label: 'Settings', icon: 'settings' },
+  { key: 'dashboard', icon: 'dashboard' },
+  { key: 'students', icon: 'students' },
+  { key: 'teachers', icon: 'teachers' },
+  { key: 'classes', icon: 'classes' },
+  { key: 'calendar', icon: 'calendar' },
+  { key: 'billing', icon: 'billing' },
+  { key: 'settings', icon: 'settings' },
 ]
 
 /**

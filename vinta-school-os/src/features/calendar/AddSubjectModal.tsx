@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X, Check, Hash } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
@@ -49,6 +50,7 @@ export default function AddSubjectModal({
   onClose,
   onAdd,
 }: AddSubjectModalProps) {
+  const { t } = useTranslation('calendar')
   const [name, setName] = useState('')
   const [color, setColor] = useState<string>(COLOR_PRESETS[0])
   const [customColor, setCustomColor] = useState('')
@@ -98,11 +100,12 @@ export default function AddSubjectModal({
             className="text-lg font-bold text-[var(--text)]"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
-            Add Subject
+            {t('addSubject.title')}
           </h3>
           <button
             onClick={onClose}
             className="p-1 rounded-lg hover:bg-[var(--glass)] transition-colors"
+            aria-label={t('common:action.close')}
           >
             <X size={18} className="text-[var(--muted)]" />
           </button>
@@ -111,7 +114,7 @@ export default function AddSubjectModal({
         {/* Name input */}
         <div className="mb-4">
           <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">
-            Subject Name
+            {t('addSubject.name')}
           </label>
           <input
             ref={inputRef}
@@ -119,7 +122,7 @@ export default function AddSubjectModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="e.g. Mathematics"
+            placeholder={t('addSubject.namePlaceholder')}
             autoFocus
             className={cn(
               'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
@@ -134,7 +137,7 @@ export default function AddSubjectModal({
         {/* Color picker — all swatches */}
         <div className="mb-3">
           <label className="block text-xs font-medium text-[var(--muted)] mb-2">
-            Color
+            {t('addSubject.color')}
           </label>
           <div className="grid grid-cols-4 gap-2">
             {COLOR_PRESETS.map((preset) => (
@@ -152,7 +155,7 @@ export default function AddSubjectModal({
                     : 'border-transparent hover:scale-110',
                 )}
                 style={{ backgroundColor: preset }}
-                aria-label={`Select color ${preset}`}
+                aria-label={t('addSubject.selectColor', { color: preset })}
               >
                 {!customColor && color === preset && (
                   <Check size={12} className="text-white drop-shadow-sm" />
@@ -165,11 +168,11 @@ export default function AddSubjectModal({
         {/* Custom hex input */}
         <div className="mb-4">
           <label className="block text-xs font-medium text-[var(--muted)] mb-2">
-            Custom
+            {t('addSubject.custom')}
           </label>
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <Hash size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
               <input
                 type="text"
                 value={customColor}
@@ -177,7 +180,7 @@ export default function AddSubjectModal({
                 placeholder="#6d28d9"
                 maxLength={7}
                 className={cn(
-                  'w-full pl-8 pr-3 py-2 rounded-lg text-sm font-mono text-[var(--text)]',
+                  'w-full ps-8 pe-3 py-2 rounded-lg text-sm font-mono text-[var(--text)]',
                   'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                   'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
                   'placeholder:text-[var(--muted)]/50',
@@ -210,7 +213,7 @@ export default function AddSubjectModal({
               'transition-colors duration-150',
             )}
           >
-            Cancel
+            {t('common:action.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -223,7 +226,7 @@ export default function AddSubjectModal({
               'transition-all duration-150',
             )}
           >
-            Add
+            {t('common:action.add')}
           </button>
         </div>
       </div>

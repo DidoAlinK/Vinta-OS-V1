@@ -5,6 +5,10 @@
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+// Imported before the app so i18next is initialised and `<html lang/dir>` is
+// already set when the first render happens. It used to arrive only
+// transitively, via themeStore, which left the ordering to import luck.
+import './i18n'
 import { App } from './app/App'
 import './styles/globals.css'
 

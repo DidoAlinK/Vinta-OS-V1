@@ -41,6 +41,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { Check, Clock } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { timeLabel } from '../../lib/sessionTime'
@@ -103,12 +104,13 @@ export function TimePicker({
   value,
   onChange,
   disabled = false,
-  placeholder = 'Pick a time…',
+  placeholder,
   minuteStep = 5,
   size = 'md',
   className,
   'aria-label': ariaLabel,
 }: TimePickerProps) {
+  const { t } = useTranslation('common')
   const autoId = useId()
   const listId = `${autoId}-list`
 
@@ -316,7 +318,7 @@ export function TimePicker({
         aria-controls={open ? listId : undefined}
         aria-label={ariaLabel}
         className={cn(
-          'w-full flex items-center gap-2 text-left',
+          'w-full flex items-center gap-2 text-start',
           'font-[family-name:var(--font-body)]',
           'bg-[var(--input-bg)] backdrop-blur-sm',
           'border border-[var(--glass-border)]',
@@ -332,7 +334,7 @@ export function TimePicker({
       >
         <Clock size={size === 'sm' ? 12 : 14} className="text-[var(--gold)] shrink-0" />
         <span className={cn('flex-1 truncate', !value && 'text-[var(--muted)]/50')}>
-          {label || placeholder}
+          {label || placeholder || t('timePicker.placeholder')}
         </span>
       </button>
 
@@ -356,7 +358,7 @@ export function TimePicker({
               </span>
             </div>
 
-            <div id={listId} role="listbox" aria-label={ariaLabel ?? 'Time'} className="flex">
+            <div id={listId} role="listbox" aria-label={ariaLabel ?? t('label.time')} className="flex">
               <Column
                 ref={hourListRef}
                 values={HOURS}
@@ -390,7 +392,7 @@ export function TimePicker({
                   'transition-colors duration-75',
                 )}
               >
-                Done
+                {t('action.done')}
               </button>
             </div>
           </div>,

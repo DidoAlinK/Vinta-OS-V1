@@ -9,6 +9,7 @@
  * has no group, which reads as one calm muted sentence.
  */
 
+import { useTranslation } from 'react-i18next'
 import { BookOpen } from 'lucide-react'
 import type { Enrollment } from '../../../types/student'
 import { EmptyLine, ProfileCard } from './ProfileCard'
@@ -20,6 +21,7 @@ export interface StudentClassesProps {
 }
 
 export function StudentClasses({ enrollments, classes }: StudentClassesProps) {
+  const { t } = useTranslation('students')
   const listed = Array.isArray(enrollments) ? enrollments : []
 
   const names: string[] =
@@ -31,9 +33,9 @@ export function StudentClasses({ enrollments, classes }: StudentClassesProps) {
           .filter(Boolean)
 
   return (
-    <ProfileCard title="Classes" icon={<BookOpen size={13} />}>
+    <ProfileCard title={t('classes.title')} icon={<BookOpen size={13} />}>
       {names.length === 0 ? (
-        <EmptyLine>Not enrolled in any group yet.</EmptyLine>
+        <EmptyLine>{t('classes.empty')}</EmptyLine>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {names.map((name, i) => (

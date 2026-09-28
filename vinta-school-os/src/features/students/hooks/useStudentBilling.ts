@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import api from '../../../lib/api'
 import type { Subscription } from '../../../types/billing'
 
@@ -23,6 +24,7 @@ export interface UseStudentBillingResult {
 }
 
 export function useStudentBilling(studentId: string | null): UseStudentBillingResult {
+  const { t } = useTranslation('students')
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -44,11 +46,15 @@ export function useStudentBilling(studentId: string | null): UseStudentBillingRe
     } catch {
       if (current !== requestId.current) return
       setSubscriptions([])
-      setError('Could not load payment history.')
+      // The one sentence this hook owns. It is resolved here because the
+      // hook's contract is a ready-to-render string — so a language switch
+      // *after* a failure leaves this sentence in the language it failed in
+      // until the next retry, which the red pane makes obvious enough.
+      setError(t('history.error'))
     } finally {
       if (current === requestId.current) setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (!studentId) {

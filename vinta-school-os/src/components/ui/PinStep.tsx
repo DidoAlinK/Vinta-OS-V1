@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import { PIN_LENGTH } from '../../lib/constants'
 import PINInput from './PINInput'
@@ -23,9 +24,9 @@ import { PinError, PIN_GATE_FALLBACK, verifyStaffPin } from '../../lib/pinGate'
 export interface PinStepProps {
   /** Line above the boxes. Omit for a bare field. */
   hint?: ReactNode
-  /** Idle label of the affirm button. */
+  /** Idle label of the affirm button (default: common:pinStep.submit). */
   submitLabel?: string
-  /** Label while the PIN is being checked. */
+  /** Label while the PIN is being checked (default: common:pinStep.busy). */
   busyLabel?: string
   /** Focus the first box as soon as this mounts. */
   autoFocus?: boolean
@@ -35,11 +36,12 @@ export interface PinStepProps {
 
 export function PinStep({
   hint,
-  submitLabel = 'Verify PIN',
-  busyLabel = 'Verifying…',
+  submitLabel,
+  busyLabel,
   autoFocus = true,
   onVerified,
 }: PinStepProps) {
+  const { t } = useTranslation('common')
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
@@ -122,7 +124,7 @@ export function PinStep({
           'transition-all duration-150',
         )}
       >
-        {working ? busyLabel : submitLabel}
+        {working ? (busyLabel ?? t('pinStep.busy')) : (submitLabel ?? t('pinStep.submit'))}
       </button>
     </div>
   )

@@ -19,8 +19,10 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
 import { cn } from '../../lib/cn'
+import { isLanguage, localeTag } from '../../i18n'
 
 export interface DayPickerProps {
   value: string
@@ -58,7 +60,24 @@ function todayISO(): string {
   return toISO(t.getFullYear(), t.getMonth(), t.getDate())
 }
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+/**
+ * The seven column headers, in the order `cells` lays the grid out.
+ *
+ * `cells` pads its leading blanks from `new Date(y, m, 1).getDay()`, which
+ * counts from Sunday — so the header has to begin there too, or every label
+ * sits a column to the left of the days it names.
+ *
+ * The names come from `Intl` rather than the hand-written `['Su', 'Mo', …]`
+ * this used to carry. "Su" is not a French abbreviation and means nothing at
+ * all in Arabic, and a short weekday name is something every locale already
+ * knows how to spell for itself.
+ */
+function weekdayNames(locale: string | undefined): string[] {
+  const format = new Intl.DateTimeFormat(locale, { weekday: 'short' })
+  // 2024-01-07 is a Sunday, and `Date` normalises the overflow, so 7…13 walks
+  // one full Sunday-to-Saturday without a second date literal.
+  return Array.from({ length: 7 }, (_, i) => format.format(new Date(2024, 0, 7 + i)))
+}
 
 // Friday is the Algerian weekend — tinted subtly like the academy default.
 const WEEKEND_DAY = 5
@@ -74,6 +93,14 @@ export function DayPicker({
   label,
   'aria-label': ariaLabel,
 }: DayPickerProps) {
+  const { t, i18n } = useTranslation('common')
+  /**
+   * `localeTag` rather than the bare language code: plain `ar` resolves to the
+   * Eastern Arabic numerals, and this calendar prints its years and its day
+   * numbers the same way the rest of the app does — 0-9.
+   */
+  const locale = isLanguage(i18n.language) ? localeTag(i18n.language) : undefined
+  const weekdays = useMemo(() => weekdayNames(locale), [locale])
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const autoId = useId()
@@ -174,10 +201,13 @@ export function DayPicker({
     return out
   }, [viewY, viewM])
 
-  const monthLabel = new Date(viewY, viewM, 1).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  })
+  const monthLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
+        new Date(viewY, viewM, 1),
+      ),
+    [locale, viewY, viewM],
+  )
 
   const pick = (iso: string) => {
     if (!allowPast && iso < today) return
@@ -189,13 +219,13 @@ export function DayPicker({
     if (!value) return ''
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
     if (!m) return value
-    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('en-US', {
+    return new Intl.DateTimeFormat(locale, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-    })
-  }, [value])
+    }).format(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+  }, [value, locale])
 
   return (
     <div className="relative">
@@ -219,7 +249,7 @@ export function DayPicker({
         aria-controls={open ? panelId : undefined}
         aria-label={ariaLabel}
         className={cn(
-          'w-full flex items-center gap-2 text-left',
+          'w-full flex items-center gap-2 text-start',
           'bg-[var(--input-bg)] border border-[var(--glass-border)]',
           'text-[var(--text)] outline-none transition-all duration-150',
           'hover:border-[var(--gold)]/40 focus:ring-2 focus:ring-[var(--gold)]/30',
@@ -231,7 +261,7 @@ export function DayPicker({
       >
         <CalendarDays size={size === 'sm' ? 12 : 14} className="text-[var(--gold)] shrink-0" />
         <span className={cn('flex-1 truncate', !value && 'text-[var(--muted)]/50')}>
-          {pretty || placeholder || 'Pick a day…'}
+          {pretty || placeholder || t('dayPicker.placeholder')}
         </span>
       </button>
 
@@ -257,9 +287,9 @@ export function DayPicker({
                   setViewM(d.getMonth())
                 }}
                 className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--glass)] hover:text-[var(--text)] transition-colors"
-                aria-label="Previous month"
+                aria-label={t('dayPicker.previousMonth')}
               >
-                <ChevronLeft size={15} />
+                <ChevronLeft size={15} className="rtl:-scale-x-100" />
               </button>
               <p className="text-xs font-bold text-[var(--text)]" style={{ fontFamily: 'var(--font-heading)' }}>
                 {monthLabel}
@@ -272,16 +302,16 @@ export function DayPicker({
                   setViewM(d.getMonth())
                 }}
                 className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--glass)] hover:text-[var(--text)] transition-colors"
-                aria-label="Next month"
+                aria-label={t('dayPicker.nextMonth')}
               >
-                <ChevronRight size={15} />
+                <ChevronRight size={15} className="rtl:-scale-x-100" />
               </button>
             </div>
 
             {/* Weekday header */}
             <div className="grid grid-cols-7 gap-1 mb-1">
-              {WEEKDAYS.map((w) => (
-                <span key={w} className="text-center text-[10px] font-semibold text-[var(--muted)] py-1">
+              {weekdays.map((w, i) => (
+                <span key={i} className="text-center text-[10px] font-semibold text-[var(--muted)] py-1">
                   {w}
                 </span>
               ))}

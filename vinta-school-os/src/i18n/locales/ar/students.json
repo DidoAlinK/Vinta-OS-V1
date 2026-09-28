@@ -1,0 +1,204 @@
+{
+  "page": {
+    "title": "التلاميذ",
+    "subtitle": "إدارة ملفات التلاميذ وحالة الفواتير",
+    "addStudent": "إضافة تلميذ",
+    "searchPlaceholder": "ابحث بالاسم أو الهاتف…",
+    "showing_zero": "عرض {{shown}} من {{total}} تلميذ",
+    "showing_one": "عرض {{shown}} من {{total}} تلميذ",
+    "showing_two": "عرض {{shown}} من {{total}} تلميذين",
+    "showing_few": "عرض {{shown}} من {{total}} تلاميذ",
+    "showing_many": "عرض {{shown}} من {{total}} تلميذًا",
+    "showing_other": "عرض {{shown}} من {{total}} تلميذ",
+    "scrollForMore": "— مرّر للأسفل للمزيد"
+  },
+  "status": {
+    "paid": "مدفوع",
+    "due": "مستحق",
+    "overdue": "متأخر",
+    "unpaid": "غير مدفوع",
+    "noPlan": "بدون اشتراك"
+  },
+  "stat": {
+    "total": "إجمالي التلاميذ",
+    "totalHint": "كل تلميذ يطابق البحث الحالي — يشمل التلاميذ غير المدفوعين وبدون اشتراك، ولهم مرشّحات خاصة أدناه",
+    "paidHint": "اشتراك نشط داخل مدته",
+    "dueHint": "مبلغ مستحق — انتهت الدورة أو انتهت صلاحيتها أو نُفد رصيدها",
+    "overdueHint": "اشتراك موقوف"
+  },
+  "table": {
+    "column": {
+      "student": "التلميذ",
+      "class": "القسم",
+      "sessions": "الحصص",
+      "status": "الحالة",
+      "plan": "الاشتراك",
+      "renewal": "التجديد"
+    },
+    "empty": {
+      "title": "لا يوجد تلاميذ",
+      "body": "أضف أول تلميذ للبدء"
+    },
+    "loadingMore": "جارٍ تحميل المزيد…",
+    "endOfList": "نهاية القائمة"
+  },
+  "card": {
+    "loading": "جارٍ التحميل"
+  },
+  "drawer": {
+    "title": "ملف التلميذ",
+    "editTitle": "تعديل الملف",
+    "editStudent": "تعديل التلميذ",
+    "backToProfile": "العودة إلى الملف",
+    "details": "البيانات",
+    "profileError": "تعذّر تحميل الملف الكامل.",
+    "parentPhone": "هاتف ولي الأمر",
+    "enrolledSince": "مسجّل منذ",
+    "enrollment": "التسجيل",
+    "noNotes": "لا توجد ملاحظات",
+    "recordPayment": "تسجيل دفعة",
+    "call": "اتصال",
+    "message": "رسالة",
+    "field": {
+      "firstName": "الاسم",
+      "lastName": "اللقب",
+      "parentPhone": "هاتف ولي الأمر"
+    },
+    "placeholder": {
+      "phone": "مثال: 0555123456",
+      "parentPhone": "مثال: 0555789012",
+      "notes": "أي ملاحظات حول هذا التلميذ…"
+    },
+    "toast": {
+      "updated": {
+        "title": "تم تحديث التلميذ",
+        "body": "تم حفظ الملف."
+      },
+      "updateFailed": {
+        "title": "فشل التحديث",
+        "body": "تعذّر حفظ التغييرات. يرجى المحاولة مرة أخرى."
+      }
+    }
+  },
+  "enrollment": {
+    "active": "نشط",
+    "withdrawn": "منسحب",
+    "expired": "منتهٍ",
+    "overdue": "متأخر",
+    "transferred": "منقول",
+    "notEnrolled": "غير مسجّل في أي مجموعة"
+  },
+  "classes": {
+    "title": "الأقسام",
+    "empty": "لم يُسجَّل في أي مجموعة بعد."
+  },
+  "guardians": {
+    "title": "أولياء الأمور",
+    "empty": "لا يوجد أولياء أمور مسجّلون.",
+    "emergency": "طوارئ",
+    "emergencyContact": "جهة اتصال للطوارئ",
+    "parentFallback": "ولي الأمر",
+    "call": "اتصل بـ {{name}}"
+  },
+  "summary": {
+    "title": "ملخص الفواتير",
+    "loadingAria": "جارٍ تحميل ملخص الفواتير",
+    "plan": "الاشتراك",
+    "sessionsPerMonth": "الحصص شهريًا",
+    "creditsLeft": "الرصيد المتبقي",
+    "creditsOf": "من {{total}}",
+    "renewsOn": "التجديد في",
+    "dateRange": "{{start}} ← {{end}}",
+    "from": "من {{date}}",
+    "until": "حتى {{date}}"
+  },
+  "calendar": {
+    "title": "تقويم الفواتير",
+    "loadingAria": "جارٍ تحميل تقويم الفواتير",
+    "empty": "لا توجد دورات فواتير بعد {{dash}} لم يُسجَّل أي شيء لهذا التلميذ.",
+    "partialPaid": "دُفع {{paid}} من {{total}}"
+  },
+  "history": {
+    "title": "سجل الدفعات",
+    "loadingAria": "جارٍ تحميل سجل الدفعات",
+    "empty": "لم تُسجَّل أي دفعات بعد.",
+    "error": "تعذّر تحميل سجل الدفعات.",
+    "credits": "الرصيد",
+    "access": "الصلاحية",
+    "method": {
+      "cash": "نقدًا",
+      "ccp": "CCP",
+      "baridiMob": "Baridi Mob"
+    },
+    "status": {
+      "active": "نشط",
+      "suspended": "موقوف",
+      "expired": "منتهٍ",
+      "depleted": "نفد الرصيد",
+      "expiringSoon": "يوشك على الانتهاء",
+      "renewRequired": "يلزم التجديد",
+      "attendanceWarning": "تنبيه حضور"
+    }
+  },
+  "attendance": {
+    "title": "الحضور",
+    "loadingAria": "جارٍ تحميل الحضور",
+    "empty": "لا توجد حصص بعد — هذا التلميذ غير مسجّل في أي مجموعة لديها حصص.",
+    "month": "شهر",
+    "year": "سنة",
+    "showYear": "عرض السنة كاملة",
+    "prevMonth": "الشهر السابق",
+    "nextMonth": "الشهر التالي",
+    "openMonth": "فتح {{month}} {{year}}",
+    "nothingScheduled": "{{day}}: لا شيء مبرمج",
+    "dayStates": "{{day}}: {{states}}",
+    "groupFallback": "مجموعة",
+    "legendNote": "اليوم الباهت يسبق انضمام هذا التلميذ، أو انضمامه إلى تلك المجموعة. واليوم المنقّط يوم لم تُؤخذ فيه ورقة حضور.",
+    "state": {
+      "attended": "حاضر",
+      "unpaid": "حاضر، غير مدفوع",
+      "absent": "غائب",
+      "upcoming": "قادم",
+      "cancelled": "ملغاة",
+      "notEnrolled": "ليس في هذه المجموعة بعد",
+      "unrecorded": "لم يُسجَّل الحضور"
+    }
+  },
+  "modal": {
+    "title": "إضافة تلميذ",
+    "submit": "إضافة تلميذ",
+    "adding": "جارٍ الإضافة…",
+    "section": {
+      "studentInfo": "بيانات التلميذ",
+      "groupEnrollment": "التسجيل في المجموعات"
+    },
+    "groupEnrollmentHint": "يجب تسجيل التلميذ في مجموعة واحدة على الأقل.",
+    "searchGroups": "ابحث عن مجموعة للتسجيل…",
+    "noClasses": "لا توجد أقسام",
+    "groupRequired": "مطلوب التسجيل في مجموعة واحدة على الأقل",
+    "field": {
+      "firstName": "الاسم",
+      "lastName": "اللقب",
+      "parentPhone": "هاتف ولي الأمر"
+    },
+    "placeholder": {
+      "firstName": "الاسم",
+      "lastName": "اللقب",
+      "notes": "ملاحظات اختيارية حول التلميذ…"
+    },
+    "error": {
+      "noGroup": "يرجى اختيار مجموعة واحدة على الأقل لتسجيل التلميذ.",
+      "createFailed": "تعذّر إنشاء التلميذ. يرجى المحاولة مرة أخرى."
+    },
+    "toast": {
+      "addedTitle": "تمت إضافة التلميذ",
+      "notAdded": "لم تتم إضافة التلميذ",
+      "enrolled_zero": "لم يُسجَّل {{name}} في أي مجموعة.",
+      "enrolled_one": "سُجِّل {{name}} في مجموعة واحدة.",
+      "enrolled_two": "سُجِّل {{name}} في مجموعتين.",
+      "enrolled_few": "سُجِّل {{name}} في {{count}} مجموعات.",
+      "enrolled_many": "سُجِّل {{name}} في {{count}} مجموعة.",
+      "enrolled_other": "سُجِّل {{name}} في {{count}} مجموعة."
+    }
+  }
+}

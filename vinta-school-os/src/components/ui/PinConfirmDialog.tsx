@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import Modal from './Modal'
@@ -28,7 +29,10 @@ export interface PinConfirmDialogProps {
   message: ReactNode
   /** Runs only after the PIN is accepted. Async is awaited before closing. */
   onConfirm: () => void | Promise<void>
-  /** Label of the affirm button, once the PIN has been accepted. */
+  /**
+   * Label of the affirm button, once the PIN has been accepted.
+   * Default: common:action.delete.
+   */
   confirmLabel?: string
   /** Label of the affirm button while the PIN is being checked. */
   busyLabel?: string
@@ -40,9 +44,10 @@ export function PinConfirmDialog({
   title,
   message,
   onConfirm,
-  confirmLabel = 'Delete',
-  busyLabel = 'Working…',
+  confirmLabel,
+  busyLabel,
 }: PinConfirmDialogProps) {
+  const { t } = useTranslation('common')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,12 +71,12 @@ export function PinConfirmDialog({
       setError(
         err instanceof Error && err.message
           ? err.message
-          : 'That did not go through. Press Retry.',
+          : t('pinConfirm.failed'),
       )
     } finally {
       setBusy(false)
     }
-  }, [onConfirm, onClose])
+  }, [onConfirm, onClose, t])
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
@@ -83,7 +88,7 @@ export function PinConfirmDialog({
           )}
         >
           <AlertTriangle size={13} className="mt-px shrink-0" />
-          <span>This cannot be undone. Your PIN is required to continue.</span>
+          <span>{t('pinConfirm.warning')}</span>
         </div>
 
         <div className="text-sm text-[var(--text)] leading-relaxed">{message}</div>
@@ -104,9 +109,9 @@ export function PinConfirmDialog({
         ) : (
           <>
             <PinStep
-              hint="Enter your 4-digit PIN to confirm."
-              submitLabel={confirmLabel}
-              busyLabel={busyLabel}
+              hint={t('pinConfirm.hint')}
+              submitLabel={confirmLabel ?? t('action.delete')}
+              busyLabel={busyLabel ?? t('pinConfirm.busy')}
               onVerified={handleVerified}
             />
             <button
@@ -119,7 +124,7 @@ export function PinConfirmDialog({
                 'hover:text-[var(--text)] transition-colors duration-150',
               )}
             >
-              Cancel — do not delete
+              {t('pinConfirm.cancel')}
             </button>
           </>
         )}

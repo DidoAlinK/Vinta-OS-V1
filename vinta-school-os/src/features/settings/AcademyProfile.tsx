@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import { useAuthStore } from '../../stores/authStore'
 import { Card, CardHeader, CardBody } from '../../components/ui/Card'
@@ -16,25 +17,30 @@ export interface AcademyProfileProps {
 
 /* ─── Working days (Sun–Sat) ─── */
 
+// Key names, not sentences: the lookup happens in the component body so a
+// language switch re-renders instead of freezing the import-time language.
 const WORKING_DAYS = [
-  { value: 0, label: 'Sun' },
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' },
+  { value: 0, labelKey: 'academy.day.sun' },
+  { value: 1, labelKey: 'academy.day.mon' },
+  { value: 2, labelKey: 'academy.day.tue' },
+  { value: 3, labelKey: 'academy.day.wed' },
+  { value: 4, labelKey: 'academy.day.thu' },
+  { value: 5, labelKey: 'academy.day.fri' },
+  { value: 6, labelKey: 'academy.day.sat' },
 ]
 
+// The term *value* is what the server stores, so it stays English whatever the
+// interface language is; only the label the desk reads is translated.
 const TERM_OPTIONS = [
-  'Term 1',
-  'Term 2',
-  'Full Year',
+  { value: 'Term 1', labelKey: 'academy.term.term1' },
+  { value: 'Term 2', labelKey: 'academy.term.term2' },
+  { value: 'Full Year', labelKey: 'academy.term.fullYear' },
 ]
 
 /* ─── Component ─── */
 
 export function AcademyProfile({ academy, onUpdate }: AcademyProfileProps) {
+  const { t } = useTranslation('settings')
   const user = useAuthStore((s) => s.user)
 
   // Pull initial data from auth store user if academy data is empty
@@ -69,25 +75,25 @@ export function AcademyProfile({ academy, onUpdate }: AcademyProfileProps) {
     <div className="flex flex-col gap-5 max-w-xl">
       {/* Academy Info */}
       <Card>
-        <CardHeader title="Academy Info" />
+        <CardHeader title={t('academy.info.title')} />
         <CardBody>
           <div className="flex flex-col gap-4">
             <Input
-              label="Academy Name"
+              label={t('academy.info.name')}
               value={form.name}
               onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="e.g. Vinta Academy"
+              placeholder={t('academy.info.namePlaceholder')}
             />
 
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Phone"
+                label={t('common:label.phone')}
                 value={form.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
                 placeholder="+213 5## ## ## ##"
               />
               <Input
-                label="Email"
+                label={t('academy.info.email')}
                 type="email"
                 value={form.email}
                 onChange={(e) => handleChange('email', e.target.value)}
@@ -96,10 +102,10 @@ export function AcademyProfile({ academy, onUpdate }: AcademyProfileProps) {
             </div>
 
             <Input
-              label="Address"
+              label={t('academy.info.address')}
               value={form.address}
               onChange={(e) => handleChange('address', e.target.value)}
-              placeholder="Street, City, Wilaya"
+              placeholder={t('academy.info.addressPlaceholder')}
             />
           </div>
         </CardBody>
@@ -107,16 +113,16 @@ export function AcademyProfile({ academy, onUpdate }: AcademyProfileProps) {
 
       {/* Schedule */}
       <Card>
-        <CardHeader title="Schedule" />
+        <CardHeader title={t('academy.schedule.title')} />
         <CardBody>
           <div className="flex flex-col gap-4">
             {/* Working days — Sun to Sat, all selected by default */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-[var(--text)] font-[family-name:var(--font-heading)]">
-                Working Days
+                {t('academy.schedule.workingDays')}
               </label>
               <p className="text-xs text-[var(--muted)] mb-1">
-                Open 7:00 AM – 9:00 PM, Sunday through Saturday
+                {t('academy.schedule.hours')}
               </p>
               <div className="flex gap-1.5">
                 {WORKING_DAYS.map((day) => (
@@ -127,7 +133,7 @@ export function AcademyProfile({ academy, onUpdate }: AcademyProfileProps) {
                       'bg-[var(--emerald-soft)] border border-[var(--emerald)]/20 text-[var(--emerald)]',
                     )}
                   >
-                    {day.label}
+                    {t(day.labelKey)}
                   </div>
                 ))}
               </div>
@@ -136,23 +142,23 @@ export function AcademyProfile({ academy, onUpdate }: AcademyProfileProps) {
             {/* Current Term */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-[var(--text)] font-[family-name:var(--font-heading)]">
-                Current Term
+                {t('academy.schedule.currentTerm')}
               </label>
               <div className="flex gap-2">
                 {TERM_OPTIONS.map((term) => (
                   <button
-                    key={term}
+                    key={term.value}
                     type="button"
-                    onClick={() => handleChange('current_term', term)}
+                    onClick={() => handleChange('current_term', term.value)}
                     className={cn(
                       'px-4 py-2 text-sm font-medium rounded-[var(--radius-xs)]',
                       'border transition-all duration-200',
-                      form.current_term === term
+                      form.current_term === term.value
                         ? 'bg-[var(--gold-soft)] border-[var(--gold)] text-[var(--gold)]'
                         : 'bg-[var(--input-bg)] border-[var(--glass-border)] text-[var(--muted)] hover:text-[var(--text)]',
                     )}
                   >
-                    {term}
+                    {t(term.labelKey)}
                   </button>
                 ))}
               </div>
@@ -169,11 +175,11 @@ export function AcademyProfile({ academy, onUpdate }: AcademyProfileProps) {
           variant="primary"
         >
           <Save className="w-4 h-4" />
-          Save Changes
+          {t('academy.action.save')}
         </Button>
         {saved && (
           <span className="text-sm text-[var(--emerald)] font-medium animate-fade-in">
-            Saved ✓
+            {t('academy.saved')}
           </span>
         )}
       </div>

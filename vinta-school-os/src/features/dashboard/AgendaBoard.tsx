@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { Clock3, Gift, Repeat, X } from 'lucide-react'
-import SessionMenu from './SessionMenu'
+import { TEMP_REASON_KEYS } from './SessionDetail'
 import { isSessionFree } from '../../lib/freeSessions'
 import { getSessionOrigin } from '../../lib/scheduleDefs'
-import { getEffectiveStatus } from '../../lib/sessionLifecycle'
 import { cn } from '../../lib/cn'
 import {
   getCurrentHour,
@@ -36,54 +37,26 @@ function hexToRgba(hex: string, alpha: number): string {
 interface AgendaBoardProps {
   sessions: Session[]
   selectedSessionId?: string
+  /**
+   * A block was clicked. The board's whole job on that click is to say WHICH
+   * class the desk means — everything it can then do to it (start, extend,
+   * end, take the register) lives in the panel this select opens, not in a
+   * menu raised over the grid.
+   */
   onSelectSession: (session: Session) => void
   viewMode: 'week' | 'day'
   onToggleView: () => void
   isLoading?: boolean
   /** The date currently being viewed (from parent navigation) */
   currentDate?: Date
-  /** T3: hamburger actions shared with the detail panel */
-  onStartSession?: (session: Session) => void
-  onFinishSession?: (session: Session) => void
-  onSessionsChanged?: () => void
   /** T8: open the scheduling window (the + New Class button only) */
   onNewClass?: (prefillDate?: string) => void
-  /**
-   * Open a live class's attendance register. The menu only offers
-   * "Log Students Present" when a parent can actually open the grid, and on
-   * this board the menu is the only way in — Start opens it once, but a desk
-   * that closed it needs a second door.
-   */
-  onOpenRegister?: (session: Session) => void
 }
 
 interface PositionedSession {
   session: Session
   col: number
   totalCols: number
-}
-
-/** The ☰ panel's own box — `w-52` wide, and about this tall with every row. */
-const MENU_WIDTH = 208
-const MENU_EST_HEIGHT = 320
-
-/**
- * Where to pin the panel for a click at `point`, kept inside the viewport —
- * a block near the right edge or the bottom of the board would otherwise open
- * its menu off-screen.
- */
-function menuAnchorAt(point: { x: number; y: number }): { x: number; y: number } {
-  const x = Math.max(8, Math.min(point.x, window.innerWidth - MENU_WIDTH - 8))
-  const y = point.y + MENU_EST_HEIGHT > window.innerHeight
-    ? Math.max(8, point.y - MENU_EST_HEIGHT)
-    : point.y
-  return { x, y }
-}
-
-/** Same, for a keyboard open — there is no pointer, so hang off the block. */
-function menuAnchorForElement(el: HTMLElement): { x: number; y: number } {
-  const rect = el.getBoundingClientRect()
-  return menuAnchorAt({ x: rect.left, y: rect.bottom })
 }
 
 /* ─── Overlap Resolution ─── */
@@ -157,31 +130,15 @@ export function AgendaBoard({
   onToggleView,
   isLoading = false,
   currentDate,
-  onStartSession,
-  onFinishSession,
-  onSessionsChanged,
   onNewClass,
-  onOpenRegister,
 }: AgendaBoardProps) {
+  const { t } = useTranslation('dashboard')
   const [now, setNow] = useState(getCurrentHour)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [overlapPopup, setOverlapPopup] = useState<{
     sessions: Session[]
     x: number
     y: number
-    /** The block the picker was raised from — the menu's toggle-out anchor. */
-    el: HTMLElement
-  } | null>(null)
-  /**
-   * The session whose ☰ panel is open, opened by clicking its block rather
-   * than by pressing the ☰. One instance for the whole board: the panel is
-   * `fixed`, so it does not belong to the block it came from.
-   */
-  const [menuTarget, setMenuTarget] = useState<{
-    session: Session
-    x: number
-    y: number
-    el: HTMLElement
   } | null>(null)
 
   // Use the currentDate from parent navigation, falling back to today
@@ -255,29 +212,19 @@ export function AgendaBoard({
   }, [overlapPopup])
 
   /**
-   * Select the session and raise its ☰ panel — the Dashboard's management
-   * surface, opened by the block itself rather than a ☰ press.
-   *
-   * The select is skipped when that session is already the selected one: the
-   * Dashboard's select *toggles*, so a desk opening the menu on the class the
-   * right-hand panel is already showing would blank the panel it is managing.
-   */
-  const openSessionMenu = useCallback(
-    (session: Session, el: HTMLElement, point?: { x: number; y: number }) => {
-      if (selectedSessionId !== session.id) onSelectSession(session)
-      const at = point ? menuAnchorAt(point) : menuAnchorForElement(el)
-      setMenuTarget({ session, x: at.x, y: at.y, el })
-    },
-    [selectedSessionId, onSelectSession],
-  )
-
-  /**
    * Click on a session block.
    *
-   * Overlapping blocks resolve to the picker first — "which session did you
-   * mean" is a question the block cannot answer on its own. Otherwise the
-   * click selects the session and opens its menu, and clicking the same block
-   * again dismisses the menu without disturbing the panel.
+   * The click selects the class and nothing else: the right-hand panel becomes
+   * that class's presence tab, which is where the desk takes the register and
+   * runs the class. There is deliberately no menu raised over the grid here.
+   * It used to be one, opened `fixed` from inside a board that carries
+   * `backdrop-blur` and `overflow-hidden` — so it was positioned against the
+   * board rather than the viewport, and anything past the board's right edge
+   * was clipped away. Blocks in the last day column are exactly that, which is
+   * why clicking one looked like it did nothing at all.
+   *
+   * Overlapping blocks still resolve to the picker first: "which session did
+   * you mean" is a question the block cannot answer on its own.
    */
   const handleSessionClick = useCallback(
     (session: Session, e: React.MouseEvent) => {
@@ -292,25 +239,12 @@ export function AgendaBoard({
         // Position popup near the clicked block, clamped to viewport
         const x = Math.min(rect.right + 8, window.innerWidth - 280)
         const y = Math.min(rect.top, window.innerHeight - 200)
-        setOverlapPopup({
-          sessions: overlapping,
-          x,
-          y,
-          el: e.currentTarget as HTMLElement,
-        })
+        setOverlapPopup({ sessions: overlapping, x, y })
         return
       }
-      // This block's panel is already open — the click is a dismissal.
-      if (menuTarget?.session.id === session.id) {
-        setMenuTarget(null)
-        return
-      }
-      openSessionMenu(session, e.currentTarget as HTMLElement, {
-        x: e.clientX,
-        y: e.clientY,
-      })
+      onSelectSession(session)
     },
-    [sessions, menuTarget, openSessionMenu],
+    [sessions, onSelectSession],
   )
 
   return (
@@ -319,9 +253,9 @@ export function AgendaBoard({
       <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--glass-border)]">
         <div>
           <h2 className="text-base font-semibold font-[family-name:var(--font-heading)] text-[var(--text)]">
-            Schedule &amp; class agenda
+            {t('board.title')}
           </h2>
-          <p className="text-[11px] text-[var(--muted)] mt-0.5">Click a block to run the class · + New Class to schedule one</p>
+          <p className="text-[11px] text-[var(--muted)] mt-0.5">{t('board.subtitle')}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -331,7 +265,7 @@ export function AgendaBoard({
             onClick={() => onNewClass?.()}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] hover:opacity-90 active:scale-[0.98] transition-all"
           >
-            + New Class
+            {t('board.newClass')}
           </button>
           {/* Week / Day toggle */}
         <div className="flex rounded-lg bg-[var(--input-bg)] p-0.5 border border-[var(--glass-border)]">
@@ -345,7 +279,7 @@ export function AgendaBoard({
                 : 'text-[var(--muted)] hover:text-[var(--text)]',
             )}
           >
-            Week
+            {t('board.view.week')}
           </button>
           <button
             type="button"
@@ -357,7 +291,7 @@ export function AgendaBoard({
                 : 'text-[var(--muted)] hover:text-[var(--text)]',
             )}
           >
-            Day
+            {t('board.view.day')}
           </button>
           </div>
         </div>
@@ -378,7 +312,7 @@ export function AgendaBoard({
                 key={key}
                 className={cn(
                   'flex-1 text-center py-2.5',
-                  i > 0 && 'border-l border-[var(--divider)]',
+                  i > 0 && 'border-s border-[var(--divider)]',
                   today && 'bg-[var(--gold-soft)]/20',
                 )}
               >
@@ -409,7 +343,7 @@ export function AgendaBoard({
           <div className="w-16 shrink-0">
             {CALENDAR_HOURS.map((h) => (
               <div key={h} className="relative" style={{ height: HOUR_HEIGHT }}>
-                <span className="absolute -top-2.5 right-3 text-[10px] text-[var(--muted)] font-medium select-none">
+                <span className="absolute -top-2.5 end-3 text-[10px] text-[var(--muted)] font-medium select-none">
                   {formatHour12(h)}
                 </span>
               </div>
@@ -427,7 +361,7 @@ export function AgendaBoard({
                 key={dateKey}
                 className={cn(
                   'flex-1 relative',
-                  i > 0 && 'border-l border-[var(--divider)]',
+                  i > 0 && 'border-s border-[var(--divider)]',
                   today && 'bg-[var(--gold-soft)]/[0.04]',
                 )}
                 // No empty-cell click here, by design: scheduling belongs to
@@ -460,17 +394,18 @@ export function AgendaBoard({
                       tabIndex={0}
                       onClick={(e) => handleSessionClick(session, e)}
                       onKeyDown={(e) => {
+                        // Same select as the click — the keyboard is not a
+                        // second way to manage a class, only a second way to
+                        // say which one.
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault()
-                          // No pointer to hang off, so the block's own box
-                          // anchors the panel.
-                          openSessionMenu(session, e.currentTarget as HTMLElement)
+                          onSelectSession(session)
                         }
                       }}
                       className={cn(
                         'absolute rounded-md px-1.5 py-1 cursor-pointer overflow-hidden',
                         'transition-all duration-150',
-                        'border-l-[3px]',
+                        'border-s-[3px]',
                         'hover:shadow-lg hover:z-10',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]',
                         isSelected && [
@@ -481,10 +416,13 @@ export function AgendaBoard({
                       style={{
                         top,
                         height,
-                        left,
+                        // Logical, like the border above it: overlapping
+                        // blocks are laid out in columns, and column 1 belongs
+                        // on the reading side in both directions.
+                        insetInlineStart: left,
                         width,
                         backgroundColor: hexToRgba(sessionColor, 0.15),
-                        borderLeftColor: sessionColor,
+                        borderInlineStartColor: sessionColor,
                       }}
                     >
                       {height > 28 && (
@@ -493,10 +431,10 @@ export function AgendaBoard({
                           {isSessionFree(session) && (
                             <span
                               className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-bold bg-[var(--emerald)] text-white shrink-0"
-                              title="FREE session — teacher pays (revenue 0, cut 0)"
+                              title={t('board.freeTitle')}
                             >
                               <Gift size={8} />
-                              FREE
+                              {t('board.free')}
                             </span>
                           )}
                           {/* T8: origin badges — 🔁 WEEKLY (emerald) vs 🕐 TEMPORARY (gold) */}
@@ -506,7 +444,7 @@ export function AgendaBoard({
                               return (
                                 <span
                                   className="inline-flex items-center px-1 py-px rounded text-[8px] font-bold bg-[var(--emerald-soft)] text-[var(--emerald)] shrink-0"
-                                  title="Weekly series"
+                                  title={t('board.weeklySeries')}
                                 >
                                   <Repeat size={8} />
                                 </span>
@@ -515,20 +453,31 @@ export function AgendaBoard({
                             return (
                               <span
                                 className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-bold bg-[var(--gold-soft)] text-[var(--gold)] shrink-0"
-                                title={origin.reason ? `Temporary · ${origin.reason}` : 'Temporary session'}
+                                title={
+                                  origin.reason
+                                    ? t('board.temporaryWithReason', { reason: t(TEMP_REASON_KEYS[origin.reason] ?? 'reason.extra') })
+                                    : t('board.temporary')
+                                }
                               >
                                 <Clock3 size={8} />
-                                {origin.reason ? origin.reason.slice(0, 4) : '1×'}
+                                {/* Four characters, whatever the language: the
+                                    chip rides a block that is only a few
+                                    columns wide, so the reason is abbreviated
+                                    rather than allowed to push the class name
+                                    out. The full wording is in the tooltip. */}
+                                {origin.reason
+                                  ? t(TEMP_REASON_KEYS[origin.reason] ?? 'reason.extra').slice(0, 4)
+                                  : t('board.oneOff')}
                               </span>
                             )
                           })()}
                           <p className="text-[10px] font-semibold leading-tight truncate flex-1 min-w-0" style={{ color: sessionColor }}>
                             {session.class_name}
                           </p>
-                          {/* No ☰ here any more: the block itself opens the
-                              panel (see menuTarget), and two triggers on one
-                              block could raise two panels at once. The ☰ still
-                              lives on the detail panel's header. */}
+                          {/* No ☰ here, and no menu either: a block is a select
+                              gesture, and every action on the class it selects
+                              lives on the presence tab it opens. The ☰ still
+                              lives on that panel's header. */}
                         </div>
                       )}
                       {height > 46 && (
@@ -548,11 +497,11 @@ export function AgendaBoard({
                 {/* Now line — only on today */}
                 {today && showNowLine && (
                   <div
-                    className="absolute left-0 right-0 z-20 pointer-events-none"
+                    className="absolute start-0 end-0 z-20 pointer-events-none"
                     style={{ top: nowOffset }}
                   >
                     <div className="h-[2px] bg-[var(--red)] shadow-[0_0_8px_var(--red)]" />
-                    <div className="absolute -left-[3px] -top-[3px] w-[8px] h-[8px] rounded-full bg-[var(--red)]" />
+                    <div className="absolute start-[-3px] -top-[3px] w-[8px] h-[8px] rounded-full bg-[var(--red)]" />
                   </div>
                 )}
               </div>
@@ -561,8 +510,17 @@ export function AgendaBoard({
         </div>
       </div>
 
-      {/* ── Overlap popup ── */}
-      {overlapPopup && (
+      {/* ── Overlap picker ──
+          Portalled for the same reason SessionMenu is: this board's root
+          carries `backdrop-blur` and `overflow-hidden`, so a `fixed` child is
+          positioned against the board instead of the viewport and clipped at
+          its edge — which is most of the board, for a block in the last day
+          column.
+
+          Positioned in physical viewport coordinates, not logical ones: `x`
+          and `y` come from `getBoundingClientRect`, and `start`/`end` would
+          mirror a measurement that was already taken on the physical screen. */}
+      {overlapPopup && createPortal(
         <div
           className="fixed z-50 w-[260px] rounded-xl border border-[var(--glass-border)] bg-[var(--glass)] backdrop-blur-xl shadow-2xl animate-fade-in"
           style={{ left: overlapPopup.x, top: overlapPopup.y }}
@@ -570,10 +528,12 @@ export function AgendaBoard({
         >
           <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--glass-border)]">
             <span className="text-xs font-semibold text-[var(--text)]">
-              {overlapPopup.sessions.length} sessions
+              {t('board.overlap.count', { count: overlapPopup.sessions.length })}
             </span>
             <button
+              type="button"
               onClick={closeOverlapPopup}
+              aria-label={t('board.overlap.close')}
               className="p-0.5 rounded hover:bg-[var(--glass)] text-[var(--muted)]"
             >
               <X size={12} />
@@ -587,18 +547,17 @@ export function AgendaBoard({
                   key={s.id}
                   type="button"
                   onClick={() => {
-                    // The picked session's menu takes the picker's place: the
-                    // picker answered "which one", the menu answers "what do
-                    // I do with it". The block stays the anchor, so clicking
-                    // that block again still toggles the panel shut.
-                    openSessionMenu(s, overlapPopup.el, {
-                      x: overlapPopup.x,
-                      y: overlapPopup.y,
-                    })
+                    // The picker answered "which one", and the right-hand
+                    // panel is what answers "what do I do with it". A select
+                    // is skipped when that class is the one already open —
+                    // the Dashboard's select toggles, and clicking the row
+                    // for the class being managed would blank the panel
+                    // rather than keep it.
+                    if (s.id !== selectedSessionId) onSelectSession(s)
                     setOverlapPopup(null)
                   }}
                   className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-2 text-left',
+                    'w-full flex items-center gap-2.5 px-3 py-2 text-start',
                     'hover:bg-[var(--glass)] transition-colors',
                     'border-b border-[var(--glass-border)]/40 last:border-b-0',
                   )}
@@ -622,30 +581,8 @@ export function AgendaBoard({
               )
             })}
           </div>
-        </div>
-      )}
-
-      {/* ── Block-click menu ──
-          One instance for the whole board: the panel is `fixed`, so it does
-          not belong to the block it was opened from. `onOpenChange` is what
-          clears `menuTarget` — every way the panel can shut (an item, Escape,
-          an outside click, a scroll) reports through it, so the board never
-          keeps rendering a panel nobody can see or close. */}
-      {menuTarget && (
-        <SessionMenu
-          key={menuTarget.session.id}
-          session={menuTarget.session}
-          sessions={sessions}
-          status={getEffectiveStatus(menuTarget.session)}
-          onStart={onStartSession}
-          onFinish={onFinishSession}
-          onChanged={onSessionsChanged}
-          onOpenRegister={onOpenRegister}
-          defaultOpen
-          hideTrigger
-          anchor={{ x: menuTarget.x, y: menuTarget.y, el: menuTarget.el }}
-          onOpenChange={(open) => { if (!open) setMenuTarget(null) }}
-        />
+        </div>,
+        document.body,
       )}
 
       {/* ── Loading overlay ── */}

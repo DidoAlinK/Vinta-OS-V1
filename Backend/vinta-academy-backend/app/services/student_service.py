@@ -15,41 +15,100 @@ from app.models.class_room import Class
 from app.models.audit import ActivityLog
 
 
+#: Every status a student can report. The route validates against this and the
+#: stats endpoint counts into it, so a new state cannot be added to the API
+#: without being counted here too.
+STUDENT_STATUSES = ("paid", "due", "overdue", "unpaid", "no_plan")
+
+
+def _apply_search(query, q: str | None):
+    """Narrow ``query`` by the roster's case-insensitive ``q`` match.
+
+    One definition, shared by the list and the stats endpoints. If the two ever
+    grew their own copy of this predicate they could drift, and the counts shown
+    beside a filtered table would then describe a different set of students than
+    the table itself — the kind of disagreement nobody notices until it matters.
+    """
+    if not q or not q.strip():
+        return query
+
+    needle = f"%{q.strip()}%"
+    return query.filter(
+        or_(
+            Student.first_name.ilike(needle),
+            Student.last_name.ilike(needle),
+            # "first last" typed in one go, e.g. "yacine testman"
+            Student.first_name.concat(" ").concat(Student.last_name).ilike(needle),
+            Student.phone.ilike(needle),
+            Student.parent_phone.ilike(needle),
+        )
+    )
+
+
 def list_students(
-    academy_id: str, page: int = 1, per_page: int = 50, q: str | None = None
+    academy_id: str,
+    page: int = 1,
+    per_page: int = 50,
+    q: str | None = None,
+    status: str | None = None,
 ) -> dict:
-    """List all students for an academy with computed status fields.
+    """List students for an academy, with computed status fields.
 
     ``q`` optionally filters case-insensitively on name and phone fields.
+    ``status`` optionally filters on the COMPUTED billing status.
+
+    ``status`` cannot be expressed in SQL. It is derived per student by
+    ``_enrich_student`` from the subscription and the governing group's billing
+    config; nothing about it is stored on the row. So the two paths are
+    genuinely different, and the difference is deliberate:
+
+    * without ``status`` the ``q`` filter and the page slice both happen in SQL
+      — the cheap path every ordinary roster load takes;
+    * with ``status`` the ``q`` filter still happens in SQL, but then every
+      match is enriched, filtered in Python, and only afterwards sliced. That is
+      O(roster) per request, and it is the honest price of paging a derived
+      value: the alternative is paging the unfiltered set and quietly returning
+      short or empty pages to the client.
+
+    ``total`` and ``pages`` describe the filtered set in both paths, so the
+    caller's paging arithmetic stays correct either way.
     """
     query = Student.query.filter_by(academy_id=academy_id, is_active=True)
+    query = _apply_search(query, q)
 
-    if q and q.strip():
-        needle = f"%{q.strip()}%"
-        query = query.filter(
-            or_(
-                Student.first_name.ilike(needle),
-                Student.last_name.ilike(needle),
-                # "first last" typed in one go, e.g. "yacine testman"
-                Student.first_name.concat(" ").concat(Student.last_name).ilike(needle),
-                Student.phone.ilike(needle),
-                Student.parent_phone.ilike(needle),
-            )
-        )
+    if status is None:
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        return {
+            "students": [_enrich_student(s) for s in pagination.items],
+            "total": pagination.total,
+            "page": page,
+            "per_page": per_page,
+            "pages": pagination.pages,
+        }
 
-    students = []
-    for student in pagination.items:
-        student_data = _enrich_student(student)
-        students.append(student_data)
+    matched = [
+        enriched
+        for enriched in (_enrich_student(s) for s in query.all())
+        if enriched["status"] == status
+    ]
+
+    total = len(matched)
+    # `page` arrives from a query string, so it can be 0 or negative. Clamping
+    # the offset rather than trusting it keeps a hand-typed URL from slicing
+    # backwards off the end of the list.
+    offset = max(page - 1, 0) * per_page
+    window = matched[offset : offset + per_page]
 
     return {
-        "students": students,
-        "total": pagination.total,
+        "students": window,
+        "total": total,
         "page": page,
         "per_page": per_page,
-        "pages": pagination.pages,
+        # Ceiling division, and 0 pages for an empty match — the client tests
+        # `page >= pages` to know it has reached the end, so an empty result
+        # must report 0 rather than 1.
+        "pages": ((total + per_page - 1) // per_page) if per_page else 0,
     }
 
 
@@ -233,29 +292,35 @@ def enroll_student(student_id: str, class_id: str, academy_id: str, enrolled_by:
     return enrollment
 
 
-def get_student_stats(academy_id: str) -> dict:
-    """Get aggregate student statistics for the stats rail.
+def get_student_stats(academy_id: str, q: str | None = None) -> dict:
+    """Get aggregate student statistics for the stats rail and filter pills.
 
-    Counts mirror the per-student ``status``: ``unpaid`` (enrolled, never paid)
-    and ``no_plan`` (enrolled in nothing) count only in ``total``.
+    Counts mirror the per-student ``status``. Every student has exactly one
+    status, so the five buckets sum to ``total`` — but read ``total`` as the
+    size of the matching roster rather than as arithmetic, because that stays
+    true if a status is ever added.
+
+    ``q`` narrows the counts using the same predicate as ``list_students``, so
+    the pills beside a searched roster describe the students that search
+    matched rather than the whole academy. Without it the counts are the whole
+    academy's, which is what the page loads on mount.
+
+    Like ``list_students`` this is O(roster): status is derived, not stored, so
+    there is no aggregate query that could answer it. It was already walking
+    every student before this returned more than the three buckets it counted.
     """
-    total = Student.query.filter_by(academy_id=academy_id, is_active=True).count()
+    query = Student.query.filter_by(academy_id=academy_id, is_active=True)
+    query = _apply_search(query, q)
 
-    paid = 0
-    overdue = 0
-    due = 0
-    students = Student.query.filter_by(academy_id=academy_id, is_active=True).all()
+    counts = {status: 0 for status in STUDENT_STATUSES}
+    students = query.all()
+
     for student in students:
         status = _resolve_primary_billing(student.id)["status"]
-        if status == "paid":
-            paid += 1
-        elif status == "overdue":
-            overdue += 1
-        elif status == "due":
-            due += 1
-        # "unpaid" / "no_plan" students are counted in `total` only.
+        if status in counts:
+            counts[status] += 1
 
-    return {"total": total, "paid": paid, "overdue": overdue, "due": due}
+    return {"total": len(students), **counts}
 
 
 # --- Private Helpers ---

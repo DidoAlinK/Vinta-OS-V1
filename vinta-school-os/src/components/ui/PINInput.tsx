@@ -1,4 +1,5 @@
 import { forwardRef, useRef, useState, useCallback, useEffect, type KeyboardEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 
 /* ─── Constants ─── */
@@ -22,6 +23,7 @@ export interface PINInputProps {
 
 export const PINInput = forwardRef<HTMLDivElement, PINInputProps>(
   ({ onComplete, error = false, autoFocus = true, onChange }, ref) => {
+    const { t } = useTranslation('common')
     const [digits, setDigits] = useState<string[]>(Array(PIN_LENGTH).fill(''))
     const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -143,7 +145,7 @@ export const PINInput = forwardRef<HTMLDivElement, PINInputProps>(
           error && 'animate-shake',
         )}
         role="group"
-        aria-label="PIN input"
+        aria-label={t('pinInput.group')}
       >
         {Array.from({ length: PIN_LENGTH }).map((_, i) => (
           <input
@@ -180,7 +182,7 @@ export const PINInput = forwardRef<HTMLDivElement, PINInputProps>(
               fontWeight: 700,
               fontFamily: "'Space Grotesk', sans-serif",
             }}
-            aria-label={`Digit ${i + 1} of ${PIN_LENGTH}`}
+            aria-label={t('pinInput.digit', { index: i + 1, total: PIN_LENGTH })}
           />
         ))}
       </div>

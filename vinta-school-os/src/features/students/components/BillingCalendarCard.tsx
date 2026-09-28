@@ -12,6 +12,7 @@
  * rather than printing a bare date that would read as a one-day cycle.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Calendar } from 'lucide-react'
 import { cn } from '../../../lib/cn'
 import { formatDa, getStatusBg, getStatusColor } from '../../../lib/formatters'
@@ -24,11 +25,16 @@ export interface BillingCalendarCardProps {
   loading?: boolean
 }
 
-/** A cycle is only ever one of these three. Note: no `unpaid`/`no_plan` here. */
-const CYCLE_STATUS_LABELS: Record<BillingCalendarEntry['status'], string> = {
-  paid: 'Paid',
-  due: 'Due',
-  overdue: 'Overdue',
+/**
+ * A cycle is only ever one of these three. Note: no `unpaid`/`no_plan` here.
+ *
+ * Keys rather than sentences — a module-level map of rendered strings would be
+ * frozen in the language that happened to be active at import.
+ */
+const CYCLE_STATUS_KEYS: Record<BillingCalendarEntry['status'], string> = {
+  paid: 'status.paid',
+  due: 'status.due',
+  overdue: 'status.overdue',
 }
 
 /** The timeline dot colour, matching the pill the same row carries. */
@@ -44,45 +50,49 @@ function statusDot(status: BillingCalendarEntry['status']): string {
 }
 
 export function BillingCalendarCard({ entries, loading = false }: BillingCalendarCardProps) {
+  const { t } = useTranslation('students')
   const cycles = Array.isArray(entries) ? entries : []
   const isEmpty = cycles.length === 0
 
   return (
     <ProfileCard
-      title="Billing calendar"
+      title={t('calendar.title')}
       icon={<Calendar size={13} />}
-      action={loading ? <InlineSpinner label="Loading billing calendar" /> : undefined}
+      action={loading ? <InlineSpinner label={t('calendar.loadingAria')} /> : undefined}
     >
       {isEmpty ? (
         loading ? (
-          <EmptyLine>{'Loading…'}</EmptyLine>
+          <EmptyLine>{t('common:state.loading')}</EmptyLine>
         ) : (
           <EmptyLine>
-            No billing cycles yet {DASH} nothing has been recorded for this student.
+            {t('calendar.empty', { dash: DASH })}
           </EmptyLine>
         )
       ) : (
         <ol className="m-0 p-0 list-none space-y-3">
           {cycles.map((entry, i) => {
             const range = formatDateRange(
+              t,
               parseISODate(entry.cycle_start),
               parseISODate(entry.cycle_end),
             )
             const isLast = i === cycles.length - 1
             const paid = entry.paid_amount ?? 0
 
+            // The rail hangs off the row's leading edge, so the inset and the
+            // rail's own offsets are logical: they move to the right in Arabic.
             return (
-              <li key={entry.id} className="relative pl-5">
+              <li key={entry.id} className="relative ps-5">
                 {/* Timeline rail: a status-coloured dot, joined to the next one. */}
                 <span
                   aria-hidden="true"
-                  className="absolute left-[3px] top-[5px] w-2 h-2 rounded-full"
+                  className="absolute start-[3px] top-[5px] w-2 h-2 rounded-full"
                   style={{ background: statusDot(entry.status) }}
                 />
                 {!isLast ? (
                   <span
                     aria-hidden="true"
-                    className="absolute left-[6px] top-[19px] bottom-[-12px] w-px"
+                    className="absolute start-[6px] top-[19px] bottom-[-12px] w-px"
                     style={{ background: 'var(--divider)' }}
                   />
                 ) : null}
@@ -103,7 +113,10 @@ export function BillingCalendarCard({ entries, loading = false }: BillingCalenda
                         both ends rather than picking one and implying the other. */}
                     <p className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
                       {paid > 0 && paid !== entry.amount_da
-                        ? `${formatDa(paid)} of ${formatDa(entry.amount_da)} paid`
+                        ? t('calendar.partialPaid', {
+                            paid: formatDa(paid),
+                            total: formatDa(entry.amount_da),
+                          })
                         : formatDa(entry.amount_da)}
                     </p>
                   </div>
@@ -114,9 +127,9 @@ export function BillingCalendarCard({ entries, loading = false }: BillingCalenda
                       getStatusBg(entry.status),
                       getStatusColor(entry.status),
                     )}
-                    title={entry.status}
+                    title={t(CYCLE_STATUS_KEYS[entry.status])}
                   >
-                    {CYCLE_STATUS_LABELS[entry.status]}
+                    {t(CYCLE_STATUS_KEYS[entry.status])}
                   </span>
                 </div>
               </li>

@@ -1,0 +1,208 @@
+{
+  "page": {
+    "title": "Billing",
+    "subtitle": "Manage subscriptions, payouts, and payments",
+    "multiPay": "Multi-Teacher Payment",
+    "loading": "Loading billing data…"
+  },
+  "tabs": {
+    "subscriptions": "Subscriptions",
+    "payouts": "Payouts"
+  },
+  "donut": {
+    "studentTuition": "Student Tuition",
+    "teacherPayroll": "Teacher Payroll",
+    "paid": "Paid",
+    "due": "Due",
+    "overdue": "Overdue",
+    "settled": "Settled",
+    "pending": "Pending"
+  },
+  "kpi": {
+    "monthIncome": "This month's income",
+    "totalEnrolled": "Total enrolled",
+    "financeBreakdown": "Finance breakdown",
+    "viewDetails": "View details →"
+  },
+  "grossProfit": {
+    "label": "Turn on calculating gross profit",
+    "on": "On — commission model visible, gross/cut math shown.",
+    "off": "Off — teachers paid per session formula, no gross/cut math."
+  },
+  "revenue": {
+    "title": "Revenue",
+    "property": {
+      "income": "Total Income",
+      "paid": "Paid vs Overdue",
+      "overdue": "Overdue",
+      "enrollments": "Enrollments"
+    },
+    "empty": {
+      "title": "No revenue data yet",
+      "body": "Data will appear here once billing records exist"
+    }
+  },
+  "breakdown": {
+    "title": "Finance Breakdown",
+    "tab": {
+      "students": "Students",
+      "teachers": "Teachers"
+    },
+    "aging": {
+      "days1to7": "1–7 Days",
+      "days8to30": "8–30 Days",
+      "days30plus": "30+ Days"
+    },
+    "summary": {
+      "overdue": "overdue",
+      "total": "total"
+    },
+    "table": {
+      "amount": "Amount",
+      "days": "Days"
+    },
+    "daysSuffix": "{{days}}d",
+    "unknownName": "Unknown",
+    "empty": {
+      "title": "No overdue accounts",
+      "students": "Overdue students will appear here",
+      "teachers": "Overdue teachers will appear here",
+      "bucket": "No overdue accounts in this range."
+    }
+  },
+  "subscriptions": {
+    "loading": "Loading subscriptions…",
+    "model": {
+      "credits": "Credits",
+      "time": "Time"
+    },
+    "status": {
+      "active": "Active",
+      "expired": "Expired",
+      "depleted": "Depleted",
+      "overdue": "Overdue",
+      "cancelled": "Cancelled",
+      "suspended": "Suspended",
+      "unknown": "Unknown",
+      "expiringSoon": "Expiring Soon",
+      "renewRequired": "Renew Required",
+      "attendanceWarning": "Attn Warning"
+    },
+    "table": {
+      "student": "Student",
+      "group": "Group",
+      "model": "Model",
+      "value": "Value",
+      "price": "Price",
+      "created": "Created"
+    },
+    "debt": {
+      "badge": "debt {{debt}}",
+      "tooltip": "Unpaid debt {{debt}} — pay N={{credits}} oldest-first → {{remaining}} remaining. Click to mark settled."
+    },
+    "void": {
+      "badge": "+{{credits}} void-restore",
+      "tooltip": "T7 void restore — THIS session's credit only"
+    },
+    "empty": {
+      "title": "No subscriptions yet",
+      "body": "Student subscriptions will appear here once created."
+    },
+    "error": {
+      "server": "Server error loading subscriptions (500).",
+      "load": "Could not load subscriptions.",
+      "notCleared": "Nothing was silently cleared."
+    },
+    "toast": {
+      "failedTitle": "Subscriptions failed to load",
+      "failedBody": "{{message}} Press Retry.",
+      "noDebt": {
+        "title": "No unpaid debt",
+        "body": "{{student}} — nothing to settle."
+      },
+      "settled": {
+        "title": "Debt settled oldest-first",
+        "body": "N={{n}} − debt {{debt}} → {{remaining}} remaining ({{cleared}} cleared).",
+        "bodyOwed": "N={{n}} − debt {{debt}} → {{remaining}} remaining, {{stillOwed}} still owed ({{cleared}} cleared)."
+      }
+    }
+  },
+  "payouts": {
+    "loading": "Loading payouts…",
+    "summary": {
+      "pending": "Total Pending",
+      "paid": "Total Paid",
+      "all": "Total All"
+    },
+    "column": {
+      "gross": "Gross",
+      "type": "Type",
+      "cut": "Cut"
+    },
+    "status": {
+      "pending": "Pending",
+      "paid": "Paid",
+      "unknown": "Unknown"
+    },
+    "records_one": "{{count}} record",
+    "records_other": "{{count}} records",
+    "markPaid": "Mark Paid",
+    "grossOff": "Gross-profit math is off — turn it on in Billing to see gross/cut figures.",
+    "empty": {
+      "title": "No payout records",
+      "body": "Teacher payout records will appear here."
+    },
+    "pin": {
+      "title": "Confirm Payout",
+      "prompt": "Enter 4-digit PIN to confirm",
+      "incorrect": "Incorrect PIN. Try again.",
+      "processing": "Processing…",
+      "digit": "PIN digit {{index}}"
+    }
+  },
+  "multiPay": {
+    "title": "Multi-Teacher Payment",
+    "step": {
+      "student": "1. Select Student",
+      "items": "2. Payment Items",
+      "method": "3. Payment Method",
+      "pin": "4. PIN Verification"
+    },
+    "change": "Change",
+    "searchPlaceholder": "Search student by name…",
+    "empty": "Click \"Add\" to add a payment line",
+    "selectGroup": "Select group…",
+    "amountPlaceholder": "Amount",
+    "line": {
+      "debtPreview": "Debt {{debt}} + pay N={{n}} → {{remaining}} remaining (oldest first)"
+    },
+    "method": {
+      "cash": "Cash",
+      "ccp": "CCP",
+      "baridiMob": "Baridi Mob"
+    },
+    "pin": {
+      "incomplete": "Enter all 4 digits of the owner PIN.",
+      "incorrect": "Incorrect PIN. Try again.",
+      "digit": "PIN digit {{index}}"
+    },
+    "error": {
+      "failed": "Payment failed",
+      "sessionExpired": "Session expired. Sign in again — the payment was not recorded."
+    },
+    "submit": {
+      "pay": "Pay {{amount}}",
+      "processing": "Processing…"
+    },
+    "toast": {
+      "settled": {
+        "title": "Debt settled oldest-first",
+        "line": "{{cleared}} cleared → {{remaining}} left (N={{n}})"
+      },
+      "previewFailed": {
+        "title": "Payment recorded, debt preview failed",
+        "body": "Reopen Billing to settle unpaid rows."
+      }
+    }
+  }
+}

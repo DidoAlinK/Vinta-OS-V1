@@ -1,1604 +1,1604 @@
 {
   ".claude/launch.json": {
-    "mtime": 1790247887.0,
-    "seen": 1790327789.8510735,
+    "mtime": 1790422976.3930078,
+    "seen": 1790438702.1165726,
     "ast_hash": "895f436b1fa36c68af6f024da9f2cbfa",
     "semantic_hash": "895f436b1fa36c68af6f024da9f2cbfa"
   },
   ".claude/settings.local.json": {
-    "mtime": 1790327544.9813666,
-    "seen": 1790327789.8510787,
-    "ast_hash": "513190976ab04e3b4bb1bbf7049b5334",
+    "mtime": 1790422976.3930078,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6ef0719f5c5cd642652a06dd7ab11b73",
     "semantic_hash": ""
   },
   ".tmp-relprobe/cleanup_finalise.py": {
-    "mtime": 1790116252.0,
-    "seen": 1790327789.851082,
-    "ast_hash": "c1d4017ee36ad8e2373cf4f1d274c107",
-    "semantic_hash": "c1d4017ee36ad8e2373cf4f1d274c107"
+    "mtime": 1790422976.3930078,
+    "seen": 1790438702.1165726,
+    "ast_hash": "ff1c482d7cc4db9d126b183123cfce2c",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/damage.py": {
-    "mtime": 1790147228.0,
-    "seen": 1790327789.8510833,
-    "ast_hash": "794bc7c114859194a51a6cc074aa36b7",
-    "semantic_hash": "794bc7c114859194a51a6cc074aa36b7"
+    "mtime": 1790422976.3930078,
+    "seen": 1790438702.1165726,
+    "ast_hash": "10a896b37a25b0ee6281df6c0a5c1070",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/live_check.py": {
-    "mtime": 1790147176.0,
-    "seen": 1790327789.8510847,
-    "ast_hash": "9fa0aa2e5beb506fcba1c2766c3250d0",
-    "semantic_hash": "9fa0aa2e5beb506fcba1c2766c3250d0"
+    "mtime": 1790422976.3930078,
+    "seen": 1790438702.1165726,
+    "ast_hash": "8d5686d4714e640eed6a96d235001f99",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/login.json": {
-    "mtime": 1790115063.0,
-    "seen": 1790327789.851087,
-    "ast_hash": "619da19d85568d0603ea3c742dd3450d",
-    "semantic_hash": "619da19d85568d0603ea3c742dd3450d"
+    "mtime": 1790422976.3940084,
+    "seen": 1790438702.1165726,
+    "ast_hash": "19e46477379acec4133ab33e9916e7cd",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/make_staff.py": {
-    "mtime": 1790146238.0,
-    "seen": 1790327789.8510883,
-    "ast_hash": "76d77ceeb32e280ef2922ef0005fbde0",
-    "semantic_hash": "76d77ceeb32e280ef2922ef0005fbde0"
+    "mtime": 1790422976.3940084,
+    "seen": 1790438702.1165726,
+    "ast_hash": "607a01e05040e0d8d94ec61590f8a397",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/mint.py": {
-    "mtime": 1790145951.0,
-    "seen": 1790327789.85109,
-    "ast_hash": "8b518356e0c545d5cb4ae817a1d2e74d",
-    "semantic_hash": "8b518356e0c545d5cb4ae817a1d2e74d"
+    "mtime": 1790422976.3940084,
+    "seen": 1790438702.1165726,
+    "ast_hash": "ab26154381894105fcea191036df91f3",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/mint_json.py": {
-    "mtime": 1790146065.0,
-    "seen": 1790327789.8510919,
-    "ast_hash": "3bd2a6ba051b21943d61718095a0d00f",
-    "semantic_hash": "3bd2a6ba051b21943d61718095a0d00f"
+    "mtime": 1790422976.3940084,
+    "seen": 1790438702.1165726,
+    "ast_hash": "dd23e9d677b394aec0973b27e4c8e9ea",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/peek_session.py": {
-    "mtime": 1790146497.0,
-    "seen": 1790327789.8510933,
-    "ast_hash": "cc4c2c45a0fce2c3fc58e4f106228acc",
-    "semantic_hash": "cc4c2c45a0fce2c3fc58e4f106228acc"
+    "mtime": 1790422976.3940084,
+    "seen": 1790438702.1165726,
+    "ast_hash": "88cb524abc22d7890127b664a7e5728a",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/probe_audit_fk.py": {
-    "mtime": 1790116536.0,
-    "seen": 1790327789.851095,
-    "ast_hash": "50527f81b0d61de569a497db4795a288",
-    "semantic_hash": "50527f81b0d61de569a497db4795a288"
+    "mtime": 1790422976.3940084,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a362ffaa2e03a15dd7e6356fd1fe0180",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/probe_billing_rules.py": {
-    "mtime": 1790115829.0,
-    "seen": 1790327789.8510964,
-    "ast_hash": "6de53f3074ec0a45c4f21ada6ff05f9f",
-    "semantic_hash": "6de53f3074ec0a45c4f21ada6ff05f9f"
+    "mtime": 1790422976.3940084,
+    "seen": 1790438702.1165726,
+    "ast_hash": "50561e44aecc87a771b2fb00922408c9",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/probe_enroll.py": {
-    "mtime": 1790117548.0,
-    "seen": 1790327789.8510978,
-    "ast_hash": "80b991fad85516e93d06778765b2214b",
-    "semantic_hash": "80b991fad85516e93d06778765b2214b"
+    "mtime": 1790422976.3940084,
+    "seen": 1790438702.1165726,
+    "ast_hash": "faf46a5147fce13fdd68fbc183b4ebd3",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/probe_finalise.py": {
-    "mtime": 1790116427.0,
-    "seen": 1790327789.8510995,
+    "mtime": 1790422976.395008,
+    "seen": 1790438702.1165726,
     "ast_hash": "20752a988158e0f40b10a566b523e53f",
     "semantic_hash": "20752a988158e0f40b10a566b523e53f"
   },
   ".tmp-relprobe/probe_roster.py": {
-    "mtime": 1790115488.0,
-    "seen": 1790327789.851101,
-    "ast_hash": "042c7209a6ffcc5c3c2df42d72448a96",
-    "semantic_hash": "042c7209a6ffcc5c3c2df42d72448a96"
+    "mtime": 1790422976.395008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "f456303f51d99f104e4d21ef69dbad05",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/probe_sessions_list.py": {
-    "mtime": 1790118231.0,
-    "seen": 1790327789.8511024,
-    "ast_hash": "556e2b55182325c6c96586ce18348d4c",
-    "semantic_hash": "556e2b55182325c6c96586ce18348d4c"
+    "mtime": 1790422976.395008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "62048ac4b21a1229044c5945a3519802",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/probe_start.py": {
-    "mtime": 1790115769.0,
-    "seen": 1790327789.851104,
-    "ast_hash": "e557cdfa06d7aabe49e6507a84f4a232",
-    "semantic_hash": "e557cdfa06d7aabe49e6507a84f4a232"
+    "mtime": 1790422976.395008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3db6fe2684fec08fca59a0bd48dd9ad9",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/start_rundown.py": {
-    "mtime": 1790146426.0,
-    "seen": 1790327789.8511055,
-    "ast_hash": "176f78b7faea08aa4958ff71690b947a",
-    "semantic_hash": "176f78b7faea08aa4958ff71690b947a"
+    "mtime": 1790422976.395008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "36b434230144ca14d13174ba91715565",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/sweep.py": {
-    "mtime": 1790147262.0,
-    "seen": 1790327789.8511074,
-    "ast_hash": "bae99a621c96f67004a2f51f9d3422d7",
-    "semantic_hash": "bae99a621c96f67004a2f51f9d3422d7"
+    "mtime": 1790422976.395008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3710fd807fd711b660f1ad6f8007d0a9",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/undo_test_state.py": {
-    "mtime": 1790147359.0,
-    "seen": 1790327789.8511086,
-    "ast_hash": "1355faf1140349cc40833336f0af40b1",
-    "semantic_hash": "1355faf1140349cc40833336f0af40b1"
+    "mtime": 1790422976.395008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "0ea6d3532a6c5e29c29ba76b8b55467f",
+    "semantic_hash": ""
   },
   ".tmp-relprobe/users.py": {
-    "mtime": 1790146155.0,
-    "seen": 1790327789.8511102,
-    "ast_hash": "0862145d2d641a0d13e132ebbc323e9c",
-    "semantic_hash": "0862145d2d641a0d13e132ebbc323e9c"
+    "mtime": 1790422976.3960083,
+    "seen": 1790438702.1165726,
+    "ast_hash": "939cc9d5a879515bd5d6ce48df16d723",
+    "semantic_hash": ""
   },
   ".tmp-teacherprobe/verify_teachers.py": {
-    "mtime": 1790116105.0,
-    "seen": 1790327789.8511114,
-    "ast_hash": "2ad9e70eab0d83d019c10cd1c81c2382",
-    "semantic_hash": "2ad9e70eab0d83d019c10cd1c81c2382"
+    "mtime": 1790422976.3960083,
+    "seen": 1790438702.1165726,
+    "ast_hash": "e0befedf69e1389de10c37e6f3f8a8d1",
+    "semantic_hash": ""
   },
   ".tmp-verify/login.json": {
-    "mtime": 1790106425.0,
-    "seen": 1790327789.8511126,
-    "ast_hash": "2943c04a25f1c11b50b24631d20eccf6",
-    "semantic_hash": "2943c04a25f1c11b50b24631d20eccf6"
+    "mtime": 1790422976.3960083,
+    "seen": 1790438702.1165726,
+    "ast_hash": "1c79c2de0119b322bfc5e7a70a48ac4d",
+    "semantic_hash": ""
   },
   ".tmp-verify/payouts.json": {
-    "mtime": 1790106432.0,
-    "seen": 1790327789.851114,
-    "ast_hash": "e0b9d6785d54214c50fdae79afde0e8a",
-    "semantic_hash": "e0b9d6785d54214c50fdae79afde0e8a"
+    "mtime": 1790422976.3960083,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4eb95e3e857e8e1f9f6e9e22761af667",
+    "semantic_hash": ""
   },
   ".vite/deps/_metadata.json": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "f35b6e68c6b0456b3470b807df1cadbf",
-    "semantic_hash": "f35b6e68c6b0456b3470b807df1cadbf"
+    "mtime": 1790422976.3960083,
+    "seen": 1790438702.1165726,
+    "ast_hash": "460fc50f0d091547c932749f0a9ec3f7",
+    "semantic_hash": ""
   },
   ".vite/deps/package.json": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "d0707362e90f00edd12435e9d3b9d71c",
-    "semantic_hash": "d0707362e90f00edd12435e9d3b9d71c"
+    "mtime": 1790422976.3960083,
+    "seen": 1790438702.1165726,
+    "ast_hash": "2324363c71f28a5b7e946a38dc2d9293",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/.tmp-academy-test/login.json": {
-    "mtime": 1790105324.0,
-    "seen": 1790327789.8511214,
-    "ast_hash": "842f56991dce4ce284b3e884503103c9",
-    "semantic_hash": "842f56991dce4ce284b3e884503103c9"
+    "mtime": 1790422976.397008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "0e4fbcd0246347e7563edd0ba9585fe7",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/.tmp-academy-test/owner.json": {
-    "mtime": 1790105323.0,
-    "seen": 1790327789.8511226,
-    "ast_hash": "92f00e9f8da4fb575bfcc66223fcd461",
-    "semantic_hash": "92f00e9f8da4fb575bfcc66223fcd461"
+    "mtime": 1790422976.397008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6a41fe11e835209926459a75911309bc",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/.tmp-academy-test/signup.json": {
-    "mtime": 1790105318.0,
-    "seen": 1790327789.851124,
-    "ast_hash": "d2da733c19428064a207fd63426244d3",
-    "semantic_hash": "d2da733c19428064a207fd63426244d3"
+    "mtime": 1790422976.397008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "c4451b55d47f93573c589772fd95d7dd",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/.tmp-relprobe/session.json": {
-    "mtime": 1790112720.0,
-    "seen": 1790327789.8511255,
+    "mtime": 1790422976.397008,
+    "seen": 1790438702.1165726,
     "ast_hash": "6398d4481bca29c38d57391e3acd4d7c",
     "semantic_hash": "6398d4481bca29c38d57391e3acd4d7c"
   },
   "Backend/vinta-academy-backend/add_lifecycle_columns.py": {
-    "mtime": 1790114953.0,
-    "seen": 1790327789.8511267,
-    "ast_hash": "2570a7af25c798048546711300660f19",
-    "semantic_hash": "2570a7af25c798048546711300660f19"
+    "mtime": 1790422976.398008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "d49601b2e8451fe2760ecd11361c7001",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "b68c2b250ddf6507bd88ef76344b3744",
-    "semantic_hash": "b68c2b250ddf6507bd88ef76344b3744"
+    "mtime": 1790536252.5637808,
+    "seen": 1790537603.177053,
+    "ast_hash": "f3638e3c97479b48c723a15a7417a2d2",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/config.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "3cb21e3200de46f07470ab84a67dd1ad",
-    "semantic_hash": "3cb21e3200de46f07470ab84a67dd1ad"
+    "mtime": 1790422976.3990088,
+    "seen": 1790438702.1165726,
+    "ast_hash": "c9960882ec662af057a35f246b7dd258",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/extensions.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "328bfe3e70c5fe1023fe03cba8b61946",
-    "semantic_hash": "328bfe3e70c5fe1023fe03cba8b61946"
+    "mtime": 1790536236.601575,
+    "seen": 1790537603.177053,
+    "ast_hash": "4bf7e6812f4b1cf1c420dc284bdd6abf",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "3942431d406f937b7763c593f338ef77",
-    "semantic_hash": "3942431d406f937b7763c593f338ef77"
+    "mtime": 1790422976.3990088,
+    "seen": 1790438702.1165726,
+    "ast_hash": "7b1c1347a9ad075d9fe0d5325b9e901e",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/academy.py": {
-    "mtime": 1790114847.0,
-    "seen": 1790327789.8511348,
-    "ast_hash": "1567eb8b797b9c8690e4f196d63afcd2",
-    "semantic_hash": "1567eb8b797b9c8690e4f196d63afcd2"
+    "mtime": 1790422976.401008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "250da1277e2ac90f8bc15479bfa63b8e",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/attendance.py": {
-    "mtime": 1790114893.0,
-    "seen": 1790327789.851136,
-    "ast_hash": "230505b22e3683da8ef13e7e39d3cebe",
-    "semantic_hash": "230505b22e3683da8ef13e7e39d3cebe"
+    "mtime": 1790422976.401008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "818b3f6159f076a1d97e896985eb123e",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/audit.py": {
-    "mtime": 1790116313.0,
-    "seen": 1790327789.8511372,
-    "ast_hash": "3f34ec112b602194c4b97a6ec709ef5f",
-    "semantic_hash": "3f34ec112b602194c4b97a6ec709ef5f"
+    "mtime": 1790422976.401008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "756a4dae51e73cda28e17ce16710c305",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/billing.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "3af471cd31ebb939d446ebd03f2642b7",
-    "semantic_hash": "3af471cd31ebb939d446ebd03f2642b7"
+    "mtime": 1790422976.401008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "5df23f74e213b5841aed06b2e4ab7707",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/class_room.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "90fdacf0ed8c975bed4e8b9172e661a3",
-    "semantic_hash": "90fdacf0ed8c975bed4e8b9172e661a3"
+    "mtime": 1790422976.401008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "e95a683e29ef37adae565c4e4817c794",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/notification.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "a5f07729618cec499d60f1572ff5605e",
-    "semantic_hash": "a5f07729618cec499d60f1572ff5605e"
+    "mtime": 1790422976.401008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "189a2c1b705af006430eb1968ccfb520",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/scheduling.py": {
-    "mtime": 1790115755.0,
-    "seen": 1790327789.8511434,
-    "ast_hash": "2fb82631f91cb4769c2c3764d6d2ae26",
-    "semantic_hash": "2fb82631f91cb4769c2c3764d6d2ae26"
+    "mtime": 1790422976.401008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "289002fa2dc6b6125f4bd0291dd92989",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/student.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "7dd842de77287f1605af56be7fee1cbd",
-    "semantic_hash": "7dd842de77287f1605af56be7fee1cbd"
+    "mtime": 1790422976.401008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "816fe43eaa64d89c645cb789ab2825f8",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/teacher.py": {
-    "mtime": 1790114837.0,
-    "seen": 1790327789.8511457,
-    "ast_hash": "24b6f648b363550ecdddf343aeee4616",
-    "semantic_hash": "24b6f648b363550ecdddf343aeee4616"
+    "mtime": 1790422976.401008,
+    "seen": 1790438702.1165726,
+    "ast_hash": "02a8a7bc98b32603d73719abcd83d065",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/models/user.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "1aedaf810d7919c5ff776a662f129b85",
-    "semantic_hash": "1aedaf810d7919c5ff776a662f129b85"
+    "mtime": 1790424908.6961348,
+    "seen": 1790438702.1165726,
+    "ast_hash": "2332141fb88a338b1f2a2bc3ff15a99f",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "a59ed485d893c55f941cba3bd5d83ad0",
-    "semantic_hash": "a59ed485d893c55f941cba3bd5d83ad0"
+    "mtime": 1790422976.4024286,
+    "seen": 1790438702.1165726,
+    "ast_hash": "c6561f297a9b89713915912ba31e44b5",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/analytics.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "9692410e1a617f35f23347a6c6a44ac2",
-    "semantic_hash": "9692410e1a617f35f23347a6c6a44ac2"
+    "mtime": 1790422976.4049366,
+    "seen": 1790438702.1165726,
+    "ast_hash": "e7b024334e577cf8f5accdede43d0a49",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/attendance.py": {
-    "mtime": 1790116370.0,
-    "seen": 1790327789.8511517,
-    "ast_hash": "57c96c908d9efb19d1425c205e4f45da",
-    "semantic_hash": "57c96c908d9efb19d1425c205e4f45da"
+    "mtime": 1790422976.4049366,
+    "seen": 1790438702.1165726,
+    "ast_hash": "7f8b8f58209a037390446efaa563d6f6",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/auth.py": {
-    "mtime": 1790106227.0,
-    "seen": 1790327789.8511539,
-    "ast_hash": "74c614feb50ce8927e9fcd99a0f08e91",
-    "semantic_hash": "74c614feb50ce8927e9fcd99a0f08e91"
+    "mtime": 1790424922.6569152,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a83bb0a1b84f8b822b800f7867182ec1",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/billing.py": {
-    "mtime": 1790105669.0,
-    "seen": 1790327789.8511565,
-    "ast_hash": "7306ac42bed78bb305b3de3a4438dfe8",
-    "semantic_hash": "7306ac42bed78bb305b3de3a4438dfe8"
+    "mtime": 1790422976.4049366,
+    "seen": 1790438702.1165726,
+    "ast_hash": "930fa0115b8fd9ed446a760261e9816d",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/calendar.py": {
-    "mtime": 1790352393.3618357,
-    "seen": 1790353034.691066,
-    "ast_hash": "6d643fa5623f9071c15bd0eb1ad58f14",
+    "mtime": 1790422976.4049366,
+    "seen": 1790438702.1165726,
+    "ast_hash": "9d9b3d3b0183baacd968db77d26d032c",
     "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/classes.py": {
-    "mtime": 1790247412.0,
-    "seen": 1790327789.851161,
-    "ast_hash": "c8fc4d62b3085fe8382f70a42d274b7b",
-    "semantic_hash": "c8fc4d62b3085fe8382f70a42d274b7b"
+    "mtime": 1790534189.8107798,
+    "seen": 1790535218.0919142,
+    "ast_hash": "3a9aa7a53b8f54fb6facaab709b18419",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/notifications.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "f9c457370cdf1506e9a56dc2b43fd61d",
-    "semantic_hash": "f9c457370cdf1506e9a56dc2b43fd61d"
+    "mtime": 1790422976.4059367,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4703fcb28aff761bcec879cc28e68da9",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/settings.py": {
-    "mtime": 1790236478.0,
-    "seen": 1790327789.851166,
-    "ast_hash": "5ae4b7b132fbedbd352034252eac85e2",
-    "semantic_hash": "5ae4b7b132fbedbd352034252eac85e2"
+    "mtime": 1790536003.6129215,
+    "seen": 1790537603.177053,
+    "ast_hash": "17f9a0b8182be77f5f3108d250c2dc4b",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/students.py": {
-    "mtime": 1790235541.0,
-    "seen": 1790327789.851168,
-    "ast_hash": "90364366b0ccaa9d41eb486b5a1f790a",
-    "semantic_hash": "90364366b0ccaa9d41eb486b5a1f790a"
+    "mtime": 1790422976.4059367,
+    "seen": 1790438702.1165726,
+    "ast_hash": "297604cd5851e5c9ce362868e1ee7654",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/routes/teachers.py": {
-    "mtime": 1790235038.0,
-    "seen": 1790327789.8511708,
-    "ast_hash": "36866c0a379b4c0b3f745e2958917510",
-    "semantic_hash": "36866c0a379b4c0b3f745e2958917510"
+    "mtime": 1790422976.4059367,
+    "seen": 1790438702.1165726,
+    "ast_hash": "db3be3019b45327c5401450fa27b5d75",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "a32a79a64bb04d7404b81ede279cec4d",
-    "semantic_hash": "a32a79a64bb04d7404b81ede279cec4d"
+    "mtime": 1790422976.406938,
+    "seen": 1790438702.1165726,
+    "ast_hash": "93af6774590d7a7b9eddf96b8bbe4eb2",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/analytics.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "7c91648573e606f1da7c844641a521c3",
-    "semantic_hash": "7c91648573e606f1da7c844641a521c3"
+    "mtime": 1790422976.4084425,
+    "seen": 1790438702.1165726,
+    "ast_hash": "8488ecb4d67b31a6d27555de80d549cf",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/attendance.py": {
-    "mtime": 1790115224.0,
-    "seen": 1790327789.851178,
-    "ast_hash": "9051bf750f23349cdf2a75b8649865bf",
-    "semantic_hash": "9051bf750f23349cdf2a75b8649865bf"
+    "mtime": 1790422976.4084425,
+    "seen": 1790438702.1165726,
+    "ast_hash": "856a8ac9b0c313cfb0d77dfaa99dfa94",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/auth.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "b9087a175998fbc478572362e2beecc0",
-    "semantic_hash": "b9087a175998fbc478572362e2beecc0"
+    "mtime": 1790422976.409447,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6f0d7c735adee4d4549b92baa50a8671",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/base.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "d081e267f5f604a5816205c325e96102",
-    "semantic_hash": "d081e267f5f604a5816205c325e96102"
+    "mtime": 1790422976.409447,
+    "seen": 1790438702.1165726,
+    "ast_hash": "8d430336253a15825a4d781c1433db38",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/billing.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "06a42c0edaab249392c7455df7f81164",
-    "semantic_hash": "06a42c0edaab249392c7455df7f81164"
+    "mtime": 1790422976.409447,
+    "seen": 1790438702.1165726,
+    "ast_hash": "8d2c4cc9e3bc7a3f979266699161b017",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/calendar.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "f3b763b6a45f42821e1762fb6347c20c",
-    "semantic_hash": "f3b763b6a45f42821e1762fb6347c20c"
+    "mtime": 1790422976.409447,
+    "seen": 1790438702.1165726,
+    "ast_hash": "08b71e6342d3c17e7c7490cb062200d8",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/classes.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "81fc663b92b8249312fc52bf579b62c7",
-    "semantic_hash": "81fc663b92b8249312fc52bf579b62c7"
+    "mtime": 1790534214.3476248,
+    "seen": 1790535218.0919142,
+    "ast_hash": "a9e43ca58473d9cc5603460c598766dd",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/notifications.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "c13dcb1045f3d608fd6bb8469ece431c",
-    "semantic_hash": "c13dcb1045f3d608fd6bb8469ece431c"
+    "mtime": 1790422976.409447,
+    "seen": 1790438702.1165726,
+    "ast_hash": "dd803bdb37316ee87e9c863a3aad7c29",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/settings.py": {
-    "mtime": 1790115650.0,
-    "seen": 1790327789.851196,
-    "ast_hash": "32e38f36504fcce73b81d84b1faf0d0d",
-    "semantic_hash": "32e38f36504fcce73b81d84b1faf0d0d"
+    "mtime": 1790422976.409447,
+    "seen": 1790438702.1165726,
+    "ast_hash": "29a4f1d7eb062c4999d2c97bfe6ea311",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/students.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "d0bbf40bc31cb21cc61ca7fe5e54a700",
-    "semantic_hash": "d0bbf40bc31cb21cc61ca7fe5e54a700"
+    "mtime": 1790422976.4104488,
+    "seen": 1790438702.1165726,
+    "ast_hash": "87ed952e9b9e790fba10d827b5b27a8d",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/schemas/teachers.py": {
-    "mtime": 1790116061.0,
-    "seen": 1790327789.851202,
-    "ast_hash": "c7e1f23c177a9e44b41d751477640473",
-    "semantic_hash": "c7e1f23c177a9e44b41d751477640473"
+    "mtime": 1790422976.4104488,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a2b72fed0b6a31db33846265879f2d04",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "93ddb17916b00b2e6bfab6cec3c05006",
-    "semantic_hash": "93ddb17916b00b2e6bfab6cec3c05006"
+    "mtime": 1790422976.4104488,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6b00e8de0d4ff979de494c7d6a796c56",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/academy_rules.py": {
-    "mtime": 1790116002.0,
-    "seen": 1790327789.8512075,
-    "ast_hash": "285b920838435b45c812c3eba0fec9da",
-    "semantic_hash": "285b920838435b45c812c3eba0fec9da"
+    "mtime": 1790422976.4127903,
+    "seen": 1790438702.1165726,
+    "ast_hash": "1ed2bdb24c759f81f42e7e4decff0bf9",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/attendance_service.py": {
-    "mtime": 1790116347.0,
-    "seen": 1790327789.8512096,
-    "ast_hash": "cc5d7eacb6461082db0c441fcb7cee0d",
-    "semantic_hash": "cc5d7eacb6461082db0c441fcb7cee0d"
+    "mtime": 1790422976.4127903,
+    "seen": 1790438702.1165726,
+    "ast_hash": "026cbdd869d90f517f40a9c5c6e1bd45",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/audit_service.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "fd9142eb15d470a945592bbd6a2e5617",
-    "semantic_hash": "fd9142eb15d470a945592bbd6a2e5617"
+    "mtime": 1790422976.4127903,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a8104f1b643f333b9d7b1146b5e99dd4",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/auth_service.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "80649e2a9c53a6a29618a7e886c590fd",
-    "semantic_hash": "80649e2a9c53a6a29618a7e886c590fd"
+    "mtime": 1790424913.4534655,
+    "seen": 1790438702.1165726,
+    "ast_hash": "f06e674a26c0fae12e85f399a00b079f",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/billing_service.py": {
-    "mtime": 1790116352.0,
-    "seen": 1790327789.8512146,
-    "ast_hash": "12a348d715792e04e3fe01c896714578",
-    "semantic_hash": "12a348d715792e04e3fe01c896714578"
+    "mtime": 1790422976.4137914,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6219b002feda5bd767001a8f2e8f0b1e",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/export_service.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "7053e7b7813de041741d42288f3c8972",
-    "semantic_hash": "7053e7b7813de041741d42288f3c8972"
+    "mtime": 1790422976.4137914,
+    "seen": 1790438702.1165726,
+    "ast_hash": "13b759f165f815ce34674c02cd101944",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/payroll_service.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "3a299ee20384bdf2bbc9b381365b2cbb",
-    "semantic_hash": "3a299ee20384bdf2bbc9b381365b2cbb"
+    "mtime": 1790422976.4137914,
+    "seen": 1790438702.1165726,
+    "ast_hash": "f179a86a82ec07d7752d4bff8a733fa1",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/scheduling_service.py": {
-    "mtime": 1790352385.8257356,
-    "seen": 1790353034.6911008,
-    "ast_hash": "b27e6ab45494f622204bc42f9b8b6485",
+    "mtime": 1790422976.4137914,
+    "seen": 1790438702.1165726,
+    "ast_hash": "85ad0f875db9aabab08999a46796ad7b",
     "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/session_lifecycle_service.py": {
-    "mtime": 1790358920.936865,
-    "seen": 1790365323.9673235,
-    "ast_hash": "80a300282d9e31f0d5a5229e922f903c",
+    "mtime": 1790422976.4147956,
+    "seen": 1790438702.1165726,
+    "ast_hash": "ffa027df3e410e021764211e0e9739b7",
     "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/student_service.py": {
-    "mtime": 1790235704.0,
-    "seen": 1790327789.851222,
-    "ast_hash": "390b9e162403dfa9a16904d53a0acb34",
-    "semantic_hash": "390b9e162403dfa9a16904d53a0acb34"
+    "mtime": 1790422976.4147956,
+    "seen": 1790438702.1165726,
+    "ast_hash": "7fc4e957988a18e5c61587ee15d98414",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/services/tenant_service.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "ca8a6dcea3d8b5b5c4609eac45a45df8",
-    "semantic_hash": "ca8a6dcea3d8b5b5c4609eac45a45df8"
+    "mtime": 1790424930.6358213,
+    "seen": 1790438702.1165726,
+    "ast_hash": "e283a21819be864885f00963f05e3ff7",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/tasks/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "3c39613604e7b1fed93f0bc1842dbae8",
-    "semantic_hash": "3c39613604e7b1fed93f0bc1842dbae8"
+    "mtime": 1790422976.4147956,
+    "seen": 1790438702.1165726,
+    "ast_hash": "cac575f6d503065c6f6955de1fb9594d",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/tasks/cron_jobs.py": {
-    "mtime": 1790358931.9435334,
-    "seen": 1790365323.9673386,
-    "ast_hash": "00403de55e7a9fb8834b35775bab25dc",
+    "mtime": 1790422976.4147956,
+    "seen": 1790438702.1165726,
+    "ast_hash": "2acea0ddae27f4f2aa3dcd65bff62491",
     "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/tasks/scheduler.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "ad92e912b6aec8f1b3ea50d4a5babd4b",
-    "semantic_hash": "ad92e912b6aec8f1b3ea50d4a5babd4b"
+    "mtime": 1790422976.4147956,
+    "seen": 1790438702.1165726,
+    "ast_hash": "2d671b7aae96f11bd0695863624c1718",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/utils/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "30f41d5cb4c9c874f4faac1b8564b157",
-    "semantic_hash": "30f41d5cb4c9c874f4faac1b8564b157"
+    "mtime": 1790422976.4147956,
+    "seen": 1790438702.1165726,
+    "ast_hash": "f3214a253f39a15494b1852312a7fecb",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/utils/audit.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "d50ee446f188a6c6ff54fe9f9d7d65d8",
-    "semantic_hash": "d50ee446f188a6c6ff54fe9f9d7d65d8"
+    "mtime": 1790422976.4167955,
+    "seen": 1790438702.1165726,
+    "ast_hash": "8692fee27d5ba791dfc7bb36a5e9b1cc",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/utils/decorators.py": {
-    "mtime": 1790105616.0,
-    "seen": 1790327789.8512325,
-    "ast_hash": "2ccb7f73e68a81acc1ea23760638ae23",
-    "semantic_hash": "2ccb7f73e68a81acc1ea23760638ae23"
+    "mtime": 1790422976.4167955,
+    "seen": 1790438702.1165726,
+    "ast_hash": "134b59c02a32b9d7a7c41e167265cf5c",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/utils/error_handlers.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "952d71d8aa5a1ae37e58ae68e2d98618",
-    "semantic_hash": "952d71d8aa5a1ae37e58ae68e2d98618"
+    "mtime": 1790422976.4167955,
+    "seen": 1790438702.1165726,
+    "ast_hash": "914d0ec1fa4e31192b2fa27bff7981cb",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/utils/formatters.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "34f8ba191d1506dad005680d0087127f",
-    "semantic_hash": "34f8ba191d1506dad005680d0087127f"
+    "mtime": 1790422976.4167955,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a6fff9fa74d09baba22ca3b7b01c3e9c",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/utils/rate_limiter.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "43eb4d8fd9cf825eb07cbb5f82ff6b28",
-    "semantic_hash": "43eb4d8fd9cf825eb07cbb5f82ff6b28"
+    "mtime": 1790422976.4167955,
+    "seen": 1790438702.1165726,
+    "ast_hash": "663df16e89860cd0060cf0c96a32a6a1",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/app/utils/token_blacklist.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "afce7b7a3c40200f8b91600506aaff6b",
-    "semantic_hash": "afce7b7a3c40200f8b91600506aaff6b"
+    "mtime": 1790422976.4167955,
+    "seen": 1790438702.1165726,
+    "ast_hash": "853e0f3fe70ddcba9038bc60231a2df8",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/fix_db.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "52a2334fece47b602ca6a650bdc8253b",
-    "semantic_hash": "52a2334fece47b602ca6a650bdc8253b"
+    "mtime": 1790422976.4177954,
+    "seen": 1790438702.1165726,
+    "ast_hash": "0c02ee5eefba8ed98fb04eacb5a5917c",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/migrations/env.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "1a553141a22ee23acc007c6d0e1c5624",
-    "semantic_hash": "1a553141a22ee23acc007c6d0e1c5624"
+    "mtime": 1790422976.4248037,
+    "seen": 1790438702.1165726,
+    "ast_hash": "7101e5a8dad71cf445165729db6689a2",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/migrations/versions/6f09e1ca4d62_initial_migration.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "7f165a5a5431fb1c0b0860c059abc0f5",
-    "semantic_hash": "7f165a5a5431fb1c0b0860c059abc0f5"
+    "mtime": 1790422976.4248037,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4b0ea46ade25dc962cbe7cc57ef47bb6",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/migrations/versions/9c2ab41f7d03_money_model.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "73bbb3612b31bf1be382580c5811c9ea",
-    "semantic_hash": "73bbb3612b31bf1be382580c5811c9ea"
+    "mtime": 1790422976.4248037,
+    "seen": 1790438702.1165726,
+    "ast_hash": "fbd55458b2dbbd607c38490a389513fb",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/nullable_activity_log_actor.py": {
-    "mtime": 1790116324.0,
-    "seen": 1790327789.8512456,
-    "ast_hash": "70ebf7f095c3bdc37d1644985c5aef3b",
-    "semantic_hash": "70ebf7f095c3bdc37d1644985c5aef3b"
+    "mtime": 1790422976.4248037,
+    "seen": 1790438702.1165726,
+    "ast_hash": "bf281ab5eecc0802f6fbef9f2ba4cafe",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/run.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "a2850cb6c5a8cb683e82b7e1bc7ca2dd",
-    "semantic_hash": "a2850cb6c5a8cb683e82b7e1bc7ca2dd"
+    "mtime": 1790422976.425808,
+    "seen": 1790438702.1165726,
+    "ast_hash": "bc554d432055a01cd792898b7865807e",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "082107f73542b5527a07e82ee0e259bd",
-    "semantic_hash": "082107f73542b5527a07e82ee0e259bd"
+    "mtime": 1790422976.425808,
+    "seen": 1790438702.1165726,
+    "ast_hash": "d9208265ce2507b1202ed6585cbdbab1",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/conftest.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "73b08adb366c57d056f436ac49b635f6",
-    "semantic_hash": "73b08adb366c57d056f436ac49b635f6"
+    "mtime": 1790422976.425808,
+    "seen": 1790438702.1165726,
+    "ast_hash": "55a3e087e1fe5107999593ad50b56ff5",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/integration/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "5eeb450de535bb922bd8c5343b1f16d0",
-    "semantic_hash": "5eeb450de535bb922bd8c5343b1f16d0"
+    "mtime": 1790422976.4268079,
+    "seen": 1790438702.1165726,
+    "ast_hash": "708c2d3e69ffbd9e7933deec12e6f205",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/integration/test_attendance_flow.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "dbc2f06ccf0c209adaa9581057832c27",
-    "semantic_hash": "dbc2f06ccf0c209adaa9581057832c27"
+    "mtime": 1790422976.4268079,
+    "seen": 1790438702.1165726,
+    "ast_hash": "252984463a0c527090ffa7e66d4697b7",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/integration/test_calendar_drag.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "d0811fd538a203fcefd23899d3d5d58a",
-    "semantic_hash": "d0811fd538a203fcefd23899d3d5d58a"
+    "mtime": 1790422976.4268079,
+    "seen": 1790438702.1165726,
+    "ast_hash": "b00fac359c80e0cff3ee017579908844",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/integration/test_tenant_isolation.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "8d05b89c654e58347f8b1a03f4314fa2",
-    "semantic_hash": "8d05b89c654e58347f8b1a03f4314fa2"
+    "mtime": 1790422976.4268079,
+    "seen": 1790438702.1165726,
+    "ast_hash": "365fea5f468a8a8b0721301edb6995f5",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/unit/__init__.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "aadc3d7c0f588ac44ba2c8e790740090",
-    "semantic_hash": "aadc3d7c0f588ac44ba2c8e790740090"
+    "mtime": 1790422976.4268079,
+    "seen": 1790438702.1165726,
+    "ast_hash": "e7849093e210e0d5ab390bf3510ab5de",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/unit/test_billing_cycles.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "29aca6339aaa1674a2a9c2c104d09f0a",
-    "semantic_hash": "29aca6339aaa1674a2a9c2c104d09f0a"
+    "mtime": 1790422976.4268079,
+    "seen": 1790438702.1165726,
+    "ast_hash": "fab88f41c9824cfdf6a71b2186df39e1",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/unit/test_payroll_calc.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "c7de03bb90a7e8c566961f2a29fbc04d",
-    "semantic_hash": "c7de03bb90a7e8c566961f2a29fbc04d"
+    "mtime": 1790422976.4278078,
+    "seen": 1790438702.1165726,
+    "ast_hash": "22d2d0dd76c1e425333827960290a171",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/unit/test_pin_auth.py": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "722607930d6f2217a6e9b888f9efbfd4",
-    "semantic_hash": "722607930d6f2217a6e9b888f9efbfd4"
+    "mtime": 1790422976.4278078,
+    "seen": 1790438702.1165726,
+    "ast_hash": "caca2d20e137f461dadb897cd312c457",
+    "semantic_hash": ""
   },
   "Docs/.claude/launch.json": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "124a1acf468501fd083d6c8e95ccc01f",
-    "semantic_hash": "124a1acf468501fd083d6c8e95ccc01f"
+    "mtime": 1790422976.4278078,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a41bb86bd645b2ed2bc6de04ff5c2e89",
+    "semantic_hash": ""
   },
   "login.json": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "487126ea4cc373704750379063352bc6",
-    "semantic_hash": "487126ea4cc373704750379063352bc6"
+    "mtime": 1790422976.4720385,
+    "seen": 1790438702.1165726,
+    "ast_hash": "8d71f39ab5accec6a60744fb55836ac1",
+    "semantic_hash": ""
   },
   "vinta-school-os/.claude/launch.json": {
-    "mtime": 1790346818.30282,
-    "seen": 1790353034.691145,
-    "ast_hash": "24d088078794f325632a73923eed0015",
+    "mtime": 1790422976.4730375,
+    "seen": 1790438702.1165726,
+    "ast_hash": "2dc1cb97b6964decf7088d396f622b09",
     "semantic_hash": ""
   },
   "vinta-school-os/.oxlintrc.json": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "029f4905006c1fffd96bc863e2d98d3e",
-    "semantic_hash": "029f4905006c1fffd96bc863e2d98d3e"
-  },
-  "vinta-school-os/.tmp-verify/cp.json": {
-    "mtime": 1790106281.0,
-    "seen": 1790327789.8512673,
-    "ast_hash": "602cf4593aadd86396591605fe0920af",
-    "semantic_hash": "602cf4593aadd86396591605fe0920af"
-  },
-  "vinta-school-os/.tmp-verify/login.json": {
-    "mtime": 1790105983.0,
-    "seen": 1790327789.8512683,
-    "ast_hash": "7d6420be6e56cd3c0a3cf16b80c6d4b4",
-    "semantic_hash": "7d6420be6e56cd3c0a3cf16b80c6d4b4"
-  },
-  "vinta-school-os/.tmp-verify/staff.json": {
-    "mtime": 1790106281.0,
-    "seen": 1790327789.8512695,
-    "ast_hash": "088dacf746d384e893ca3f94be5e430d",
-    "semantic_hash": "088dacf746d384e893ca3f94be5e430d"
-  },
-  "vinta-school-os/.tmp-verify/student.json": {
-    "mtime": 1790106004.0,
-    "seen": 1790327789.8512704,
-    "ast_hash": "8400c8ef3af0f393e368e7ac09d91de9",
-    "semantic_hash": "8400c8ef3af0f393e368e7ac09d91de9"
-  },
-  "vinta-school-os/.tmp-verify/vp.json": {
-    "mtime": 1790106281.0,
-    "seen": 1790327789.8512716,
-    "ast_hash": "76f8eef4bd58d805ac0cf57fbe057746",
-    "semantic_hash": "76f8eef4bd58d805ac0cf57fbe057746"
+    "mtime": 1790422976.4730375,
+    "seen": 1790438702.1165726,
+    "ast_hash": "1f0703525c59e961c2b7f20e78aa1cd4",
+    "semantic_hash": ""
   },
   "vinta-school-os/package.json": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "bfe5a8d6e887a058fbeea1d1cb761308",
-    "semantic_hash": "bfe5a8d6e887a058fbeea1d1cb761308"
+    "mtime": 1790422978.3024094,
+    "seen": 1790438702.1165726,
+    "ast_hash": "137edf6ce69bd74c5415409afde6a4a8",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/app/App.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "43ecdf99293050303be4b7e5baa628c3",
-    "semantic_hash": "43ecdf99293050303be4b7e5baa628c3"
+    "mtime": 1790422978.303414,
+    "seen": 1790438702.1165726,
+    "ast_hash": "1b832e5abaeb7dc004f68eaa2f961f48",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/app/providers.tsx": {
-    "mtime": 1789302526.0,
-    "seen": 1790327789.851276,
-    "ast_hash": "1e48010e0f03ad6291e33d2b5a986fef",
-    "semantic_hash": "1e48010e0f03ad6291e33d2b5a986fef"
+    "mtime": 1790422978.303414,
+    "seen": 1790438702.1165726,
+    "ast_hash": "e9208aec40da293d9a99de7577c5b662",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/app/router.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "82cb4edafc87706a4a0fb40e1a21f021",
-    "semantic_hash": "82cb4edafc87706a4a0fb40e1a21f021"
+    "mtime": 1790422978.303414,
+    "seen": 1790438702.1165726,
+    "ast_hash": "27daf1badf6c8aa1f86abc99bb977976",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/layout/AppShell.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "17c52885883e8ac1adcc82a08f9a721d",
-    "semantic_hash": "17c52885883e8ac1adcc82a08f9a721d"
+    "mtime": 1790422978.303414,
+    "seen": 1790438702.1165726,
+    "ast_hash": "eafa160c7dd979ce812817439c866321",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/layout/NotificationBell.tsx": {
-    "mtime": 1790247599.0,
-    "seen": 1790327789.8512802,
-    "ast_hash": "c6d956efa2d5ef62585f529521d13ba6",
-    "semantic_hash": "c6d956efa2d5ef62585f529521d13ba6"
+    "mtime": 1790422978.3044138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "476f20e7b04ec08fc31ac94ce4d3f76f",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/layout/PageContainer.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "c0deefb6ec866253485726f91ffed631",
-    "semantic_hash": "c0deefb6ec866253485726f91ffed631"
+    "mtime": 1790422978.3044138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3de160f7181d883eb4155ff67740f094",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/layout/Sidebar.tsx": {
-    "mtime": 1790105584.0,
-    "seen": 1790327789.8512826,
-    "ast_hash": "a285cac4cafc63d0cc2c7cbde9d69beb",
-    "semantic_hash": "a285cac4cafc63d0cc2c7cbde9d69beb"
+    "mtime": 1790422978.3044138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3ba2e516af05521e8540fab987df9904",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/layout/Topbar.tsx": {
-    "mtime": 1790345454.9608047,
-    "seen": 1790346640.8824484,
-    "ast_hash": "5d18ac19c1893658ce93641c0b265345",
+    "mtime": 1790422978.3054135,
+    "seen": 1790438702.1165726,
+    "ast_hash": "96e33808405747846736ab2a4487193f",
     "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Avatar.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "8c054f97473198ee5a533c98ff2257af",
-    "semantic_hash": "8c054f97473198ee5a533c98ff2257af"
+    "mtime": 1790422978.3054135,
+    "seen": 1790438702.1165726,
+    "ast_hash": "929c8e898943f0df13c3ef47d2cf7036",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Badge.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "48c6c0181bd5a42f5bd79898ac9bf0ad",
-    "semantic_hash": "48c6c0181bd5a42f5bd79898ac9bf0ad"
+    "mtime": 1790422978.3054135,
+    "seen": 1790438702.1165726,
+    "ast_hash": "867c87b2053e0eb8b3e367dc190bd343",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Button.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "e11592957b6d040b44d0fab472f09caf",
-    "semantic_hash": "e11592957b6d040b44d0fab472f09caf"
+    "mtime": 1790422978.3054135,
+    "seen": 1790438702.1165726,
+    "ast_hash": "2511f7b0044622077aecdcb9a703afd7",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Card.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "1d9ae7f146d5c2f085fda1462d905e91",
-    "semantic_hash": "1d9ae7f146d5c2f085fda1462d905e91"
+    "mtime": 1790422978.3054135,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6bdd55ef2c33ae3b3e98c32d767a1e04",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/ConfirmDialog.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "f7218aa2cd13e6a28775bd5a7994880e",
-    "semantic_hash": "f7218aa2cd13e6a28775bd5a7994880e"
+    "mtime": 1790422978.3054135,
+    "seen": 1790438702.1165726,
+    "ast_hash": "cae0bdf3465cf9f9a8a5500570187c22",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/DayPicker.tsx": {
-    "mtime": 1790352571.1318507,
-    "seen": 1790353034.6911724,
-    "ast_hash": "97a1789b7a9fff56e314b1147995b7bb",
+    "mtime": 1790422978.3054135,
+    "seen": 1790438702.1165726,
+    "ast_hash": "c30cd457e06412fbb35cc586f561d553",
     "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Drawer.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "2099177d95e35b67d9f460ee86045c28",
-    "semantic_hash": "2099177d95e35b67d9f460ee86045c28"
+    "mtime": 1790422978.3054135,
+    "seen": 1790438702.1165726,
+    "ast_hash": "685afc073d2377ea306e7106b44cc2e4",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/EmptyState.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "dac86bc254e1e151c64f12ab3daae0ed",
-    "semantic_hash": "dac86bc254e1e151c64f12ab3daae0ed"
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "c20adc8f80a4bba6792926a4e134ccad",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/ErrorBoundary.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "850a35bc0919c59e1f66245fa395f2b9",
-    "semantic_hash": "850a35bc0919c59e1f66245fa395f2b9"
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3f9c0289189bb51dd8048826c363bd35",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Input.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "8e005f88b466ce359c50c2d5a2522a56",
-    "semantic_hash": "8e005f88b466ce359c50c2d5a2522a56"
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a76944cba38bed0cc4332a4beba25d0e",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Modal.tsx": {
-    "mtime": 1790327731.2121801,
-    "seen": 1790327789.8512971,
-    "ast_hash": "a97251edced2d0bd58128268ab5d5410",
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "41c2b19c684b5df20ed440b37c7275b1",
     "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/PINInput.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "6946734ee830f92fcc0af355b21f9d1b",
-    "semantic_hash": "6946734ee830f92fcc0af355b21f9d1b"
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "d3bd186e7a99c5500d8483fdac998c59",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Table.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "2652363805fbf0a25f89d83367ef9970",
-    "semantic_hash": "2652363805fbf0a25f89d83367ef9970"
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "afed3662b7bed661352535b9b8fe8cd0",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Toast.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "09f029145f4c769267f397151b86b14d",
-    "semantic_hash": "09f029145f4c769267f397151b86b14d"
+    "mtime": 1790422978.3074138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "956455283fd04a49d6a9782b395289fc",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Toggle.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "c10cf8f3fa4cfa1aad9925a5a046c260",
-    "semantic_hash": "c10cf8f3fa4cfa1aad9925a5a046c260"
+    "mtime": 1790422978.3074138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3950b5834b77de5c88c2f830d555fc56",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/auth/AuthScreen.tsx": {
-    "mtime": 1790106250.0,
-    "seen": 1790327789.8513055,
-    "ast_hash": "90ba12ad1a8996bcf12d99cd930fd638",
-    "semantic_hash": "90ba12ad1a8996bcf12d99cd930fd638"
+    "mtime": 1790422978.3074138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "de340da747e202704c107a9cacb0aac6",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/auth/PINModal.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "39a3d81ce6656498123abe7259bcc03f",
-    "semantic_hash": "39a3d81ce6656498123abe7259bcc03f"
+    "mtime": 1790422978.3074138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3b17b94e09e9699c561a631d6be6dced",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/auth/ProfileCreator.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "d395db4d9abadc48edca15f5262cf2b6",
-    "semantic_hash": "d395db4d9abadc48edca15f5262cf2b6"
+    "mtime": 1790422978.3074138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "da380fc5b01a24bcef53611aef4ae6b2",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/auth/ProfilePicker.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "d4e7a221b4566cbd5e434dd739360f26",
-    "semantic_hash": "d4e7a221b4566cbd5e434dd739360f26"
+    "mtime": 1790422978.3074138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "f65cd341977faa95a5056b6c152211a8",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/auth/SuccessScreen.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "e5605f6cc362e5b75a9d13b706f0dd93",
-    "semantic_hash": "e5605f6cc362e5b75a9d13b706f0dd93"
+    "mtime": 1790422978.3074138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "61f4fb43f95b73d3af653baa31ab8abf",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/billing/BillingPage.tsx": {
-    "mtime": 1789327032.0,
-    "seen": 1790327789.8513129,
-    "ast_hash": "2171de4b8beece9a9bd369613c6ed361",
-    "semantic_hash": "2171de4b8beece9a9bd369613c6ed361"
+    "mtime": 1790422978.3074138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "29bd32e1b424ab74676574281e856dbe",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/billing/DonutCards.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "443666edc1597763e04f07999abb426e",
-    "semantic_hash": "443666edc1597763e04f07999abb426e"
+    "mtime": 1790422978.3084137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "0167aae140e436d89230884a507e88b1",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/billing/FinanceBreakdown.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "85254ae0f2076fc94e7e4a1159330b3c",
-    "semantic_hash": "85254ae0f2076fc94e7e4a1159330b3c"
+    "mtime": 1790422978.3084137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "01be02bd3ef69494cdc076fb18bc714e",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/billing/MultiPayModal.tsx": {
-    "mtime": 1790352845.2480218,
-    "seen": 1790353034.6911995,
-    "ast_hash": "b43d65ec917de70e715cbca6465bbb6c",
+    "mtime": 1790422978.3084137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "eeed1d3558a047bfb5e9aed55570acdc",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/billing/PayoutDashboard.tsx": {
-    "mtime": 1790106393.0,
-    "seen": 1790327789.8513174,
-    "ast_hash": "b728433fc02a11b8dd3848b836f2acea",
-    "semantic_hash": "b728433fc02a11b8dd3848b836f2acea"
+    "mtime": 1790422978.3084137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "2fa33abe730f00276ef179316322ce99",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/billing/RevenueChart.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "270dc695e1acc5f9d635553a6c43bb86",
-    "semantic_hash": "270dc695e1acc5f9d635553a6c43bb86"
+    "mtime": 1790422978.308918,
+    "seen": 1790438702.1165726,
+    "ast_hash": "c8c75b6ae984b75fcfe28be2f02fc676",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/billing/SubscriptionsPanel.tsx": {
-    "mtime": 1789320747.0,
-    "seen": 1790327789.85132,
-    "ast_hash": "695ad2fae953a23a28a6a0a100618ee2",
-    "semantic_hash": "695ad2fae953a23a28a6a0a100618ee2"
+    "mtime": 1790422978.308918,
+    "seen": 1790438702.1165726,
+    "ast_hash": "613643fa2871784abd787a01729ad520",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/AddSubjectModal.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "6ab9d9e6fe90539c5e06c96181ac7c58",
-    "semantic_hash": "6ab9d9e6fe90539c5e06c96181ac7c58"
+    "mtime": 1790422978.308918,
+    "seen": 1790438702.1165726,
+    "ast_hash": "61231b9cbc75d9bf45275456d289b041",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/CalendarPage.tsx": {
-    "mtime": 1790327724.7034602,
-    "seen": 1790327789.8513227,
-    "ast_hash": "c454481638164430f9bcd9e6389c0464",
+    "mtime": 1790422978.308918,
+    "seen": 1790438702.1165726,
+    "ast_hash": "43e0ef1459dd665e8ffbb30614119b13",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/DayView.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "bb7edb524d113746943ef3e3534b5eed",
-    "semantic_hash": "bb7edb524d113746943ef3e3534b5eed"
+    "mtime": 1790422978.308918,
+    "seen": 1790438702.1165726,
+    "ast_hash": "15f68d61e3282c015f649e90c1ae997c",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/FinalizeSessionModal.tsx": {
-    "mtime": 1789302588.0,
-    "seen": 1790327789.851325,
-    "ast_hash": "669ee2306df636fef8e933f186cc1c85",
-    "semantic_hash": "669ee2306df636fef8e933f186cc1c85"
+    "mtime": 1790422978.3099222,
+    "seen": 1790438702.1165726,
+    "ast_hash": "8ccfd391139136d04b0ef6627b046c6a",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/SchedulingModal.tsx": {
-    "mtime": 1790352810.6105328,
-    "seen": 1790353034.6912086,
-    "ast_hash": "e8740b1f58cb30853b4bcce7824f7055",
+    "mtime": 1790422978.3099222,
+    "seen": 1790438702.1165726,
+    "ast_hash": "55c399596daf5e31ab00a6f30b3c85d8",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/SessionBlock.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "9da3116f593a6ad742628332b1998490",
-    "semantic_hash": "9da3116f593a6ad742628332b1998490"
+    "mtime": 1790422978.3099222,
+    "seen": 1790438702.1165726,
+    "ast_hash": "e7b26a5fa4790a0ce97324daaf9328a8",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/SessionCheckInModal.tsx": {
-    "mtime": 1790351942.6274557,
-    "seen": 1790353034.691211,
-    "ast_hash": "abc0f2311e14904ee71b0886072d13b1",
+    "mtime": 1790422978.3099222,
+    "seen": 1790438702.1165726,
+    "ast_hash": "0e7801c705f4b24bb476e85d792f6f2f",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/SubjectPalette.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "a82803076ed059d5bf51b6ab198c170c",
-    "semantic_hash": "a82803076ed059d5bf51b6ab198c170c"
+    "mtime": 1790422978.3099222,
+    "seen": 1790438702.1165726,
+    "ast_hash": "c656b427df7621670ae355f968a9cb55",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/WeekView.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "0c8134cc76f276c10ae7a280b40b072e",
-    "semantic_hash": "0c8134cc76f276c10ae7a280b40b072e"
+    "mtime": 1790422978.3109224,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4f11b727441f897e0028de40c5f5ac1d",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/classes/ClassCardMenu.tsx": {
-    "mtime": 1790352164.9824762,
-    "seen": 1790353034.6912158,
-    "ast_hash": "656bda6faacc22cd0dd541803228c711",
+    "mtime": 1790534391.2482986,
+    "seen": 1790535218.0919142,
+    "ast_hash": "4d7a247e5e3691cdcd6aa2cb57dd32ff",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/classes/ClassDetail.tsx": {
-    "mtime": 1790352881.2552507,
-    "seen": 1790353034.691217,
-    "ast_hash": "3c42f9757549488a3adb3759cc8b8391",
+    "mtime": 1790534320.4262514,
+    "seen": 1790535218.0919142,
+    "ast_hash": "8a305817086219cea85c0eeb1fe8fc2a",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/classes/ClassGrid.tsx": {
-    "mtime": 1790247438.0,
-    "seen": 1790327789.8513381,
-    "ast_hash": "41f377e53e6ecd66e6d719ac15855f1a",
-    "semantic_hash": "41f377e53e6ecd66e6d719ac15855f1a"
+    "mtime": 1790534264.7252738,
+    "seen": 1790535218.0919142,
+    "ast_hash": "e08ba328d64d837babd1d0bee1851aef",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/classes/ClassesPage.tsx": {
-    "mtime": 1790352762.6691868,
-    "seen": 1790353034.6912222,
-    "ast_hash": "2e205200f2fed672a9de7c0c0e12e780",
+    "mtime": 1790534301.3575616,
+    "seen": 1790535218.0919142,
+    "ast_hash": "24c4214bf3219333a530c55349815e6d",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/dashboard/ActivityLog.tsx": {
-    "mtime": 1790247540.0,
-    "seen": 1790327789.8513417,
-    "ast_hash": "a2cefb76db3de7e8ea8122b9cdf9e9b8",
-    "semantic_hash": "a2cefb76db3de7e8ea8122b9cdf9e9b8"
+    "mtime": 1790422978.3114264,
+    "seen": 1790438702.1165726,
+    "ast_hash": "f5cc023d4439befceced74a39ae19486",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/dashboard/AgendaBoard.tsx": {
-    "mtime": 1790370028.750064,
-    "seen": 1790370547.5675068,
-    "ast_hash": "e6222d5f1930cf6251992669c4121197",
+    "mtime": 1790422978.3124309,
+    "seen": 1790438702.1165726,
+    "ast_hash": "81432ccbf8c74c4bcd8d5e5e18cb2c76",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/dashboard/DashboardPage.tsx": {
-    "mtime": 1790370213.9441,
-    "seen": 1790370547.5675092,
+    "mtime": 1790422978.3124309,
+    "seen": 1790438702.1165726,
     "ast_hash": "bb3145085ab63fd807dee84274747331",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/dashboard/SessionActions.tsx": {
-    "mtime": 1790359184.6670327,
-    "seen": 1790365323.967632,
+    "mtime": 1790422978.3124309,
+    "seen": 1790438702.1165726,
     "ast_hash": "21ee793441ae4f480c13c27202ad2264",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/dashboard/SessionDetail.tsx": {
-    "mtime": 1790370052.3256538,
-    "seen": 1790370547.5675125,
-    "ast_hash": "2bf4370381d06ca996acb6bb458fa941",
+    "mtime": 1790422978.3124309,
+    "seen": 1790438702.1165726,
+    "ast_hash": "76de31a817806eef608205378beafbb9",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/dashboard/SessionMenu.tsx": {
-    "mtime": 1790370213.6571782,
-    "seen": 1790370547.5675142,
-    "ast_hash": "5f830454c6e85413408d01780088b99c",
+    "mtime": 1790422978.3124309,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a577871e3368fcad7889e199c80d4e28",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/AcademyProfile.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "367de7e3639648397b424460e8987ac1",
-    "semantic_hash": "367de7e3639648397b424460e8987ac1"
+    "mtime": 1790422978.3134308,
+    "seen": 1790438702.1165726,
+    "ast_hash": "bac71c93cdfa980b56a83a4c0aedc145",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/AddStaffModal.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "03cc4093ad271b57225976fce218c23d",
-    "semantic_hash": "03cc4093ad271b57225976fce218c23d"
+    "mtime": 1790422978.3134308,
+    "seen": 1790438702.1165726,
+    "ast_hash": "f2f4746daa3c10e049c0a72290e127c0",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/Appearance.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "3c015fd1fe2a68b1bf9efb8c3c59325d",
-    "semantic_hash": "3c015fd1fe2a68b1bf9efb8c3c59325d"
+    "mtime": 1790422978.3134308,
+    "seen": 1790438702.1165726,
+    "ast_hash": "68f3d2cb3965a6fb15d993fe292e1a4f",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/Automations.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "c872655e09de107cacf5eed8b777b97b",
-    "semantic_hash": "c872655e09de107cacf5eed8b777b97b"
+    "mtime": 1790422978.3134308,
+    "seen": 1790438702.1165726,
+    "ast_hash": "256cabbac33ed216759d76fea1532d0c",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/BillingConfig.tsx": {
-    "mtime": 1790237085.0,
-    "seen": 1790327789.8513532,
+    "mtime": 1790422978.3134308,
+    "seen": 1790438702.1165726,
     "ast_hash": "44b9ece72e94f4b5180122b1df18ce93",
     "semantic_hash": "44b9ece72e94f4b5180122b1df18ce93"
   },
   "vinta-school-os/src/features/settings/DangerZone.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "9fb91bd0fbe47c985b3a6ba63521110d",
-    "semantic_hash": "9fb91bd0fbe47c985b3a6ba63521110d"
+    "mtime": 1790536878.8325195,
+    "seen": 1790537603.177053,
+    "ast_hash": "b109a42f1f4bb543fcbc5df721875dbc",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/DataExport.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "c47598bd3dbaab05fa32fd19b360a278",
-    "semantic_hash": "c47598bd3dbaab05fa32fd19b360a278"
+    "mtime": 1790422978.3134308,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4d5bc0d504007904785fef5b426231b0",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/MyAccount.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "ea6928aacccda6973c2adcab1b96b9f9",
-    "semantic_hash": "ea6928aacccda6973c2adcab1b96b9f9"
+    "mtime": 1790422978.314431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "d64a7611d8da285989c2be4443b3ef90",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/SettingsPage.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "321b2bdc71f08dadb9245665e7deecac",
-    "semantic_hash": "321b2bdc71f08dadb9245665e7deecac"
+    "mtime": 1790422978.314431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "7475562a25d9cf21e793815b7a242fe1",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/StaffRoles.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "d0ddba6d9613f58a5c9b93ea3353a52a",
-    "semantic_hash": "d0ddba6d9613f58a5c9b93ea3353a52a"
+    "mtime": 1790422978.314431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a35f087cd466033229f04858c227d257",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/SubjectsSettings.tsx": {
-    "mtime": 1790345564.6109369,
-    "seen": 1790346640.882552,
-    "ast_hash": "de79e96a7da224968647f183aa1d8db8",
+    "mtime": 1790422978.314431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "8ce67a290ab781c1b6c8dc458fdbf38e",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/settings/Subscription.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "515e392363e7d52ab49ecc115aeb024f",
-    "semantic_hash": "515e392363e7d52ab49ecc115aeb024f"
+    "mtime": 1790422978.314431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "fe1e6e6dcf7d6629d8c6e6732c04255c",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/AddStudentModal.tsx": {
-    "mtime": 1790235566.0,
-    "seen": 1790327789.8513625,
-    "ast_hash": "b0a4d03f46196ff869cb6dfd7965ff47",
-    "semantic_hash": "b0a4d03f46196ff869cb6dfd7965ff47"
+    "mtime": 1790422978.314431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "5534a3c17f78767dfe33175dbca623af",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/StudentDrawer.tsx": {
-    "mtime": 1790235851.0,
-    "seen": 1790327789.851364,
-    "ast_hash": "a63f4ba9d81d854deb9a9cb5d54d973e",
-    "semantic_hash": "a63f4ba9d81d854deb9a9cb5d54d973e"
+    "mtime": 1790422978.314431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "eac5a4aff9e6b3896741019e6a980bcd",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/StudentTable.tsx": {
-    "mtime": 1790107128.0,
-    "seen": 1790327789.8513649,
-    "ast_hash": "6631d2129dd45641edd491c3b0608385",
-    "semantic_hash": "6631d2129dd45641edd491c3b0608385"
+    "mtime": 1790422978.314431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a5c8a34920d1d5db0f78d6e0024ca577",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/StudentsPage.tsx": {
-    "mtime": 1790345658.9162836,
-    "seen": 1790346640.8825593,
-    "ast_hash": "d7a9ebf562c59fdaa728a31b69ef5984",
+    "mtime": 1790422978.315431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "b370304bfcd027be3d1dd73f3d62e177",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/components/BillingCalendarCard.tsx": {
-    "mtime": 1790106648.0,
-    "seen": 1790327789.8513675,
-    "ast_hash": "1c0d2f8659427cdbea8468b9097e9e74",
-    "semantic_hash": "1c0d2f8659427cdbea8468b9097e9e74"
+    "mtime": 1790422978.315431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "74aff735926afe5c1c5152ee11a34352",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/components/BillingSummaryCard.tsx": {
-    "mtime": 1790235498.0,
-    "seen": 1790327789.8513684,
-    "ast_hash": "0058b8db6f6050a5549e0a2e90c0e4ac",
-    "semantic_hash": "0058b8db6f6050a5549e0a2e90c0e4ac"
+    "mtime": 1790422978.315431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "d0c71c430f27c49206d46d69be21731e",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/components/PaymentHistoryList.tsx": {
-    "mtime": 1790106664.0,
-    "seen": 1790327789.8513696,
-    "ast_hash": "a225ee56f88d44105635d4e36c92e708",
-    "semantic_hash": "a225ee56f88d44105635d4e36c92e708"
+    "mtime": 1790422978.315431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "329e6bd4dd74c20c6f926afaf04b5350",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/components/ProfileCard.tsx": {
-    "mtime": 1790106287.0,
-    "seen": 1790327789.8513708,
-    "ast_hash": "f57727467a50eb56bc3cce6a152c7bbd",
-    "semantic_hash": "f57727467a50eb56bc3cce6a152c7bbd"
+    "mtime": 1790422978.315431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "1d0f32045798e09c34a92c304329f075",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/components/StudentAttendanceCalendar.tsx": {
-    "mtime": 1790235987.0,
-    "seen": 1790327789.851372,
-    "ast_hash": "f40a80cd69ae9d7b91833360321ad7f6",
-    "semantic_hash": "f40a80cd69ae9d7b91833360321ad7f6"
+    "mtime": 1790422978.315431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "be95f7c2ffc9ed32fbaf485df9c80ba8",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/components/StudentClasses.tsx": {
-    "mtime": 1790106291.0,
-    "seen": 1790327789.8513732,
-    "ast_hash": "23ad1ab4da463dd2dd13e108a0ad6021",
-    "semantic_hash": "23ad1ab4da463dd2dd13e108a0ad6021"
+    "mtime": 1790422978.315431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4b5ac5081e6b5f91ac01421d07a2b9da",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/components/StudentGuardians.tsx": {
-    "mtime": 1790106294.0,
-    "seen": 1790327789.8513744,
-    "ast_hash": "73c5b9ca130301d2f5e71c384f327c91",
-    "semantic_hash": "73c5b9ca130301d2f5e71c384f327c91"
+    "mtime": 1790422978.315431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "392652c71dc7c22512ee9b42ab2c6823",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/components/StudentIdentity.tsx": {
-    "mtime": 1790106290.0,
-    "seen": 1790327789.8513756,
-    "ast_hash": "2d0f80e01343d93bb93435cce5bdc797",
-    "semantic_hash": "2d0f80e01343d93bb93435cce5bdc797"
+    "mtime": 1790422978.315431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "c6f3ab212199364eea6b591d6d1938e7",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/hooks/useStudentBilling.ts": {
-    "mtime": 1790106062.0,
-    "seen": 1790327789.851377,
-    "ast_hash": "75385f010c3598ab0ebf4d6a50ce728c",
-    "semantic_hash": "75385f010c3598ab0ebf4d6a50ce728c"
+    "mtime": 1790422978.3164303,
+    "seen": 1790438702.1165726,
+    "ast_hash": "eff6106c3d792a31737b5e8437c491d5",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/students/hooks/useStudentProfile.ts": {
-    "mtime": 1790106061.0,
-    "seen": 1790327789.851378,
-    "ast_hash": "4a546a3d38a057a9db725785e8391aec",
-    "semantic_hash": "4a546a3d38a057a9db725785e8391aec"
+    "mtime": 1790422978.3164303,
+    "seen": 1790438702.1165726,
+    "ast_hash": "0808d2bf847ebe174fc881a2ac8ee70b",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/teachers/AddTeacherModal.tsx": {
-    "mtime": 1790352767.8002267,
-    "seen": 1790353034.6912608,
-    "ast_hash": "08930df1f87d722b2517ecabd70cbca3",
+    "mtime": 1790422978.3164303,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4fe704c7b80acafef41e25116be8bd1b",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/teachers/TeacherDrawer.tsx": {
-    "mtime": 1790235412.0,
-    "seen": 1790327789.8513799,
-    "ast_hash": "c1344e94afb64e30aa730ef6e57db19a",
-    "semantic_hash": "c1344e94afb64e30aa730ef6e57db19a"
+    "mtime": 1790422978.3164303,
+    "seen": 1790438702.1165726,
+    "ast_hash": "93dde129f1dde0ea2ecaf537568ee728",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/teachers/TeacherTable.tsx": {
-    "mtime": 1790235158.0,
-    "seen": 1790327789.8513813,
-    "ast_hash": "aa5e42714d1572fab1319dec3e6f0b88",
-    "semantic_hash": "aa5e42714d1572fab1319dec3e6f0b88"
+    "mtime": 1790422978.3164303,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6c469736ba55a1c4c72ed379b980ca87",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/features/teachers/TeachersPage.tsx": {
-    "mtime": 1790345547.4536316,
-    "seen": 1790346640.8825808,
-    "ast_hash": "eecaa6d2e1e414b8528d5da33068f7d2",
+    "mtime": 1790422978.317431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "7f9919d86f4d3158d11075fc42066927",
     "semantic_hash": ""
   },
   "vinta-school-os/src/lib/api.ts": {
-    "mtime": 1790106240.0,
-    "seen": 1790327789.8513844,
-    "ast_hash": "4a884017567588882a3e0fbb228ede8f",
-    "semantic_hash": "4a884017567588882a3e0fbb228ede8f"
+    "mtime": 1790422978.317431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "1835c8193e6c27a18bb46941a3ea2943",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/billingRules.ts": {
-    "mtime": 1790236956.0,
-    "seen": 1790327789.8513854,
-    "ast_hash": "b106fecf54d229a16bdf1bd3c70ac72c",
-    "semantic_hash": "b106fecf54d229a16bdf1bd3c70ac72c"
+    "mtime": 1790422978.317431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "fc4f4a23b72ec96e029d955839339719",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/classState.ts": {
-    "mtime": 1790247420.0,
-    "seen": 1790327789.8513865,
-    "ast_hash": "cc1d157c4d2b98e4764973a338eebd8f",
-    "semantic_hash": "cc1d157c4d2b98e4764973a338eebd8f"
+    "mtime": 1790534233.11605,
+    "seen": 1790535218.0919142,
+    "ast_hash": "a149415c43550018f953018d230bb584",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/cn.ts": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "21f2b302d2633046c82292c638b56692",
-    "semantic_hash": "21f2b302d2633046c82292c638b56692"
+    "mtime": 1790422978.317431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "10956aa475e8ad3c15e655737d547652",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/constants.ts": {
-    "mtime": 1790145691.0,
-    "seen": 1790327789.8513892,
-    "ast_hash": "0dc4263520d6a7e4fc32d8b1b92c24fb",
-    "semantic_hash": "0dc4263520d6a7e4fc32d8b1b92c24fb"
+    "mtime": 1790422978.317431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "dd69089db07fc8ca5b9e72263cb6b633",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/extendSession.ts": {
-    "mtime": 1790236617.0,
-    "seen": 1790327789.8513908,
-    "ast_hash": "a0bb2360ff5c11d9f30cee6468e891bf",
-    "semantic_hash": "a0bb2360ff5c11d9f30cee6468e891bf"
+    "mtime": 1790422978.317431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "aa8065b8b728a14be81208dc4a8a2ea9",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/formatters.ts": {
-    "mtime": 1790351896.7555082,
-    "seen": 1790353034.6912744,
-    "ast_hash": "0b1990195fe3e59335d1d8a5acd044fd",
+    "mtime": 1790422978.317431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "7333c7d8116c9e34327219e6934a8dd0",
     "semantic_hash": ""
   },
   "vinta-school-os/src/lib/freeSessions.ts": {
-    "mtime": 1790236746.0,
-    "seen": 1790327789.851393,
-    "ast_hash": "ac04921af11e1433bc5df2a3833790b2",
-    "semantic_hash": "ac04921af11e1433bc5df2a3833790b2"
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "b6dda42a7e2e727634188ef160e7770e",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/grossProfit.ts": {
-    "mtime": 1789326721.0,
-    "seen": 1790327789.851394,
-    "ast_hash": "43c8139cc92034f98f2c2711c64f1aa2",
-    "semantic_hash": "43c8139cc92034f98f2c2711c64f1aa2"
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "215e0c82603919e7c8a0c2fdf18c539a",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/scheduleDefs.ts": {
-    "mtime": 1789321284.0,
-    "seen": 1790327789.8513951,
-    "ast_hash": "8ee376b7e1ba4cec08f95f52aff4ba26",
-    "semantic_hash": "8ee376b7e1ba4cec08f95f52aff4ba26"
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6ca16538557330e4782f332b1713e425",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/sessionLifecycle.ts": {
-    "mtime": 1790359125.740587,
-    "seen": 1790365323.967778,
-    "ast_hash": "423f7d4e86eaf388d10499af4b271de9",
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "e2c7d42757a628d98070a17edb5eb293",
     "semantic_hash": ""
   },
   "vinta-school-os/src/lib/sessionNotifier.ts": {
-    "mtime": 1790359140.7681074,
-    "seen": 1790365323.9677808,
-    "ast_hash": "eb1a634028f45fb1ac8301eaa162c175",
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3e61627e2950a77e0abe65e67980ef9a",
     "semantic_hash": ""
   },
   "vinta-school-os/src/lib/swapLinks.ts": {
-    "mtime": 1789319631.0,
-    "seen": 1790327789.851402,
-    "ast_hash": "d6a554e422191168db94626c4d307f94",
-    "semantic_hash": "d6a554e422191168db94626c4d307f94"
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "56c5204d6850f66930b619110f748548",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/teacherEmails.ts": {
-    "mtime": 1789326649.0,
-    "seen": 1790327789.8514042,
-    "ast_hash": "59b70bf45d286539d7c03a670bc51c5c",
-    "semantic_hash": "59b70bf45d286539d7c03a670bc51c5c"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "56f9402b2fdeb7eb97faed76d82c9812",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/lib/voidedSessions.ts": {
-    "mtime": 1789320729.0,
-    "seen": 1790327789.8514056,
-    "ast_hash": "1375a611338c3ab60c63e91772ac6d7a",
-    "semantic_hash": "1375a611338c3ab60c63e91772ac6d7a"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "1f8152b382d484a7653c304076966a1f",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/main.tsx": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "5a869323d074ab572c45577985bf3820",
-    "semantic_hash": "5a869323d074ab572c45577985bf3820"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "2700623afa16a43803b336f02bcc2cae",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/stores/authStore.ts": {
-    "mtime": 1790237120.0,
-    "seen": 1790327789.8514082,
-    "ast_hash": "57b49cf24c51202fb80b31e5d061c47b",
-    "semantic_hash": "57b49cf24c51202fb80b31e5d061c47b"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "12bb51d972abe39468349b9af3e2f2fb",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/stores/themeStore.ts": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "5c4380931264b4d0a7b85ea41b528fb3",
-    "semantic_hash": "5c4380931264b4d0a7b85ea41b528fb3"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "b22b3b66847504363e123cdb4c8dddc6",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/stores/uiStore.ts": {
-    "mtime": 1790359113.8862123,
-    "seen": 1790365323.9678109,
-    "ast_hash": "23ad7a49f8e5501972d754c89e9ae5db",
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "502e39c6c2ebc40ae53743d0ca6556a2",
     "semantic_hash": ""
   },
   "vinta-school-os/src/types/auth.ts": {
-    "mtime": 1790105561.0,
-    "seen": 1790327789.8514123,
-    "ast_hash": "df01c7f4b15f7dae5abd21afd49d5af0",
-    "semantic_hash": "df01c7f4b15f7dae5abd21afd49d5af0"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "1c84e08a09b7cff2a66e00515c84fbd0",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/types/billing.ts": {
-    "mtime": 1790106051.0,
-    "seen": 1790327789.8514137,
-    "ast_hash": "3b469d533a5b741b1d657995b2a5f120",
-    "semantic_hash": "3b469d533a5b741b1d657995b2a5f120"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "313292df2e96ebe7b1e8c6fb3beb11d8",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/types/calendar.ts": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "931e576aef5e9d0cc27774a18a26fe3b",
-    "semantic_hash": "931e576aef5e9d0cc27774a18a26fe3b"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "d076cb03af86c223ac91d9328424853f",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/types/class.ts": {
-    "mtime": 1790247426.0,
-    "seen": 1790327789.851416,
-    "ast_hash": "39fbabfbe9a78a5555421475ce3c6fc1",
-    "semantic_hash": "39fbabfbe9a78a5555421475ce3c6fc1"
+    "mtime": 1790534344.646545,
+    "seen": 1790535218.0919142,
+    "ast_hash": "bb057aa64c574d54bbf8fb9a5dbf4c91",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/types/settings.ts": {
-    "mtime": 1790105494.0,
-    "seen": 1790327789.851417,
-    "ast_hash": "206d1e06e04d5e6ce36ca2e1b812df28",
-    "semantic_hash": "206d1e06e04d5e6ce36ca2e1b812df28"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4ed0bffa771bef41bf197f77fda13f5b",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/types/student.ts": {
-    "mtime": 1790235809.0,
-    "seen": 1790327789.8514187,
-    "ast_hash": "344f72433cf166ddcce588360378bb59",
-    "semantic_hash": "344f72433cf166ddcce588360378bb59"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4467afe3d6eb57e5956e76713dab6ea6",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/types/teacher.ts": {
-    "mtime": 1790235429.0,
-    "seen": 1790327789.85142,
-    "ast_hash": "5b8c2b658d7c4c17f78aa0fdd9f1b4fc",
-    "semantic_hash": "5b8c2b658d7c4c17f78aa0fdd9f1b4fc"
+    "mtime": 1790422978.3194306,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3c26992962013bcfe3dcf509a3ce1a3d",
+    "semantic_hash": ""
   },
   "vinta-school-os/tsconfig.app.json": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "a702e67d4c53c712ae056a1e9df48a14",
-    "semantic_hash": "a702e67d4c53c712ae056a1e9df48a14"
+    "mtime": 1790422978.320934,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3089d8468f669931063fd935cfd9dcdf",
+    "semantic_hash": ""
   },
   "vinta-school-os/tsconfig.json": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "a3d39fa780ebff65444de257f291ce6c",
-    "semantic_hash": "a3d39fa780ebff65444de257f291ce6c"
+    "mtime": 1790422978.320934,
+    "seen": 1790438702.1165726,
+    "ast_hash": "852c3a5df14a4b43ac28e9554ebedf4a",
+    "semantic_hash": ""
   },
   "vinta-school-os/tsconfig.node.json": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "f9cb81ddcea69ffdab672fc8c48dca66",
-    "semantic_hash": "f9cb81ddcea69ffdab672fc8c48dca66"
+    "mtime": 1790422978.320934,
+    "seen": 1790438702.1165726,
+    "ast_hash": "74cde0261ad0a13045ca0a05ab1542ae",
+    "semantic_hash": ""
   },
   "vinta-school-os/vite.config.ts": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "0a38df0276ce6497ae0e67da54e2234c",
-    "semantic_hash": "0a38df0276ce6497ae0e67da54e2234c"
+    "mtime": 1790422978.320934,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6b8f5552d9ae492429d1c2f61bd4745d",
+    "semantic_hash": ""
   },
   ".tmp-verify/acad.txt": {
-    "mtime": 1790106426.0,
-    "seen": 1790327789.8514268,
+    "mtime": 1790422976.3960083,
+    "seen": 1790438702.1165726,
     "ast_hash": "add8dead256fb6b98a5d39e89f7424d9",
     "semantic_hash": "add8dead256fb6b98a5d39e89f7424d9"
   },
   ".tmp-verify/tok.txt": {
-    "mtime": 1790106426.0,
-    "seen": 1790327789.851428,
+    "mtime": 1790422976.3960083,
+    "seen": 1790438702.1165726,
     "ast_hash": "797ac77c333bd02105a88d4653a3f79e",
     "semantic_hash": "797ac77c333bd02105a88d4653a3f79e"
   },
   "Backend/vinta-academy-backend/.tmp-academy-test/academy_id.txt": {
-    "mtime": 1790105318.0,
-    "seen": 1790327789.8514292,
+    "mtime": 1790422976.397008,
+    "seen": 1790438702.1165726,
     "ast_hash": "add8dead256fb6b98a5d39e89f7424d9",
     "semantic_hash": "add8dead256fb6b98a5d39e89f7424d9"
   },
   "Backend/vinta-academy-backend/.tmp-academy-test/class_id.txt": {
-    "mtime": 1790105372.0,
-    "seen": 1790327789.85143,
+    "mtime": 1790422976.397008,
+    "seen": 1790438702.1165726,
     "ast_hash": "03ad26b7a80c67ee435e11a0f46c1586",
     "semantic_hash": "03ad26b7a80c67ee435e11a0f46c1586"
   },
   "Backend/vinta-academy-backend/.tmp-academy-test/student_id.txt": {
-    "mtime": 1790105372.0,
-    "seen": 1790327789.851431,
+    "mtime": 1790422976.397008,
+    "seen": 1790438702.1165726,
     "ast_hash": "db31f223df1692ca498e52987391dd28",
     "semantic_hash": "db31f223df1692ca498e52987391dd28"
   },
   "Backend/vinta-academy-backend/docker-compose.yml": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "3c6e98d9677d19f4860f89eebc982aa0",
-    "semantic_hash": "3c6e98d9677d19f4860f89eebc982aa0"
+    "mtime": 1790422976.4167955,
+    "seen": 1790438702.1165726,
+    "ast_hash": "59bfbd005d17c32461c6ce5aab0c1f4b",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/docs/API_REFERENCE.md": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "c01c34c5551d6cf65d76af7067dc6d12",
-    "semantic_hash": "c01c34c5551d6cf65d76af7067dc6d12"
+    "mtime": 1790422976.4177954,
+    "seen": 1790438702.1165726,
+    "ast_hash": "b59f20acd1c4ad4d1067d1e8d151e75d",
+    "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/requirements.txt": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "dfea9d1fcf87b344089971b1dd578f08",
-    "semantic_hash": "dfea9d1fcf87b344089971b1dd578f08"
+    "mtime": 1790422976.425808,
+    "seen": 1790438702.1165726,
+    "ast_hash": "5f7580becd5b5969c20bef2898daae4c",
+    "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1790274851.0,
-    "seen": 1790327789.8514361,
+    "mtime": 1790422976.4278078,
+    "seen": 1790438702.1165726,
     "ast_hash": "8a6643a420fdad6bfb583523bc6cef16",
     "semantic_hash": "8a6643a420fdad6bfb583523bc6cef16"
   },
   "Docs/Documentation.md": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "a572ac787c3043121f6eb2f0cc6a3ec5",
-    "semantic_hash": "a572ac787c3043121f6eb2f0cc6a3ec5"
+    "mtime": 1790534392.636893,
+    "seen": 1790535218.0919142,
+    "ast_hash": "23c8108d4b00da2077c9b35bb7999bfe",
+    "semantic_hash": ""
   },
   "Docs/Notes.md": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "59e65bfdc044f0dc7c68f7cc50b8057b",
-    "semantic_hash": "59e65bfdc044f0dc7c68f7cc50b8057b"
+    "mtime": 1790422976.4288077,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3faca37df3259f26e8e39acf522567ab",
+    "semantic_hash": ""
   },
   "Docs/Vinta School OS.md": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "f5046b2f4cc127fb6bcb63d4509894a8",
-    "semantic_hash": "f5046b2f4cc127fb6bcb63d4509894a8"
+    "mtime": 1790422976.4288077,
+    "seen": 1790438702.1165726,
+    "ast_hash": "2dc893256452b0ed7c580a83f4a8a582",
+    "semantic_hash": ""
   },
   "Vinta Tasks.md": {
-    "mtime": 1789301798.0,
-    "seen": 1790327789.8514414,
+    "mtime": 1790422976.4288077,
+    "seen": 1790438702.1165726,
     "ast_hash": "93b97c5c648c58b3d6197d3af6298624",
     "semantic_hash": "93b97c5c648c58b3d6197d3af6298624"
   },
   "security-audit.md": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "50524fa3c806f631440397f5c770da60",
-    "semantic_hash": "50524fa3c806f631440397f5c770da60"
+    "mtime": 1790422976.4730375,
+    "seen": 1790438702.1165726,
+    "ast_hash": "a3fc866e0fc4edda96ba9af1063c9d6f",
+    "semantic_hash": ""
   },
   "vinta-school-os/README.md": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "10495bfcc6c568eca4dab6dd5df795d3",
-    "semantic_hash": "10495bfcc6c568eca4dab6dd5df795d3"
+    "mtime": 1790422976.4740374,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3a8e2f41658852c43fdce93a22bc2f90",
+    "semantic_hash": ""
   },
   "vinta-school-os/index.html": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "e13047a1669767c85b8b25af17b344b6",
-    "semantic_hash": "e13047a1669767c85b8b25af17b344b6"
+    "mtime": 1790422976.486047,
+    "seen": 1790438702.1165726,
+    "ast_hash": "0aad976aaf88dc5c1647c5fb6cc3bf9e",
+    "semantic_hash": ""
   },
   "vinta-school-os/public/favicon.svg": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "3c89ae7817b46578feeea5b70d45940c",
-    "semantic_hash": "3c89ae7817b46578feeea5b70d45940c"
+    "mtime": 1790422978.3024094,
+    "seen": 1790438702.1165726,
+    "ast_hash": "f6cc586ce05498bfc71fa171e0b948dd",
+    "semantic_hash": ""
   },
   "vinta-school-os/public/icons.svg": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "3b4fcfcf393eca4d264dca4a4663bc37",
-    "semantic_hash": "3b4fcfcf393eca4d264dca4a4663bc37"
+    "mtime": 1790422978.3024094,
+    "seen": 1790438702.1165726,
+    "ast_hash": "21c7473c592c67dc87223d49892c8f0a",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/assets/hero.png": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
+    "mtime": 1790422978.303414,
+    "seen": 1790438702.1165726,
     "ast_hash": "aead493361b27e7510691c5d7072dfc1",
     "semantic_hash": "aead493361b27e7510691c5d7072dfc1"
   },
   "vinta-school-os/src/assets/vite.svg": {
-    "mtime": 1789220704.0,
-    "seen": 1790277047.7468433,
-    "ast_hash": "9960a24288958394ac50e57ff638b036",
-    "semantic_hash": "9960a24288958394ac50e57ff638b036"
+    "mtime": 1790422978.303414,
+    "seen": 1790438702.1165726,
+    "ast_hash": "6d5180a782d64c8cf51ba01c2a2184d8",
+    "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/Select.tsx": {
-    "mtime": 1790327709.4806578,
-    "seen": 1790327789.8512998,
-    "ast_hash": "5407832cf2de4e91b105d2ccd6fec424",
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "b41732900111339244df3f9c70bffc4c",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/calendar/SessionWindowModal.tsx": {
-    "mtime": 1790352728.034916,
-    "seen": 1790353034.6912127,
-    "ast_hash": "881235ab94bd443bf368b90c7cdd1015",
+    "mtime": 1790422978.3099222,
+    "seen": 1790438702.1165726,
+    "ast_hash": "1aa9c36dec46308a7a385e8df6bdd6bb",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/classes/ClassForm.tsx": {
-    "mtime": 1790352720.7231927,
-    "seen": 1790353034.6912181,
-    "ast_hash": "e898e1f1f122d3e418637af8f64f7834",
+    "mtime": 1790422978.3114264,
+    "seen": 1790438702.1165726,
+    "ast_hash": "d432a8a024983a7631e20495a598c2c4",
     "semantic_hash": ""
   },
   "vinta-school-os/src/features/classes/ClassQuickCreate.tsx": {
-    "mtime": 1790327709.5456219,
-    "seen": 1790327789.8513393,
-    "ast_hash": "7257cc31cc1a913a3fcba1a50f9abf6a",
+    "mtime": 1790422978.3114264,
+    "seen": 1790438702.1165726,
+    "ast_hash": "d53d7bb9cebe4e2c8cfcbacb0344030f",
     "semantic_hash": ""
   },
   "vinta-school-os/src/lib/sessionLayout.ts": {
-    "mtime": 1790327709.3843806,
-    "seen": 1790327789.8513963,
-    "ast_hash": "6d3eec00adb656ae20f4d87a0e1d7648",
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "e2ac977fa11b65956e6ae10ffeab52ef",
     "semantic_hash": ""
   },
   "vinta-school-os/src/lib/sessionSync.ts": {
-    "mtime": 1790327709.418525,
-    "seen": 1790327789.8513997,
-    "ast_hash": "7f2f49b0da88b0f96685c81dbf063133",
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "fb9284f05076a491dec8166bb5a773f4",
     "semantic_hash": ""
   },
   "vinta-school-os/src/lib/sessionTime.ts": {
-    "mtime": 1790327709.3515728,
-    "seen": 1790327789.8514006,
-    "ast_hash": "78d7a71ca0e11ba342c3234e413d106b",
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "4aa559eb4526af16e37f7426c4cd7676",
     "semantic_hash": ""
   },
   "vinta-school-os/src/lib/teacherColors.ts": {
-    "mtime": 1790327709.448572,
-    "seen": 1790327789.851403,
-    "ast_hash": "f1decd70a4785f9367b127de8b9323e4",
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "b4472bdf4352c60826548cd232a1873e",
     "semantic_hash": ""
   },
   "vinta-school-os/src/components/layout/GlobalSearch.tsx": {
-    "mtime": 1790345450.033305,
-    "seen": 1790346640.8824391,
-    "ast_hash": "908e01adc69406a61099bed4f4312f5e",
+    "mtime": 1790422978.3044138,
+    "seen": 1790438702.1165726,
+    "ast_hash": "7631b72ef2fa4080d7efafedf0dad585",
     "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/PinConfirmDialog.tsx": {
-    "mtime": 1790345406.8706045,
-    "seen": 1790346640.8824708,
-    "ast_hash": "acf1a67a3812d63b9cc7db9e22b7ccc5",
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "b69cce1150ef73151e71cd4a767d624f",
     "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/PinStep.tsx": {
-    "mtime": 1790345571.9128828,
-    "seen": 1790346640.8824725,
-    "ast_hash": "58341cc1e62a588e7e27697370037b2d",
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3807138075c925ddd410d2c1a5c127bc",
     "semantic_hash": ""
   },
   "vinta-school-os/src/lib/pinGate.ts": {
-    "mtime": 1790345390.1304338,
-    "seen": 1790346640.8825984,
-    "ast_hash": "ab9d651b9a1b5a3903aa9772fe8494e4",
+    "mtime": 1790422978.318431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "10d276154b0227f4a7a0cd14c8a9fba7",
     "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/unit/test_cancel_session.py": {
-    "mtime": 1790352413.9896498,
-    "seen": 1790353034.6911366,
-    "ast_hash": "0df792fc67978746803ef8d878db8087",
+    "mtime": 1790422976.4268079,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3138e450aa67f2da1547c90f64a82e29",
     "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/unit/test_cron_jobs.py": {
-    "mtime": 1790351827.399802,
-    "seen": 1790353034.6911383,
-    "ast_hash": "62c1d247e1b8e7cc99a56a01a936d152",
+    "mtime": 1790422976.4278078,
+    "seen": 1790438702.1165726,
+    "ast_hash": "ddb9dad935acd7485feab88ff1fbd7d2",
     "semantic_hash": ""
   },
   "vinta-school-os/src/components/ui/TimePicker.tsx": {
-    "mtime": 1790352661.97478,
-    "seen": 1790353034.691186,
-    "ast_hash": "2d699c2ff2db900ccad44f27b758e9a4",
+    "mtime": 1790422978.3064137,
+    "seen": 1790438702.1165726,
+    "ast_hash": "3edf8d1a4a0add72c09f50a925e03752",
     "semantic_hash": ""
   },
   "vinta-school-os/src/hooks/useNow.ts": {
-    "mtime": 1790351972.0196807,
-    "seen": 1790353034.6912656,
-    "ast_hash": "ce3e0ffc9860dc6622ec2138091896b4",
+    "mtime": 1790422978.317431,
+    "seen": 1790438702.1165726,
+    "ast_hash": "d73baf6de9147cd4111fbda140cced46",
     "semantic_hash": ""
   },
   "Backend/vinta-academy-backend/tests/unit/test_session_start_and_close.py": {
-    "mtime": 1790359021.4731112,
-    "seen": 1790365323.9674249,
-    "ast_hash": "ef3437422311a12d62faf1784d683d70",
+    "mtime": 1790422976.4278078,
+    "seen": 1790438702.1165726,
+    "ast_hash": "cde9314f3034793b3a95713e3466bf34",
+    "semantic_hash": ""
+  },
+  "Backend/vinta-academy-backend/.tmp-dangerprobe.py": {
+    "mtime": 1790536419.5856512,
+    "seen": 1790537603.177053,
+    "ast_hash": "3528d087cf2af2acf234301cbd1752db",
+    "semantic_hash": ""
+  },
+  "Backend/vinta-academy-backend/.tmp-deleteone.py": {
+    "mtime": 1790537347.3008983,
+    "seen": 1790537603.177053,
+    "ast_hash": "87d3d0eac0e04e8d858226ff2d4f96a6",
+    "semantic_hash": ""
+  },
+  "Backend/vinta-academy-backend/.tmp-deletesweep.py": {
+    "mtime": 1790536464.4392018,
+    "seen": 1790537603.177053,
+    "ast_hash": "d2f75f68641467da35d2fa1a3442e183",
+    "semantic_hash": ""
+  },
+  "Backend/vinta-academy-backend/app/services/academy_data_service.py": {
+    "mtime": 1790536300.762708,
+    "seen": 1790537603.177053,
+    "ast_hash": "d3a2cacde89f1e53ffa18f7946ad772c",
+    "semantic_hash": ""
+  },
+  "Backend/vinta-academy-backend/.tmp-rules.txt": {
+    "mtime": 1790536546.1668942,
+    "seen": 1790537603.177053,
+    "ast_hash": "9a71d6541bcb6b3cb2e034945e2be46e",
     "semantic_hash": ""
   }
 }

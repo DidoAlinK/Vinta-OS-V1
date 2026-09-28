@@ -18,6 +18,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import {
   X,
   Edit3,
@@ -34,7 +36,7 @@ import ProfileCard from './components/ProfileCard'
 import StudentIdentity from './components/StudentIdentity'
 import StudentClasses from './components/StudentClasses'
 import StudentGuardians from './components/StudentGuardians'
-import BillingSummaryCard from './components/BillingSummaryCard'
+import BillingSummaryCard, { formatDisplayDate } from './components/BillingSummaryCard'
 import BillingCalendarCard from './components/BillingCalendarCard'
 import PaymentHistoryList from './components/PaymentHistoryList'
 import StudentAttendanceCalendar from './components/StudentAttendanceCalendar'
@@ -63,6 +65,7 @@ export default function StudentDrawer({
   onClose,
   onUpdated,
 }: StudentDrawerProps) {
+  const { t } = useTranslation('students')
   const studentId = student?.id ?? null
 
   // ── Data ──
@@ -155,16 +158,20 @@ export default function StudentDrawer({
         parent_phone: editParentPhone.trim() || null,
         notes: editNotes.trim() || null,
       })
-      toast.success('Student updated', 'Profile has been saved.')
+      toast.success(t('drawer.toast.updated.title'), t('drawer.toast.updated.body'))
       setIsEditing(false)
       refreshProfile()
       onUpdated?.()
     } catch {
-      toast.error('Update failed', 'Could not save changes. Please try again.')
+      toast.error(
+        t('drawer.toast.updateFailed.title'),
+        t('drawer.toast.updateFailed.body'),
+      )
     } finally {
       setSaving(false)
     }
   }, [
+    t,
     studentId,
     editFirstName,
     editLastName,
@@ -202,7 +209,7 @@ export default function StudentDrawer({
       <div
         className={cn(
           'relative h-full w-full sm:w-[560px] lg:w-[880px] max-w-full',
-          'bg-[var(--glass)] border-l border-[var(--glass-border)]',
+          'bg-[var(--glass)] border-s border-[var(--glass-border)]',
           'backdrop-blur-xl shadow-2xl overflow-hidden',
           'flex flex-col',
           'animate-slide-in-right',
@@ -216,17 +223,19 @@ export default function StudentDrawer({
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                aria-label="Back to profile"
+                aria-label={t('drawer.backToProfile')}
                 className="p-1.5 rounded-lg hover:bg-[var(--glass)] text-[var(--muted)] transition-colors duration-150"
               >
-                <ChevronLeft size={16} />
+                {/* "Back" points left in a left-to-right reading order, so the
+                    chevron mirrors in Arabic rather than pointing forward. */}
+                <ChevronLeft size={16} className="rtl:-scale-x-100" />
               </button>
             )}
             <h3
               className="text-base font-bold text-[var(--text)]"
               style={{ fontFamily: 'var(--font-heading)' }}
             >
-              {isEditing ? 'Edit Profile' : 'Student Profile'}
+              {isEditing ? t('drawer.editTitle') : t('drawer.title')}
             </h3>
           </div>
 
@@ -238,7 +247,7 @@ export default function StudentDrawer({
                   onClick={() => setIsEditing(false)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)] hover:bg-[var(--glass)] transition-colors duration-150"
                 >
-                  Cancel
+                  {t('common:action.cancel')}
                 </button>
                 <button
                   type="button"
@@ -246,7 +255,7 @@ export default function StudentDrawer({
                   disabled={saving}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-[var(--gold)] to-[var(--emerald)] hover:opacity-90 active:scale-[0.98] disabled:opacity-50 transition-all duration-150"
                 >
-                  {saving ? 'Saving…' : 'Save'}
+                  {saving ? t('common:state.saving') : t('common:action.save')}
                 </button>
               </>
             ) : (
@@ -254,8 +263,8 @@ export default function StudentDrawer({
                 <button
                   type="button"
                   onClick={startEditing}
-                  aria-label="Edit student"
-                  title="Edit student"
+                  aria-label={t('drawer.editStudent')}
+                  title={t('drawer.editStudent')}
                   className="p-1.5 rounded-lg hover:bg-[var(--glass)] text-[var(--gold)] transition-colors duration-150"
                 >
                   <Edit3 size={15} />
@@ -263,7 +272,7 @@ export default function StudentDrawer({
                 <button
                   type="button"
                   onClick={onClose}
-                  aria-label="Close"
+                  aria-label={t('common:action.close')}
                   className="p-1.5 rounded-lg hover:bg-[var(--glass)] text-[var(--muted)] transition-colors duration-150"
                 >
                   <X size={16} />
@@ -281,43 +290,43 @@ export default function StudentDrawer({
               <StudentIdentity student={detail} />
 
               {isEditing ? (
-                <ProfileCard title="Details">
+                <ProfileCard title={t('drawer.details')}>
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <Field
-                        label="First Name"
+                        label={t('drawer.field.firstName')}
                         value={editFirstName}
                         onChange={setEditFirstName}
                       />
                       <Field
-                        label="Last Name"
+                        label={t('drawer.field.lastName')}
                         value={editLastName}
                         onChange={setEditLastName}
                       />
                     </div>
                     <Field
-                      label="Phone"
+                      label={t('common:label.phone')}
                       value={editPhone}
                       onChange={setEditPhone}
-                      placeholder="e.g. 0555123456"
+                      placeholder={t('drawer.placeholder.phone')}
                       type="tel"
                     />
                     <Field
-                      label="Parent Phone"
+                      label={t('drawer.field.parentPhone')}
                       value={editParentPhone}
                       onChange={setEditParentPhone}
-                      placeholder="e.g. 0555789012"
+                      placeholder={t('drawer.placeholder.parentPhone')}
                       type="tel"
                     />
                     <div>
                       <label className="text-[11px] font-medium text-[var(--muted)] mb-1 block">
-                        Notes
+                        {t('common:label.notes')}
                       </label>
                       <textarea
                         value={editNotes}
                         onChange={(e) => setEditNotes(e.target.value)}
                         rows={3}
-                        placeholder="Any notes about this student…"
+                        placeholder={t('drawer.placeholder.notes')}
                         className={cn(
                           'w-full px-3 py-2 rounded-xl text-sm text-[var(--text)] resize-none',
                           'bg-[var(--input-bg)] border border-[var(--glass-border)]',
@@ -328,32 +337,27 @@ export default function StudentDrawer({
                   </div>
                 </ProfileCard>
               ) : (
-                <ProfileCard title="Details">
+                <ProfileCard title={t('drawer.details')}>
                   <dl className="space-y-2.5">
-                    <InfoRow label="Phone" value={detail.phone} />
-                    <InfoRow label="Parent phone" value={detail.parent_phone} />
+                    <InfoRow label={t('common:label.phone')} value={detail.phone} />
+                    <InfoRow label={t('drawer.parentPhone')} value={detail.parent_phone} />
                     <InfoRow
-                      label="Enrolled since"
+                      label={t('drawer.enrolledSince')}
                       value={
                         detail.created_at
-                          ? new Date(detail.created_at).toLocaleDateString('en-GB', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric',
-                            })
+                          ? formatDisplayDate(new Date(detail.created_at))
                           : null
                       }
                     />
                     <InfoRow
-                      label="Enrollment"
+                      label={t('drawer.enrollment')}
                       // The API sends the raw enum ("active", "not_enrolled").
                       // An unrecognised value falls through to itself rather
                       // than to a blank, so a new server-side state shows up
                       // here instead of silently disappearing.
                       value={
                         detail.enrollment_status
-                          ? (ENROLLMENT_LABELS[detail.enrollment_status] ??
-                             detail.enrollment_status)
+                          ? enrollmentLabel(t, detail.enrollment_status)
                           : null
                       }
                     />
@@ -372,13 +376,15 @@ export default function StudentDrawer({
               />
 
               {!isEditing && (
-                <ProfileCard title="Notes">
+                <ProfileCard title={t('common:label.notes')}>
                   {detail.notes ? (
                     <p className="text-sm text-[var(--muted)] leading-relaxed whitespace-pre-wrap">
                       {detail.notes}
                     </p>
                   ) : (
-                    <p className="text-xs text-[var(--muted)] italic">No notes</p>
+                    <p className="text-xs text-[var(--muted)] italic">
+                      {t('drawer.noNotes')}
+                    </p>
                   )}
                 </ProfileCard>
               )}
@@ -423,7 +429,7 @@ export default function StudentDrawer({
               )}
             >
               <Plus size={15} />
-              Record Payment
+              {t('drawer.recordPayment')}
             </button>
             {telHref && (
               <a
@@ -431,7 +437,7 @@ export default function StudentDrawer({
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium bg-[var(--emerald-soft)] text-[var(--emerald)] hover:bg-[var(--emerald)]/20 active:scale-[0.98] transition-all duration-150"
               >
                 <Phone size={15} />
-                Call
+                {t('drawer.call')}
               </a>
             )}
             {waHref && (
@@ -442,7 +448,7 @@ export default function StudentDrawer({
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium bg-[var(--emerald-soft)] text-[var(--emerald)] hover:bg-[var(--emerald)]/20 active:scale-[0.98] transition-all duration-150"
               >
                 <MessageCircle size={15} />
-                Message
+                {t('drawer.message')}
               </a>
             )}
           </div>
@@ -470,14 +476,23 @@ export default function StudentDrawer({
  * Enrollment.status is a lowercase enum on the wire; these are the same words
  * in sentence case for the drawer. `not_enrolled` in particular is a server
  * sentinel, not English, and it was being printed verbatim.
+ *
+ * Keys rather than sentences — see the note in `StudentTable` on why a
+ * module-level map of rendered strings cannot work.
  */
-const ENROLLMENT_LABELS: Record<string, string> = {
-  active: 'Active',
-  withdrawn: 'Withdrawn',
-  expired: 'Expired',
-  overdue: 'Overdue',
-  transferred: 'Transferred',
-  not_enrolled: 'Not enrolled in a group',
+const ENROLLMENT_LABEL_KEYS: Record<string, string> = {
+  active: 'enrollment.active',
+  withdrawn: 'enrollment.withdrawn',
+  expired: 'enrollment.expired',
+  overdue: 'enrollment.overdue',
+  transferred: 'enrollment.transferred',
+  not_enrolled: 'enrollment.notEnrolled',
+}
+
+/** Unknown values fall through as-is rather than to a blank. */
+function enrollmentLabel(t: TFunction, status: string): string {
+  const key = ENROLLMENT_LABEL_KEYS[status]
+  return key ? t(key) : status
 }
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
@@ -486,7 +501,7 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
       <dt className="text-[11px] font-medium text-[var(--muted)] shrink-0">{label}</dt>
       {/* An absent scalar is an em dash, never "0", "Not set", or "N/A" —
           those read as a value or a failure where there is simply nothing. */}
-      <dd className="text-sm text-[var(--text)] text-right truncate">
+      <dd className="text-sm text-[var(--text)] text-end truncate">
         {value || '—'}
       </dd>
     </div>

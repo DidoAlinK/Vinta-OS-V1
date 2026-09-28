@@ -32,20 +32,43 @@ students_bp = Blueprint("students", __name__, description="Student management")
 def list_students():
     """
     List all students for the academy with computed status fields.
-    Query params: page, per_page, q (case-insensitive name/phone search)
+    Query params: page, per_page, q (case-insensitive name/phone search),
+    status (exact match on the computed billing status)
+
+    A rejected `status` is a 400 rather than a silently ignored filter: a typo
+    that quietly returns the whole roster looks like the filter is broken, and
+    the client would page through students the caller explicitly excluded.
     """
-    from flask import g
+    from flask import current_app, g
 
     page = request.args.get("page", 1, type=int)
     q = request.args.get("q", None, type=str)
-    from flask import current_app
+    status = request.args.get("status", None, type=str)
+
+    if status is not None and status not in student_service.STUDENT_STATUSES:
+        return (
+            jsonify(
+                {
+                    "error": (
+                        f"Unknown status '{status}'. Expected one of: "
+                        f"{', '.join(student_service.STUDENT_STATUSES)}."
+                    )
+                }
+            ),
+            400,
+        )
 
     per_page = min(
         request.args.get("per_page", 50, type=int),
         current_app.config.get("MAX_PAGE_SIZE", 100),
     )
+    # A query string can carry per_page=0 or a negative; SQLAlchemy would raise
+    # on the former, so floor it rather than 500 on a hand-typed URL.
+    per_page = max(per_page, 1)
 
-    result = student_service.list_students(g.current_academy_id, page, per_page, q=q)
+    result = student_service.list_students(
+        g.current_academy_id, page, per_page, q=q, status=status
+    )
     return jsonify(result), 200
 
 
@@ -53,10 +76,17 @@ def list_students():
 @jwt_required()
 @tenant_required
 def get_stats():
-    """Get aggregate student statistics for the stats rail."""
+    """
+    Get aggregate student statistics for the stats rail.
+
+    Query params: q (case-insensitive name/phone search) — narrows the counts
+    to the students that search matches, so the filter pills beside a searched
+    roster describe the same set the table is showing.
+    """
     from flask import g
 
-    stats = student_service.get_student_stats(g.current_academy_id)
+    q = request.args.get("q", None, type=str)
+    stats = student_service.get_student_stats(g.current_academy_id, q=q)
     return jsonify(stats), 200
 
 

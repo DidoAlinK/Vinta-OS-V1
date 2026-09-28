@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Lock, Plus, Trash2 } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
@@ -92,6 +93,25 @@ const inputCls = cn(
 
 const labelCls = 'block text-xs font-medium text-[var(--muted)] mb-1.5'
 
+/**
+ * Lifecycle values are API enums (`in_progress` and friends); what the desk
+ * reads in the locked notice is the translated label, never the enum itself.
+ * Keys are held here, not sentences — `t()` at module scope would freeze.
+ */
+const STATUS_KEYS: Record<string, string> = {
+  scheduled: 'status.scheduled',
+  in_progress: 'status.inProgress',
+  conducted: 'status.conducted',
+  completed: 'status.completed',
+  cancelled: 'status.cancelled',
+}
+
+/** Which half of a clash `findConflicts` is reporting. */
+const CONFLICT_KIND_KEYS: Record<string, string> = {
+  room: 'conflict.room',
+  teacher: 'conflict.teacher',
+}
+
 function errMsg(err: any, fallback: string): string {
   const backend = err?.response?.data?.error
   if (typeof backend === 'string' && backend) return backend
@@ -116,10 +136,17 @@ export function SessionWindowModal({
   onSaved,
   onClassCreated,
 }: SessionWindowModalProps) {
+  const { t } = useTranslation('calendar')
   const isEditing = !!editing
   // The backend only moves `scheduled` rows; anything else is a record of a
   // class that already ran, so the window shows it without offering changes.
   const isLocked = isEditing && editing!.status !== 'scheduled'
+
+  /* An unmapped lifecycle value falls back to the raw enum with its underscore
+     opened up, so a state the backend adds later reads as odd rather than as a
+     key path. */
+  const statusLabel = (status: string): string =>
+    STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : status.replace('_', ' ')
 
   const [groupId, setGroupId] = useState('')
   const [date, setDate] = useState(toLocalISO(new Date()))
@@ -199,13 +226,13 @@ export function SessionWindowModal({
   )
 
   const teacherName = useMemo(() => {
-    if (isEditing && editing) return editing.teacher_name || 'Not set'
+    if (isEditing && editing) return editing.teacher_name || t('window.notSet')
     if (selectedGroup?.teacher_id) {
-      const t = teachers.find((x) => x.id === selectedGroup.teacher_id)
-      return t?.name ?? selectedGroup.teacher_name ?? 'Not set'
+      const found = teachers.find((x) => x.id === selectedGroup.teacher_id)
+      return found?.name ?? selectedGroup.teacher_name ?? t('window.notSet')
     }
-    return 'Not set'
-  }, [isEditing, editing, selectedGroup, teachers])
+    return t('window.notSet')
+  }, [isEditing, editing, selectedGroup, teachers, t])
 
   const teacherSwatch = isEditing
     ? teacherColor(editing?.teacher_id)
@@ -236,34 +263,40 @@ export function SessionWindowModal({
   const conflictMessage = useMemo(() => {
     if (conflicts.length === 0) return null
     const clash = sessions.find((s) => s.id === conflicts[0].sessionId)
-    const kinds = [...new Set(conflicts.map((c) => c.kind))].join(' + ')
+    const kinds = [...new Set(conflicts.map((c) => c.kind))]
+      .map((kind) => (CONFLICT_KIND_KEYS[kind] ? t(CONFLICT_KIND_KEYS[kind]) : kind))
+      .join(' + ')
     return clash
-      ? `Blocked: ${kinds} overlap with "${clash.class_name}" at ${timeRangeLabel(clash.start_time, clash.end_time)} that day.`
-      : `Blocked: ${kinds} overlap on ${date}. Pick another time or room.`
-  }, [conflicts, sessions, date])
+      ? t('window.conflictWith', {
+          kinds,
+          name: clash.class_name,
+          time: timeRangeLabel(clash.start_time, clash.end_time),
+        })
+      : t('window.conflictOn', { kinds, date })
+  }, [conflicts, sessions, date, t])
 
   // ── Save ──────────────────────────────────────
 
   const handleSave = useCallback(async () => {
     if (isLocked) return
     if (creatingClass) {
-      setError('Finish creating the class, then save the session.')
+      setError(t('window.errFinishClass'))
       return
     }
     if (!isEditing && !groupId) {
-      setError('Pick a group for this session.')
+      setError(t('window.errPickGroup'))
       return
     }
     if (!date || !start || !end) {
-      setError('Pick a date, start time and end time.')
+      setError(t('window.errPickDateTime'))
       return
     }
     if (timeToHours(end) <= timeToHours(start)) {
-      setError('End time must be after the start time.')
+      setError(t('window.errEndAfterStart'))
       return
     }
     if (conflicts.length > 0) {
-      setError(conflictMessage ?? 'That slot is already taken.')
+      setError(conflictMessage ?? t('window.errSlotTaken'))
       return
     }
 
@@ -278,7 +311,13 @@ export function SessionWindowModal({
           start_time: start,
           end_time: end,
         })
-        toast.success('Session moved', `${editing.class_name} — ${timeRangeLabel(start, end)}.`)
+        toast.success(
+          t('window.toastMovedTitle'),
+          t('window.toastMovedBody', {
+            name: editing.class_name,
+            time: timeRangeLabel(start, end),
+          }),
+        )
       } else {
         await api.post('/sessions', {
           class_id: groupId,
@@ -289,18 +328,24 @@ export function SessionWindowModal({
           classroom_id: roomId || undefined,
           subject: selectedGroup?.subject,
         })
-        toast.success('Session added', `${selectedGroup?.name ?? 'Session'} — ${timeRangeLabel(start, end)}.`)
+        toast.success(
+          t('window.toastAddedTitle'),
+          t('window.toastAddedBody', {
+            name: selectedGroup?.name ?? t('window.session'),
+            time: timeRangeLabel(start, end),
+          }),
+        )
       }
       onSaved()
       onClose()
     } catch (err: any) {
-      setError(errMsg(err, 'Could not save the session. Please try again.'))
+      setError(errMsg(err, t('window.errSave')))
     } finally {
       setSaving(false)
     }
   }, [
     isLocked, isEditing, editing, groupId, date, start, end, roomId, creatingClass,
-    conflicts.length, conflictMessage, selectedGroup, onSaved, onClose,
+    conflicts.length, conflictMessage, selectedGroup, onSaved, onClose, t,
   ])
 
   // ── Remove ────────────────────────────────────
@@ -312,31 +357,37 @@ export function SessionWindowModal({
       // The backend soft-cancels rather than deleting; the grid hides
       // cancelled rows by default, so the block does disappear.
       await api.delete(`/sessions/${editing.id}`)
-      toast.success('Session removed', `${editing.class_name} on ${editing.date}.`)
+      toast.success(
+        t('window.toastRemovedTitle'),
+        t('window.toastRemovedBody', {
+          name: editing.class_name,
+          date: editing.date,
+        }),
+      )
       onSaved()
       onClose()
     } catch (err: any) {
-      setError(errMsg(err, 'Could not remove the session. Please try again.'))
+      setError(errMsg(err, t('window.errRemove')))
     } finally {
       setSaving(false)
     }
-  }, [editing, onSaved, onClose])
+  }, [editing, onSaved, onClose, t])
 
   const title = confirmRemove
-    ? 'Remove this session?'
+    ? t('window.titleRemove')
     : isEditing
-      ? isLocked ? 'Session details' : 'Change session time'
-      : 'Add session'
+      ? isLocked ? t('window.titleDetails') : t('window.titleChange')
+      : t('window.titleAdd')
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="md">
       {!confirmRemove && (
         <p className="text-xs text-[var(--muted)] -mt-1 mb-4">
           {isLocked
-            ? 'This class has already been run — the calendar only arranges the plan.'
+            ? t('window.hintLocked')
             : creatingClass
-              ? 'A session belongs to a group, so the class comes first. It is selected the moment it is created.'
-              : 'Pick the group this session belongs to — or create a new class from the list. No drag-and-drop.'}
+              ? t('window.hintCreating')
+              : t('window.hintPick')}
         </p>
       )}
 
@@ -350,9 +401,10 @@ export function SessionWindowModal({
         >
           <Lock size={13} className="mt-px shrink-0 text-[var(--muted)]" />
           <span>
-            <strong className="font-semibold">{editing.class_name}</strong>
-            {' '}is <strong className="font-semibold">{editing.status.replace('_', ' ')}</strong> and can no
-            longer be moved or removed from the calendar. Run it from the Dashboard.
+            {t('window.lockedNotice', {
+              className: editing.class_name,
+              status: statusLabel(editing.status),
+            })}
           </span>
         </div>
       )}
@@ -386,16 +438,18 @@ export function SessionWindowModal({
           >
             <AlertTriangle size={13} className="mt-px shrink-0" />
             <span>
-              <strong className="font-semibold">{editing.class_name}</strong> on{' '}
-              {editing.date} at {timeRangeLabel(editing.start_time, editing.end_time)} will be
-              cancelled. This cannot be undone from the calendar.
+              {t('window.removeNotice', {
+                className: editing.class_name,
+                date: editing.date,
+                time: timeRangeLabel(editing.start_time, editing.end_time),
+              })}
             </span>
           </div>
 
           <PinStep
-            hint="Enter your 4-digit PIN to confirm."
-            submitLabel="Remove session"
-            busyLabel="Removing…"
+            hint={t('window.pinHint')}
+            submitLabel={t('window.pinSubmit')}
+            busyLabel={t('window.pinBusy')}
             onVerified={handleDelete}
           />
 
@@ -406,7 +460,7 @@ export function SessionWindowModal({
               onClick={() => setConfirmRemove(false)}
               disabled={saving}
             >
-              Keep the session
+              {t('window.keepSession')}
             </Button>
           </div>
         </div>
@@ -426,13 +480,13 @@ export function SessionWindowModal({
         <div className="space-y-3">
           {/* Group */}
           <div>
-            <label className={labelCls}>Group</label>
+            <label className={labelCls}>{t('window.group')}</label>
             <Select
               value={groupId}
               onChange={(v) => { setGroupId(v); setError(null) }}
               disabled={isEditing || isLocked || saving}
-              placeholder="Select a group…"
-              emptyText="No groups yet — use New class… below"
+              placeholder={t('window.groupPlaceholder')}
+              emptyText={t('window.groupEmpty')}
               options={allGroups.map((g) => ({
                 value: g.id,
                 label: g.subject ? `${g.name} (${g.subject})` : g.name,
@@ -440,7 +494,7 @@ export function SessionWindowModal({
               action={
                 !isEditing && !isLocked
                   ? {
-                      label: 'New class…',
+                      label: t('window.newClass'),
                       icon: <Plus size={14} className="shrink-0" />,
                       onClick: () => setCreatingClass(true),
                     }
@@ -449,13 +503,13 @@ export function SessionWindowModal({
               // Inherit this modal's field geometry so the trigger sits flush
               // with the date/time inputs beside it.
               className={cn(inputCls, 'h-auto')}
-              aria-label="Group"
+              aria-label={t('window.group')}
             />
           </div>
 
           {/* Teacher — always derived, never chosen here */}
           <div>
-            <label className={labelCls}>Teacher</label>
+            <label className={labelCls}>{t('window.teacher')}</label>
             <div
               className={cn(
                 'flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm',
@@ -468,13 +522,13 @@ export function SessionWindowModal({
                 style={{ background: teacherSwatch }}
               />
               <span className="truncate">{teacherName}</span>
-              <span className="ml-auto text-[10px] uppercase tracking-wide shrink-0">auto</span>
+              <span className="ms-auto text-[10px] uppercase tracking-wide shrink-0">{t('window.auto')}</span>
             </div>
           </div>
 
           {/* Date */}
           <div>
-            <label className={labelCls}>Date</label>
+            <label className={labelCls}>{t('window.date')}</label>
             <DayPicker
               value={date}
               onChange={(v) => { setDate(v); setError(null) }}
@@ -485,51 +539,51 @@ export function SessionWindowModal({
               // (DayPicker blocks past days unless told otherwise).
               allowPast
               className={inputCls}
-              aria-label="Date"
+              aria-label={t('window.date')}
             />
           </div>
 
           {/* Times */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Start time</label>
+              <label className={labelCls}>{t('window.startTime')}</label>
               {/* step={300} is gone: five minutes is TimePicker's default. */}
               <TimePicker
                 value={start}
                 onChange={(v) => { setStart(v); setError(null) }}
                 disabled={isLocked || saving}
                 className={inputCls}
-                aria-label="Start time"
+                aria-label={t('window.startTime')}
               />
             </div>
             <div>
-              <label className={labelCls}>End time</label>
+              <label className={labelCls}>{t('window.endTime')}</label>
               {/* step={300} is gone: five minutes is TimePicker's default. */}
               <TimePicker
                 value={end}
                 onChange={(v) => { setEnd(v); setError(null) }}
                 disabled={isLocked || saving}
                 className={inputCls}
-                aria-label="End time"
+                aria-label={t('window.endTime')}
               />
             </div>
           </div>
 
           {/* Room */}
           <div>
-            <label className={labelCls}>Room</label>
+            <label className={labelCls}>{t('window.room')}</label>
             <Select
               value={roomId}
               onChange={(v) => { setRoomId(v); setError(null) }}
               disabled={isEditing || isLocked || saving}
-              placeholder="— No room —"
-              emptyText="No rooms yet — add one in Classrooms"
+              placeholder={t('window.noRoom')}
+              emptyText={t('window.noRooms')}
               options={[
-                { value: '', label: '— No room —' },
+                { value: '', label: t('window.noRoom') },
                 ...rooms.map((r) => ({ value: r.id, label: r.name })),
               ]}
               className={cn(inputCls, 'h-auto')}
-              aria-label="Room"
+              aria-label={t('window.room')}
             />
           </div>
         </div>
@@ -548,12 +602,12 @@ export function SessionWindowModal({
               disabled={saving}
             >
               <Trash2 size={13} />
-              Remove
+              {t('window.remove')}
             </Button>
           )}
           <div className="flex-1" />
           <Button variant="secondary" size="md" onClick={onClose} disabled={saving}>
-            {isLocked ? 'Close' : 'Cancel'}
+            {isLocked ? t('common:action.close') : t('common:action.cancel')}
           </Button>
           {!isLocked && (
             <Button
@@ -563,7 +617,7 @@ export function SessionWindowModal({
               disabled={conflicts.length > 0}
               onClick={() => void handleSave()}
             >
-              {isEditing ? 'Save changes' : 'Add session'}
+              {isEditing ? t('window.saveChanges') : t('window.addSession')}
             </Button>
           )}
         </div>

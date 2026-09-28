@@ -111,7 +111,30 @@ class ClassListSchema(Schema):
     teacher_name = fields.String(metadata={"description": "Teacher full name"})
     capacity = fields.Integer(metadata={"description": "Max students"})
     enrolled_count = fields.Integer(metadata={"description": "Currently enrolled students"})
-    status_color = fields.String(metadata={"description": "red / green / grey"})
+    status_color = fields.String(
+        metadata={
+            "description": (
+                "red = the class is running with nobody in it, or the group has "
+                "students and no time on the books; amber = students and a time, "
+                "waiting for its next class (Scheduled); green = the class is "
+                "running with students present (Active); grey = nobody enrolled "
+                "(Empty)"
+            )
+        }
+    )
+    is_running = fields.Boolean(
+        metadata={
+            "description": "A session of this group is in progress right now (today)"
+        }
+    )
+    students_present = fields.Integer(
+        metadata={
+            "description": (
+                "Students marked present on the running session; 0 when the "
+                "group has no class running"
+            )
+        }
+    )
     notes = fields.String(metadata={"description": "Free-form notes"})
     academic_level = fields.String(metadata={"description": GROUP_FIELDS_DOC["academic_level"]})
     group_name = fields.String(metadata={"description": GROUP_FIELDS_DOC["group_name"]})

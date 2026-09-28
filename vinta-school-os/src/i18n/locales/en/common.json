@@ -1,0 +1,112 @@
+{
+  "action": {
+    "add": "Add",
+    "apply": "Apply",
+    "back": "Back",
+    "cancel": "Cancel",
+    "clear": "Clear",
+    "close": "Close",
+    "confirm": "Confirm",
+    "create": "Create",
+    "delete": "Delete",
+    "done": "Done",
+    "edit": "Edit",
+    "next": "Next",
+    "refresh": "Refresh",
+    "remove": "Remove",
+    "reset": "Reset",
+    "retry": "Retry",
+    "save": "Save",
+    "search": "Search",
+    "update": "Update",
+    "view": "View"
+  },
+  "state": {
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "noResults": "No results",
+    "error": "Something went wrong",
+    "empty": "Nothing here yet",
+    "optional": "optional",
+    "required": "required",
+    "unsavedChanges": "You have unsaved changes",
+    "loadingApp": "Loading Vinta School OS…"
+  },
+  "label": {
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No",
+    "name": "Name",
+    "phone": "Phone",
+    "notes": "Notes",
+    "date": "Date",
+    "time": "Time",
+    "status": "Status",
+    "actions": "Actions",
+    "total": "Total"
+  },
+  "confirm": {
+    "discardTitle": "Discard changes?",
+    "discardBody": "Your edits will be lost.",
+    "deleteTitle": "Delete this item?",
+    "deleteBody": "This cannot be undone.",
+    "yes": "Yes, continue",
+    "no": "No, go back"
+  },
+  "avatar": {
+    "label": "Avatar"
+  },
+  "table": {
+    "empty": "No data to display"
+  },
+  "select": {
+    "placeholder": "Select…",
+    "empty": "Nothing to choose from",
+    "search": "Search…"
+  },
+  "dayPicker": {
+    "placeholder": "Pick a day…",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month"
+  },
+  "timePicker": {
+    "placeholder": "Pick a time…"
+  },
+  "pinInput": {
+    "group": "PIN input",
+    "digit": "Digit {{index}} of {{total}}"
+  },
+  "pinStep": {
+    "submit": "Verify PIN",
+    "busy": "Verifying…"
+  },
+  "pinConfirm": {
+    "warning": "This cannot be undone. Your PIN is required to continue.",
+    "hint": "Enter your 4-digit PIN to confirm.",
+    "cancel": "Cancel — do not delete",
+    "busy": "Working…",
+    "failed": "That did not go through. Press Retry."
+  },
+  "errorBoundary": {
+    "detail": "An unexpected error occurred",
+    "retry": "Try again"
+  },
+  "notify": {
+    "dismiss": "Dismiss notification",
+    "saved": "Saved",
+    "created": "Created",
+    "deleted": "Deleted",
+    "updated": "Updated"
+  },
+  "duration": {
+    "hours": "{{count}}h",
+    "minutes": "{{count}}m",
+    "hoursMinutes": "{{hours}}h {{minutes}}m"
+  },
+  "time": {
+    "am": "AM",
+    "pm": "PM"
+  },
+  "dash": "—"
+}

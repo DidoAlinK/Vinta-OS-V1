@@ -4,6 +4,7 @@
  */
 
 import { type ReactNode, useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useThemeStore } from '../stores/themeStore'
 import { useAuthStore } from '../stores/authStore'
 import { useUIStore, type Toast } from '../stores/uiStore'
@@ -31,6 +32,10 @@ function ToastContainer() {
   const toasts = useUIStore((s) => s.toasts)
   const removeToast = useUIStore((s) => s.removeToast)
   const [exiting, setExiting] = useState<Set<string>>(new Set())
+  // Named `tr`, not `t`: the map below is `toasts.map((t) => …)` and has already
+  // taken `t` for the toast itself. A translator under the same name would be
+  // shadowed by a plain object, which reads as a type error at best.
+  const { t: tr } = useTranslation('common')
 
   const handleDismiss = useCallback(
     (id: string) => {
@@ -95,7 +100,7 @@ function ToastContainer() {
           <button
             onClick={() => handleDismiss(t.id)}
             className="shrink-0 mt-0.5 text-[var(--muted)]/60 hover:text-[var(--text)] transition-colors"
-            aria-label="Dismiss notification"
+            aria-label={tr('notify.dismiss')}
           >
             <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M4 4l8 8M12 4l-8 8" />
@@ -112,6 +117,7 @@ function ToastContainer() {
 // ============================================
 
 function LoadingScreen() {
+  const { t } = useTranslation('common')
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg)]">
       <div className="flex flex-col items-center gap-4">
@@ -119,7 +125,7 @@ function LoadingScreen() {
           <div className="absolute inset-0 rounded-full border-2 border-[var(--muted)]" />
           <div className="absolute inset-0 rounded-full border-2 border-[var(--gold)] border-t-transparent animate-spin" />
         </div>
-        <p className="text-sm text-[var(--muted)] font-medium">Loading Vinta School OS…</p>
+        <p className="text-sm text-[var(--muted)] font-medium">{t('state.loadingApp')}</p>
       </div>
     </div>
   )

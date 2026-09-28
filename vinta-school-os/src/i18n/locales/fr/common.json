@@ -1,0 +1,112 @@
+{
+  "action": {
+    "add": "Ajouter",
+    "apply": "Appliquer",
+    "back": "Retour",
+    "cancel": "Annuler",
+    "clear": "Effacer",
+    "close": "Fermer",
+    "confirm": "Confirmer",
+    "create": "Créer",
+    "delete": "Supprimer",
+    "done": "Terminé",
+    "edit": "Modifier",
+    "next": "Suivant",
+    "refresh": "Actualiser",
+    "remove": "Retirer",
+    "reset": "Réinitialiser",
+    "retry": "Réessayer",
+    "save": "Enregistrer",
+    "search": "Rechercher",
+    "update": "Mettre à jour",
+    "view": "Voir"
+  },
+  "state": {
+    "loading": "Chargement…",
+    "saving": "Enregistrement…",
+    "noResults": "Aucun résultat",
+    "error": "Une erreur est survenue",
+    "empty": "Rien pour le moment",
+    "optional": "facultatif",
+    "required": "obligatoire",
+    "unsavedChanges": "Vous avez des modifications non enregistrées",
+    "loadingApp": "Chargement de Vinta School OS…"
+  },
+  "label": {
+    "all": "Tous",
+    "none": "Aucun",
+    "yes": "Oui",
+    "no": "Non",
+    "name": "Nom",
+    "phone": "Téléphone",
+    "notes": "Remarques",
+    "date": "Date",
+    "time": "Heure",
+    "status": "Statut",
+    "actions": "Actions",
+    "total": "Total"
+  },
+  "confirm": {
+    "discardTitle": "Abandonner les modifications ?",
+    "discardBody": "Vos modifications seront perdues.",
+    "deleteTitle": "Supprimer cet élément ?",
+    "deleteBody": "Cette action est irréversible.",
+    "yes": "Oui, continuer",
+    "no": "Non, revenir"
+  },
+  "avatar": {
+    "label": "Avatar"
+  },
+  "table": {
+    "empty": "Aucune donnée à afficher"
+  },
+  "select": {
+    "placeholder": "Sélectionner…",
+    "empty": "Aucun choix disponible",
+    "search": "Rechercher…"
+  },
+  "dayPicker": {
+    "placeholder": "Choisir une date…",
+    "previousMonth": "Mois précédent",
+    "nextMonth": "Mois suivant"
+  },
+  "timePicker": {
+    "placeholder": "Choisir une heure…"
+  },
+  "pinInput": {
+    "group": "Saisie du code PIN",
+    "digit": "Chiffre {{index}} sur {{total}}"
+  },
+  "pinStep": {
+    "submit": "Vérifier le code",
+    "busy": "Vérification…"
+  },
+  "pinConfirm": {
+    "warning": "Cette action est irréversible. Votre code PIN est requis pour continuer.",
+    "hint": "Saisissez votre code PIN à 4 chiffres pour confirmer.",
+    "cancel": "Annuler — ne pas supprimer",
+    "busy": "Traitement…",
+    "failed": "L'opération n'a pas abouti. Appuyez sur Réessayer."
+  },
+  "errorBoundary": {
+    "detail": "Une erreur inattendue est survenue",
+    "retry": "Réessayer"
+  },
+  "notify": {
+    "dismiss": "Fermer la notification",
+    "saved": "Enregistré",
+    "created": "Créé",
+    "deleted": "Supprimé",
+    "updated": "Mis à jour"
+  },
+  "duration": {
+    "hours": "{{count}} h",
+    "minutes": "{{count}} min",
+    "hoursMinutes": "{{hours}} h {{minutes}} min"
+  },
+  "time": {
+    "am": "AM",
+    "pm": "PM"
+  },
+  "dash": "—"
+}

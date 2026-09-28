@@ -22,6 +22,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import {
   Menu,
   Play,
@@ -48,7 +51,7 @@ import { Select } from '../../components/ui/Select'
 import { DayPicker } from '../../components/ui/DayPicker'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { useAuthStore } from '../../stores/authStore'
-import { formatDa } from '../../lib/formatters'
+import { formatDa, formatDateTime } from '../../lib/formatters'
 import { isGrossProfitEnabled } from '../../lib/grossProfit'
 import { getAbsenceConsumesCredit } from '../../lib/billingRules'
 import { recordVoidRestore } from '../../lib/voidedSessions'
@@ -122,6 +125,24 @@ type ModalKind =
 // Shared modal shell
 // ============================================
 
+/**
+ * The menu's dialogs and its dropdown are the only two surfaces in this app
+ * that still rendered in place while being `position: fixed`, and they are
+ * mounted from panels that put a `backdrop-filter` on their own root — the
+ * dashboard's agenda board and its class-presence tab both do. A filter other
+ * than `none` makes that ancestor the containing block for fixed descendants,
+ * so `fixed inset-0` was measured against the panel instead of the viewport,
+ * and the `overflow-hidden` on the same element then clipped whatever fell
+ * outside it. The visible symptom was the panel's own ☰ opening its dialogs
+ * inside a 380px column, and the agenda board's block-click menu appearing
+ * offset — or, for a block in the last day column, entirely off the clipped
+ * edge, which reads as "the click did nothing".
+ *
+ * Portalling to `document.body` is the fix this codebase already uses for
+ * every other overlay (ui/Modal, Drawer, Select, TimePicker, DayPicker).
+ * Refs and event bubbling survive the portal, so the menu's outside-click and
+ * toggle logic is unchanged.
+ */
 function ModalShell({
   title,
   onClose,
@@ -133,7 +154,11 @@ function ModalShell({
   children: React.ReactNode
   wide?: boolean
 }) {
-  return (
+  // The title arrives already translated from each caller — they know which
+  // dialog they are; the shell only owns the ✕.
+  const { t } = useTranslation('dashboard')
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center"
       style={{ background: 'rgba(10,10,10,.6)', backdropFilter: 'blur(8px)' }}
@@ -156,16 +181,18 @@ function ModalShell({
             {title}
           </h2>
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--glass)] hover:text-[var(--text)] transition-colors"
-            aria-label="Close"
+            aria-label={t('common:action.close')}
           >
             ✕
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -192,6 +219,27 @@ const dangerBtnCls = cn(
   'transition-all duration-150',
 )
 
+/**
+ * Which half of a clash `findConflicts` is reporting, as a key.
+ *
+ * It reports low, lowercase halves — "room", "teacher" — and they land in the
+ * middle of a translated sentence ("Blocked: room + teacher overlap on…"), so
+ * they are mapped like every other enum here: a desk reading "chevauchement
+ * room + teacher" would be reading the API rather than the interface.
+ */
+const CONFLICT_KIND_KEYS: Record<string, string> = {
+  room: 'kind.room',
+  teacher: 'kind.teacher',
+}
+
+/** A clash's halves as one label — "salle + enseignant". Unlisted kinds (the
+ *  union has two members) fall back to a word rather than to the raw value. */
+function conflictLabels(t: TFunction, conflicts: { kind: string }[]): string {
+  return [...new Set(conflicts.map((c) => c.kind))]
+    .map((kind) => t(CONFLICT_KIND_KEYS[kind] ?? 'kind.unknown'))
+    .join(' + ')
+}
+
 // ============================================
 // Edit THIS instance — date and times only, and only while SCHEDULED.
 //
@@ -215,11 +263,12 @@ function EditSessionModal({ session, sessions, locked, onClose, onChanged }: {
   const [end, setEnd] = useState(session.end_time)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation('dashboard')
 
   const handleSave = useCallback(async () => {
     if (locked) return
-    if (!date || !start || !end) { setError('Date, start and end are required.'); return }
-    if (end <= start) { setError('End time must be after start time.'); return }
+    if (!date || !start || !end) { setError(t('edit.required')); return }
+    if (end <= start) { setError(t('edit.endBeforeStart')); return }
     // T8 conflict BLOCK (room OR teacher vs non-CANCELLED) for the edited date.
     const conflicts = sessions ? findConflicts(sessions, {
       date, start, end,
@@ -228,10 +277,9 @@ function EditSessionModal({ session, sessions, locked, onClose, onChanged }: {
       ignoreId: session.id,
     }) : []
     if (conflicts.length > 0) {
-      const kinds = [...new Set(conflicts.map((c) => c.kind))].join(' + ')
-      const msg = `Blocked: ${kinds} overlap on ${date}. Pick another room/time.`
+      const msg = t('edit.blocked', { kinds: conflictLabels(t, conflicts), date })
       setError(msg)
-      toast.error('Edit blocked', msg)
+      toast.error(t('edit.toastBlockedTitle'), msg)
       return
     }
     setError(null)
@@ -239,7 +287,7 @@ function EditSessionModal({ session, sessions, locked, onClose, onChanged }: {
     try {
       // Cancel-one-occurrence semantics: THIS session only, definition untouched.
       await api.patch(`/sessions/${session.id}`, { date, start_time: start, end_time: end })
-      toast.success('Session updated', 'THIS instance only — series untouched.')
+      toast.success(t('edit.toastUpdatedTitle'), t('edit.toastUpdatedBody'))
       onChanged?.()
       onClose()
     } catch (err: any) {
@@ -247,46 +295,43 @@ function EditSessionModal({ session, sessions, locked, onClose, onChanged }: {
       // refusal of an edit it does not allow — a live class accepts a later
       // end time and nothing else, and a finished one accepts nothing.
       const msg = err?.response?.status === 404
-        ? 'Not allowed — a live class can only be extended, and a finished one cannot be edited.'
-        : 'Could not save changes. Press Retry.'
+        ? t('edit.notAllowed')
+        : t('edit.saveFailed')
       setError(msg)
-      toast.error('Update failed', msg)
+      toast.error(t('edit.toastFailedTitle'), msg)
     } finally {
       setSaving(false)
     }
-  }, [locked, date, start, end, sessions, session, onChanged, onClose])
+  }, [t, locked, date, start, end, sessions, session, onChanged, onClose])
 
   return (
-    <ModalShell title="Edit THIS instance" onClose={onClose} wide>
+    <ModalShell title={t('edit.title')} onClose={onClose} wide>
       {locked && (
         <p className="flex items-center gap-2 text-xs text-[var(--gold)] bg-[var(--gold-soft)] rounded-xl px-3 py-2.5 mb-4">
           <Lock size={13} className="shrink-0" />
-          This class is running or finished — its times are locked. Use Extend while it is live.
+          {t('edit.locked')}
         </p>
       )}
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Date</label>
+          <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">{t('common:label.date')}</label>
           <DayPicker value={date} onChange={setDate} disabled={locked || saving} allowPast className={inputCls} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Start</label>
+            <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">{t('edit.start')}</label>
             <TimePicker value={start} onChange={setStart} disabled={locked || saving} className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">End</label>
+            <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">{t('edit.end')}</label>
             <TimePicker value={end} onChange={setEnd} disabled={locked || saving} className={inputCls} />
           </div>
         </div>
-        <p className="text-[11px] text-[var(--muted)]">
-          This occurrence only — the group's schedule is untouched. Room, price, and the number of
-          sessions live on the Classes page.
-        </p>
+        <p className="text-[11px] text-[var(--muted)]">{t('edit.note')}</p>
         {error && <p className="text-xs text-[var(--red)]">{error}</p>}
         {!locked && (
-          <button onClick={() => void handleSave()} disabled={saving} className={primaryBtnCls}>
-            {saving ? 'Saving…' : 'Save THIS session'}
+          <button type="button" onClick={() => void handleSave()} disabled={saving} className={primaryBtnCls}>
+            {saving ? t('common:state.saving') : t('edit.save')}
           </button>
         )}
       </div>
@@ -306,38 +351,39 @@ function RescheduleModal({ session, onClose, onChanged }: {
   const [date, setDate] = useState(session.date)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation('dashboard')
 
   const handleSave = useCallback(async () => {
-    if (!date) { setError('Pick a date.'); return }
+    if (!date) { setError(t('resched.pickDate')); return }
     setError(null)
     setSaving(true)
     try {
       await api.patch(`/sessions/${session.id}`, { date })
-      toast.success('Session rescheduled', 'THIS instance only — series untouched.')
+      toast.success(t('resched.toastDoneTitle'), t('resched.toastDoneBody'))
       onChanged?.()
       onClose()
     } catch (err: any) {
       const msg = err?.response?.status === 404
-        ? 'Session already started — reschedule locked.'
-        : 'Could not reschedule.'
+        ? t('resched.locked')
+        : t('resched.failed')
       setError(msg)
-      toast.error('Reschedule failed', msg)
+      toast.error(t('resched.toastFailedTitle'), msg)
     } finally {
       setSaving(false)
     }
-  }, [date, session.id, onChanged, onClose])
+  }, [t, date, session.id, onChanged, onClose])
 
   return (
-    <ModalShell title="Reschedule THIS session" onClose={onClose}>
+    <ModalShell title={t('resched.title')} onClose={onClose}>
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">New date</label>
+          <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">{t('resched.newDate')}</label>
           <DayPicker value={date} onChange={setDate} disabled={saving} allowPast className={inputCls} />
         </div>
-        <p className="text-[11px] text-[var(--muted)]">Keeps start/end times. Cancels nothing, moves THIS occurrence only.</p>
+        <p className="text-[11px] text-[var(--muted)]">{t('resched.note')}</p>
         {error && <p className="text-xs text-[var(--red)]">{error}</p>}
-        <button onClick={() => void handleSave()} disabled={saving} className={primaryBtnCls}>
-          {saving ? 'Moving…' : 'Move THIS session'}
+        <button type="button" onClick={() => void handleSave()} disabled={saving} className={primaryBtnCls}>
+          {saving ? t('resched.saving') : t('resched.save')}
         </button>
       </div>
     </ModalShell>
@@ -372,6 +418,7 @@ function DangerConfirmModal({ title, body, confirmLabel, reason, session, onClos
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation('dashboard')
 
   const handleConfirm = useCallback(async () => {
     setError(null)
@@ -383,25 +430,25 @@ function DangerConfirmModal({ title, body, confirmLabel, reason, session, onClos
       // outcome.
       const credits = reason === 'TEACHER_ABSENT'
         ? (getAbsenceConsumesCredit()
-          ? 'Billing Rules have an absence spend the seat.'
-          : 'No credit spent — the seat is restored.')
-        : 'No credit spent by this cancellation.'
-      toast.success(title, `THIS instance only. ${credits}`)
+          ? t('danger.creditAbsenceSpends')
+          : t('danger.creditRestored'))
+        : t('danger.creditNone')
+      toast.success(title, t('danger.toastBody', { credits }))
       onChanged?.()
       onClose()
     } catch {
-      const msg = 'Could not cancel. Press Retry.'
+      const msg = t('danger.failed')
       setError(msg)
-      toast.error('Cancel failed', msg)
+      toast.error(t('danger.toastFailedTitle'), msg)
     } finally {
       setSaving(false)
     }
-  }, [session.id, title, reason, onChanged, onClose])
+  }, [t, session.id, title, reason, onChanged, onClose])
 
   return (
     <ModalShell title={title} onClose={onClose}>
       <p className="text-sm text-[var(--text)] leading-relaxed">{body}</p>
-      <p className="text-[11px] text-[var(--muted)] mt-2">Series, price, and N are untouched. Cancel is allowed only from SCHEDULED.</p>
+      <p className="text-[11px] text-[var(--muted)] mt-2">{t('danger.note')}</p>
       {error && <p className="text-xs text-[var(--red)] mt-3">{error}</p>}
       <div className="mt-4">
         {saving ? (
@@ -410,9 +457,9 @@ function DangerConfirmModal({ title, body, confirmLabel, reason, session, onClos
           </div>
         ) : (
           <PinStep
-            hint="This cancels a scheduled class. Enter your 4-digit PIN to confirm."
+            hint={t('danger.pinHint')}
             submitLabel={confirmLabel}
-            busyLabel="Working…"
+            busyLabel={t('danger.busy')}
             onVerified={handleConfirm}
           />
         )}
@@ -444,6 +491,7 @@ function FreeNextModal({ session, onClose, onChanged }: {
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation('dashboard')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -451,11 +499,11 @@ function FreeNextModal({ session, onClose, onChanged }: {
     try {
       setNext(await findNextSession(session))
     } catch {
-      setError('Could not reach the schedule. Press Retry.')
+      setError(t('free.unreachable'))
     } finally {
       setLoading(false)
     }
-  }, [session])
+  }, [t, session])
 
   useEffect(() => { void load() }, [load])
 
@@ -466,24 +514,24 @@ function FreeNextModal({ session, onClose, onChanged }: {
       await setSessionFree(target.id, isFree)
       if (isFree) {
         toast.success(
-          'Session marked free',
-          `${target.date} ${target.start_time} — teacher pays, no credit spent.`,
+          t('free.toastMarkedTitle'),
+          t('free.toastMarkedBody', { date: target.date, time: target.start_time }),
         )
       } else {
-        toast.info('Free flag removed', 'That session bills normally again.')
+        toast.info(t('free.toastRemovedTitle'), t('free.toastRemovedBody'))
       }
       onChanged?.()
       onClose()
     } catch (err: any) {
       const msg = err?.response?.status === 404
-        ? 'That session can no longer be changed — it has already run or been cancelled.'
-        : 'Could not save the free flag. Press Retry.'
+        ? t('free.gone')
+        : t('free.saveFailed')
       setError(msg)
-      toast.error('Free flag failed', msg)
+      toast.error(t('free.toastFailedTitle'), msg)
     } finally {
       setWorking(false)
     }
-  }, [onChanged, onClose])
+  }, [t, onChanged, onClose])
 
   // The instance the menu was opened from, if it is already free. Separate
   // from "next" because it is a different row and the desk has to be able to
@@ -491,7 +539,7 @@ function FreeNextModal({ session, onClose, onChanged }: {
   const thisIsFree = isSessionFree(session)
 
   return (
-    <ModalShell title="Free sessions" onClose={onClose}>
+    <ModalShell title={t('free.title')} onClose={onClose}>
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
@@ -500,31 +548,31 @@ function FreeNextModal({ session, onClose, onChanged }: {
         <div className="space-y-4">
           <div>
             <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-1.5">
-              Next session of this group
+              {t('free.nextLabel')}
             </p>
             {next ? (
               <>
                 <p className="text-sm text-[var(--text)] leading-relaxed">
                   {next.date} · {next.start_time}–{next.end_time}
                   {next.is_free_session && (
-                    <span className="ml-2 text-xs font-semibold text-[var(--emerald)]">FREE</span>
+                    <span className="ms-2 text-xs font-semibold text-[var(--emerald)]">{t('free.tag')}</span>
                   )}
                 </p>
                 <p className="text-[11px] text-[var(--muted)] mt-1">
                   {next.is_free_session
-                    ? 'Teacher says this one is on the house. Billing 0, no credit spent.'
-                    : 'Teacher says next time free: this one bills 0 and spends no credit.'}
+                    ? t('free.nextIsFree')
+                    : t('free.nextWillBeFree')}
                 </p>
               </>
             ) : (
-              <p className="text-sm text-[var(--text)]">Nothing else scheduled for this group yet.</p>
+              <p className="text-sm text-[var(--text)]">{t('free.none')}</p>
             )}
           </div>
 
           {thisIsFree && (
             <div className="rounded-xl bg-[var(--emerald-soft)]/40 px-3 py-2.5">
               <p className="text-xs font-semibold text-[var(--emerald)]">
-                This session ({session.date} · {session.start_time}) is marked FREE.
+                {t('free.thisIsFree', { date: session.date, time: session.start_time })}
               </p>
               <button
                 type="button"
@@ -532,7 +580,7 @@ function FreeNextModal({ session, onClose, onChanged }: {
                 disabled={working}
                 className="mt-2 text-xs font-semibold text-[var(--text)] underline underline-offset-2 disabled:opacity-40"
               >
-                Bill this one normally instead
+                {t('free.billNormally')}
               </button>
             </div>
           )}
@@ -541,18 +589,19 @@ function FreeNextModal({ session, onClose, onChanged }: {
 
           {next ? (
             <button
+              type="button"
               onClick={() => void toggle(next, !next.is_free_session)}
               disabled={working}
               className={primaryBtnCls}
             >
               {working
-                ? 'Saving…'
+                ? t('common:state.saving')
                 : next.is_free_session
-                  ? 'Undo — next session bills normally'
-                  : 'Mark next session free'}
+                  ? t('free.undo')
+                  : t('free.mark')}
             </button>
           ) : error ? (
-            <button onClick={() => void load()} className={primaryBtnCls}>Retry</button>
+            <button type="button" onClick={() => void load()} className={primaryBtnCls}>{t('common:action.retry')}</button>
           ) : null}
         </div>
       )}
@@ -572,6 +621,25 @@ interface PayoutRow {
   status?: string
 }
 
+/**
+ * Two more rendered enums, so two more key maps.
+ *
+ * `PENDING` and `Pending` are one state spelled two ways by different rows, and
+ * `FLAT_HOURLY` is nobody's word for anything — the value goes in, a label
+ * comes out, and the value itself is never printed. Both lookups are
+ * case-insensitive because the payout rows are not consistent about it.
+ */
+const PAYOUT_STATUS_KEYS: Record<string, string> = {
+  PENDING: 'fin.payoutPending',
+  PAID: 'fin.payoutPaid',
+}
+
+const COMMISSION_TYPE_KEYS: Record<string, string> = {
+  FLAT_HOURLY: 'fin.commissionFlatHourly',
+  PERCENTAGE: 'fin.commissionPercentage',
+  FIXED_SESSION: 'fin.commissionFixedSession',
+}
+
 function FinancesModal({ session, onClose }: {
   session: Session
   onClose: () => void
@@ -580,6 +648,7 @@ function FinancesModal({ session, onClose }: {
   const [payout, setPayout] = useState<PayoutRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation('dashboard')
   // Read straight off the row. This used to be a client-side overlay over
   // the backend numbers, which could only disagree with them.
   const free = isSessionFree(session)
@@ -596,13 +665,13 @@ function FinancesModal({ session, onClose }: {
       const list: PayoutRow[] = payRes.data.payouts ?? []
       setPayout(list.find((p) => p.session_id === session.id) ?? null)
     } catch {
-      const msg = 'Could not load finances.'
+      const msg = t('fin.loadFailed')
       setError(msg)
-      toast.error('Finances failed', `${msg} Press Retry.`)
+      toast.error(t('fin.toastFailedTitle'), t('fin.toastFailedBody', { message: msg }))
     } finally {
       setLoading(false)
     }
-  }, [session.id])
+  }, [t, session.id])
 
   useEffect(() => { void load() }, [load])
 
@@ -611,10 +680,22 @@ function FinancesModal({ session, onClose }: {
   const grossOn = isGrossProfitEnabled()
   const dispRevenue = free ? 0 : grossOn ? revenue?.total_da ?? null : null
   const dispCut = free ? 0 : grossOn ? payout?.teacher_cut_da ?? null : null
-  const dispStatus = free ? 'FREE — teacher pays' : payout?.status ?? null
+  // Three different kinds of "nothing": a free session has no payout row by
+  // design, a row can carry a status we have no label for, and a session that
+  // was never finalised has no row at all. Each one reads differently.
+  const statusKey = payout?.status
+    ? PAYOUT_STATUS_KEYS[payout.status.toUpperCase()]
+    : undefined
+  const dispStatus = free
+    ? t('fin.statusFree')
+    : statusKey
+      ? t(statusKey)
+      : payout?.status
+        ? t('fin.payoutUnknown')
+        : t('fin.notSet')
 
   return (
-    <ModalShell title={free ? 'Session finances · FREE' : 'Session finances'} onClose={onClose}>
+    <ModalShell title={free ? t('fin.titleFree') : t('fin.title')} onClose={onClose}>
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
@@ -628,35 +709,45 @@ function FinancesModal({ session, onClose }: {
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] hover:opacity-90 transition-all"
           >
             <RefreshCw size={13} />
-            Retry
+            {t('common:action.retry')}
           </button>
         </div>
       ) : (
         <div className="space-y-2.5">
           {free && (
             <p className="text-xs font-semibold text-[var(--emerald)] bg-[var(--emerald-soft)]/40 rounded-xl px-3 py-2.5">
-              🎁 FREE session — teacher pays. Revenue 0 · cut 0 · no credits moved.
+              {t('fin.freeNote')}
             </p>
           )}
           <div className="flex items-center justify-between rounded-xl bg-[var(--input-bg)] border border-[var(--glass-border)] px-3.5 py-2.5">
-            <span className="text-xs text-[var(--muted)]">Revenue (this session)</span>
-            <span className="text-sm font-bold text-[var(--text)]">{dispRevenue != null ? formatDa(dispRevenue) : grossOn || free ? 'Not set' : '—'}</span>
+            <span className="text-xs text-[var(--muted)]">{t('fin.revenue')}</span>
+            <span className="text-sm font-bold text-[var(--text)]">
+              {dispRevenue != null ? formatDa(dispRevenue) : grossOn || free ? t('fin.notSet') : t('common:dash')}
+            </span>
           </div>
           <div className="flex items-center justify-between rounded-xl bg-[var(--input-bg)] border border-[var(--glass-border)] px-3.5 py-2.5">
-            <span className="text-xs text-[var(--muted)]">Teacher cut</span>
-            <span className="text-sm font-bold text-[var(--emerald)]">{dispCut != null ? formatDa(dispCut) : grossOn || free ? 'Not set' : '—'}</span>
+            <span className="text-xs text-[var(--muted)]">{t('fin.cut')}</span>
+            <span className="text-sm font-bold text-[var(--emerald)]">
+              {dispCut != null ? formatDa(dispCut) : grossOn || free ? t('fin.notSet') : t('common:dash')}
+            </span>
           </div>
           <div className="flex items-center justify-between rounded-xl bg-[var(--input-bg)] border border-[var(--glass-border)] px-3.5 py-2.5">
-            <span className="text-xs text-[var(--muted)]">Payout status</span>
-            <span className="text-xs font-semibold text-[var(--text)]">{dispStatus ?? 'Not set'}</span>
+            <span className="text-xs text-[var(--muted)]">{t('fin.payoutStatus')}</span>
+            <span className="text-xs font-semibold text-[var(--text)]">{dispStatus}</span>
           </div>
           {!grossOn && !free && (
-            <p className="text-[11px] text-[var(--muted)]">Gross-profit math is off — turn it on in Billing.</p>
+            <p className="text-[11px] text-[var(--muted)]">{t('fin.grossOff')}</p>
           )}
           {grossOn && !free && payout?.commission_type && (
-            <p className="text-[11px] text-[var(--muted)]">Commission: {payout.commission_type}</p>
+            <p className="text-[11px] text-[var(--muted)]">
+              {t('fin.commission', {
+                type: COMMISSION_TYPE_KEYS[payout.commission_type.toUpperCase()]
+                  ? t(COMMISSION_TYPE_KEYS[payout.commission_type.toUpperCase()])
+                  : t('fin.commissionUnknown'),
+              })}
+            </p>
           )}
-          <p className="text-[11px] text-[var(--muted)]">Read-only — THIS session only.</p>
+          <p className="text-[11px] text-[var(--muted)]">{t('fin.readOnly')}</p>
         </div>
       )}
     </ModalShell>
@@ -691,6 +782,7 @@ function LogModal({ classId, onClose }: { classId: string; onClose: () => void }
   const [retentionDays, setRetentionDays] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation('dashboard')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -702,21 +794,22 @@ function LogModal({ classId, onClose }: { classId: string; onClose: () => void }
       setItems(data.activities ?? [])
       setRetentionDays(data.retention_days ?? null)
     } catch {
-      const msg = 'Could not load log.'
+      const msg = t('classLog.loadFailed')
       setError(msg)
-      toast.error('Log failed', `${msg} Press Retry.`)
+      toast.error(t('classLog.toastFailedTitle'), t('classLog.toastFailedBody', { message: msg }))
     } finally {
       setLoading(false)
     }
-  }, [classId])
+  }, [t, classId])
 
   useEffect(() => { void load() }, [load])
 
   return (
-    <ModalShell title="View Log" onClose={onClose} wide>
+    <ModalShell title={t('menu.viewLog')} onClose={onClose} wide>
       <p className="text-[11px] text-[var(--muted)] mb-3">
-        This class's own activity{retentionDays != null ? ` — the last ${retentionDays} days` : ''}.
-        Older entries are removed automatically.
+        {retentionDays != null
+          ? t('classLog.introWithRetention', { days: retentionDays })
+          : t('classLog.intro')}
       </p>
       {loading ? (
         <div className="flex items-center justify-center py-8">
@@ -731,11 +824,11 @@ function LogModal({ classId, onClose }: { classId: string; onClose: () => void }
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] hover:opacity-90 transition-all"
           >
             <RefreshCw size={13} />
-            Retry
+            {t('common:action.retry')}
           </button>
         </div>
       ) : items.length === 0 ? (
-        <p className="text-xs text-[var(--muted)] text-center py-6">Nothing logged for this class yet.</p>
+        <p className="text-xs text-[var(--muted)] text-center py-6">{t('classLog.empty')}</p>
       ) : (
         <div className="space-y-2">
           {items.map((a) => (
@@ -746,9 +839,7 @@ function LogModal({ classId, onClose }: { classId: string; onClose: () => void }
               )}
               <p className="text-[10px] text-[var(--muted)]/70 mt-1">
                 {a.staff_name}
-                {a.timestamp ? ` · ${new Date(a.timestamp).toLocaleString('en-GB', {
-                  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-                })}` : ''}
+                {a.timestamp ? ` · ${formatDateTime(a.timestamp)}` : ''}
               </p>
             </div>
           ))}
@@ -785,6 +876,7 @@ export function VoidModal({ session, onClose, onChanged }: {
   const [error, setError] = useState<string | null>(null)
   const [rosterPreview, setRosterPreview] = useState<number | null>(null)
   const staffName = useAuthStore((s) => s.user?.name ?? 'staff')
+  const { t } = useTranslation('dashboard')
 
   // Preview roster size so the owner sees exactly what gets restored.
   useEffect(() => {
@@ -804,30 +896,35 @@ export function VoidModal({ session, onClose, onChanged }: {
     try {
       const prof = await api.get('/settings/profile')
       if (prof.data.role !== 'owner') {
-        const msg = `Owner only (you are ${prof.data.role ?? 'staff'}).`
+        // The role is an enum, so it is labelled rather than printed: "you are
+        // staff" was the only sentence this could ever produce in English.
+        const roleLabel = prof.data.role === 'owner'
+          ? t('void.roleOwner')
+          : t('void.roleStaff')
+        const msg = t('void.ownerOnly', { role: roleLabel })
         setError(msg)
-        toast.error('Void blocked', msg)
+        toast.error(t('void.toastBlockedTitle'), msg)
         return
       }
       const staff = await api.get('/settings/staff')
       const owner = (staff.data.staff ?? []).find((u: any) => u.role === 'owner')
       if (!owner) {
-        const msg = 'Owner profile Not set.'
+        const msg = t('void.noOwner')
         setError(msg)
-        toast.error('Void blocked', msg)
+        toast.error(t('void.toastBlockedTitle'), msg)
         return
       }
       await api.post('/auth/verify-pin', { user_id: owner.id, pin: pin.trim() })
       // PIN accepted — arm the destructive confirm (two-step, no accidents).
       setConfirmArmed(true)
     } catch (err: any) {
-      const msg = err?.response?.status === 401 ? 'Invalid PIN.' : 'Verification failed. Press Retry.'
+      const msg = err?.response?.status === 401 ? t('void.invalidPin') : t('void.verifyFailed')
       setError(msg)
-      toast.error('Void blocked', msg)
+      toast.error(t('void.toastBlockedTitle'), msg)
     } finally {
       setWorking(false)
     }
-  }, [pin])
+  }, [t, pin])
 
   const handleVoid = useCallback(async () => {
     if (!confirmArmed) return
@@ -840,9 +937,9 @@ export function VoidModal({ session, onClose, onChanged }: {
         const rRes = await api.get(`/attendance/roster/${session.id}`)
         rows = rRes.data.roster ?? []
       } catch {
-        const msg = 'Roster unreadable — void aborted so no credit is lost silently. Press Retry.'
+        const msg = t('void.rosterUnreadable')
         setError(msg)
-        toast.error('Void aborted', msg)
+        toast.error(t('void.toastAbortedTitle'), msg)
         return
       }
 
@@ -882,28 +979,28 @@ export function VoidModal({ session, onClose, onChanged }: {
       })
 
       toast.warning(
-        'Session voided (LIVE_VOID)',
-        `THIS session only: ${charged.length}/${rows.length} credit(s) restored, rows VOIDED, no payout.`,
+        t('void.toastDoneTitle'),
+        t('void.toastDoneBody', { charged: charged.length, total: rows.length }),
         { duration: 8000 },
       )
       onChanged?.()
       onClose()
     } catch (err: any) {
       const msg = err?.response?.status === 404
-        ? 'Session already finalized — void locked.'
-        : 'Void failed. Session untouched. Press Retry.'
+        ? t('void.finalized')
+        : t('void.failed')
       setError(msg)
-      toast.error('Void failed', msg)
+      toast.error(t('void.toastFailedTitle'), msg)
     } finally {
       setWorking(false)
     }
-  }, [confirmArmed, session, staffName, onChanged, onClose])
+  }, [t, confirmArmed, session, staffName, onChanged, onClose])
 
   return (
-    <ModalShell title="Void Live Session" onClose={onClose}>
+    <ModalShell title={t('menu.voidLive')} onClose={onClose}>
       <p className="flex items-center gap-2 text-xs text-[var(--red)] bg-[var(--red-soft)]/40 rounded-xl px-3 py-2.5 mb-4">
         <Ban size={13} className="shrink-0" />
-        Owner PIN required. Live abort restores THIS session's credits only — no pro-rata.
+        {t('void.warning')}
       </p>
       {!confirmArmed ? (
         <div className="space-y-3">
@@ -913,32 +1010,37 @@ export function VoidModal({ session, onClose, onChanged }: {
             maxLength={4}
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="Owner PIN"
+            placeholder={t('void.pinPlaceholder')}
             className={cn(inputCls, 'text-center tracking-[0.3em]')}
           />
           {error && <p className="text-xs text-[var(--red)]">{error}</p>}
-          <button onClick={() => void handleVerify()} disabled={pin.length !== 4 || working} className={dangerBtnCls}>
-            {working ? 'Verifying…' : 'Verify Owner PIN'}
+          <button type="button" onClick={() => void handleVerify()} disabled={pin.length !== 4 || working} className={dangerBtnCls}>
+            {working ? t('void.verifying') : t('void.verify')}
           </button>
         </div>
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-[var(--text)] leading-relaxed">
-            Void <strong>{session.class_name}</strong> on {session.date}? This cancels the live
-            session{rosterPreview != null ? ` (${rosterPreview} row${rosterPreview === 1 ? '' : 's'} → restore THIS session's credits only)` : ''},
-            marks rows VOIDED, creates no payout.
+            {rosterPreview != null
+              ? t('void.confirmWithRoster', {
+                  class: session.class_name,
+                  date: session.date,
+                  rows: t('void.rows', { count: rosterPreview }),
+                })
+              : t('void.confirm', { class: session.class_name, date: session.date })}
           </p>
-          <p className="text-[11px] text-[var(--muted)]">Or End Class normally = full pay per formula. No pro-rata either way.</p>
+          <p className="text-[11px] text-[var(--muted)]">{t('void.note')}</p>
           {error && <p className="text-xs text-[var(--red)]">{error}</p>}
-          <button onClick={() => void handleVoid()} disabled={working} className={dangerBtnCls}>
-            {working ? 'Voiding…' : 'Void THIS live session'}
+          <button type="button" onClick={() => void handleVoid()} disabled={working} className={dangerBtnCls}>
+            {working ? t('void.voiding') : t('void.submit')}
           </button>
           <button
+            type="button"
             onClick={() => setConfirmArmed(false)}
             disabled={working}
             className="w-full py-2 rounded-xl text-xs font-medium bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)] hover:text-[var(--text)] transition-colors disabled:opacity-40"
           >
-            Back
+            {t('common:action.back')}
           </button>
         </div>
       )}
@@ -964,6 +1066,7 @@ function CompensatoryModal({ session, sessions, onClose, onChanged }: {
   const [roomsError, setRoomsError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation('dashboard')
 
   const loadRooms = useCallback(async () => {
     setRoomsError(null)
@@ -972,10 +1075,10 @@ function CompensatoryModal({ session, sessions, onClose, onChanged }: {
       setRooms(data.classrooms ?? [])
     } catch {
       setRooms([])
-      setRoomsError('Rooms Not set.')
-      toast.error('Rooms failed to load', 'Room list Not set. Pick later or press Retry.')
+      setRoomsError(t('comp.roomsNotSet'))
+      toast.error(t('comp.toastRoomsTitle'), t('comp.toastRoomsBody'))
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadRooms()
@@ -988,18 +1091,17 @@ function CompensatoryModal({ session, sessions, onClose, onChanged }: {
   }) : []
 
   const handleCreate = useCallback(async () => {
-    if (!date || !start || !end) { setError('Date, start and end are required.'); return }
-    if (end <= start) { setError('End time must be after start time.'); return }
+    if (!date || !start || !end) { setError(t('comp.required')); return }
+    if (end <= start) { setError(t('comp.endBeforeStart')); return }
     const blocked = sessions ? findConflicts(sessions, {
       date, start, end,
       teacherId: session.teacher_id,
       roomId: roomId || null,
     }) : []
     if (blocked.length > 0) {
-      const kinds = [...new Set(blocked.map((c) => c.kind))].join(' + ')
-      const msg = `Blocked: ${kinds} overlap on ${date}. Pick another room/time.`
+      const msg = t('comp.blocked', { kinds: conflictLabels(t, blocked), date })
       setError(msg)
-      toast.error('Create blocked', msg)
+      toast.error(t('comp.toastBlockedTitle'), msg)
       return
     }
     setError(null)
@@ -1013,49 +1115,49 @@ function CompensatoryModal({ session, sessions, onClose, onChanged }: {
         end_time: end,
         classroom_id: roomId || undefined,
       })
-      toast.success('Compensatory session created', 'New SCHEDULED session for the whole group.')
+      toast.success(t('comp.toastCreatedTitle'), t('comp.toastCreatedBody'))
       onChanged?.()
       onClose()
     } catch {
-      const msg = 'Could not create session. Press Retry.'
+      const msg = t('comp.createFailed')
       setError(msg)
-      toast.error('Create failed', msg)
+      toast.error(t('comp.toastFailedTitle'), msg)
     } finally {
       setSaving(false)
     }
-  }, [date, start, end, roomId, sessions, session.class_id, session.teacher_id, onChanged, onClose])
+  }, [t, date, start, end, roomId, sessions, session.class_id, session.teacher_id, onChanged, onClose])
 
   return (
-    <ModalShell title="Add Compensatory Session" onClose={onClose}>
-      <p className="text-[11px] text-[var(--muted)] mb-3">Creates a new SCHEDULED session for the WHOLE group (pick date/time/room).</p>
+    <ModalShell title={t('menu.addCompensatory')} onClose={onClose}>
+      <p className="text-[11px] text-[var(--muted)] mb-3">{t('comp.note')}</p>
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Date</label>
+          <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">{t('common:label.date')}</label>
           <DayPicker value={date} onChange={setDate} disabled={saving} className={inputCls} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Start</label>
+            <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">{t('comp.start')}</label>
             <TimePicker value={start} onChange={setStart} disabled={saving} className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">End</label>
+            <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">{t('comp.end')}</label>
             <TimePicker value={end} onChange={setEnd} disabled={saving} className={inputCls} />
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">Room (THIS session)</label>
+          <label className="block text-xs font-medium text-[var(--muted)] mb-1.5">{t('comp.room')}</label>
           <Select
             value={roomId}
             onChange={setRoomId}
             disabled={saving}
-            placeholder="— No room —"
+            placeholder={t('comp.noRoom')}
             options={[
-              { value: '', label: '— No room —' },
+              { value: '', label: t('comp.noRoom') },
               ...rooms.map((r) => ({ value: r.id, label: r.name })),
             ]}
             className={cn(inputCls, 'h-auto')}
-            aria-label="Room (THIS session)"
+            aria-label={t('comp.room')}
           />
           {roomsError && (
             <button
@@ -1063,18 +1165,21 @@ function CompensatoryModal({ session, sessions, onClose, onChanged }: {
               onClick={() => void loadRooms()}
               className="mt-1.5 text-[11px] font-semibold text-[var(--gold)] hover:underline"
             >
-              {roomsError} Retry
+              {roomsError} {t('common:action.retry')}
             </button>
           )}
         </div>
         {conflicts.length > 0 && (
           <p className="text-xs font-semibold text-[var(--red)] bg-[var(--red-soft)]/40 rounded-xl px-3 py-2">
-            Blocked: {[...new Set(conflicts.map((c) => c.kind))].join(' + ')} overlap on {date}. Submit disabled.
+            {t('comp.conflict', {
+              kinds: conflictLabels(t, conflicts),
+              date,
+            })}
           </p>
         )}
         {error && <p className="text-xs text-[var(--red)]">{error}</p>}
-        <button onClick={() => void handleCreate()} disabled={saving || conflicts.length > 0} className={primaryBtnCls}>
-          {saving ? 'Creating…' : 'Create SCHEDULED session'}
+        <button type="button" onClick={() => void handleCreate()} disabled={saving || conflicts.length > 0} className={primaryBtnCls}>
+          {saving ? t('comp.creating') : t('comp.create')}
         </button>
       </div>
     </ModalShell>
@@ -1099,7 +1204,7 @@ function MenuItem({ icon, label, hint, danger, disabled, onClick }: {
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs font-medium',
+        'w-full flex items-center gap-2.5 px-3 py-2 text-start text-xs font-medium',
         'transition-colors first:rounded-t-xl last:rounded-b-xl',
         disabled
           ? 'opacity-40 cursor-not-allowed text-[var(--muted)]'
@@ -1138,6 +1243,7 @@ export function SessionMenu({
   const [modal, setModal] = useState<ModalKind | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const { t } = useTranslation('dashboard')
 
   /**
    * Every close funnels through here — the items, outside clicks, Escape,
@@ -1216,24 +1322,32 @@ export function SessionMenu({
     try {
       const result = await extendSession(session)
       toast.success(
-        `Extended +${EXTEND_MINUTES} min`,
-        `${session.class_name} now ends at ${result.end_time}` +
-          (result.duration_label ? ` · ${result.duration_label}` : ''),
+        t('extend.toastDoneTitle', { minutes: EXTEND_MINUTES }),
+        result.duration_label
+          ? t('extend.toastDoneBodyWithDuration', {
+              class: session.class_name,
+              time: result.end_time,
+              duration: result.duration_label,
+            })
+          : t('extend.toastDoneBody', {
+              class: session.class_name,
+              time: result.end_time,
+            }),
       )
       onChanged?.()
     } catch (err: any) {
       const backend = err?.response?.data?.error
       toast.error(
-        'Could not extend',
+        t('extend.toastFailedTitle'),
         typeof backend === 'string' && backend
           ? backend
-          : 'The end time was not changed. Press Retry.',
+          : t('extend.toastFailedBody'),
       )
     } finally {
       setExtending(false)
       close()
     }
-  }, [extending, session, onChanged, close])
+  }, [t, extending, session, onChanged, close])
 
   const isLive = status === 'in_progress'
   const isScheduled = status === 'scheduled'
@@ -1268,14 +1382,14 @@ export function SessionMenu({
             'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--glass)]',
             'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]',
           )}
-          aria-label="Session menu"
-          title="Session menu"
+          aria-label={t('menu.trigger')}
+          title={t('menu.trigger')}
         >
           <Menu size={14} />
         </button>
       )}
 
-      {open && (
+      {open && createPortal(
         <div
           ref={menuRef}
           className="fixed z-50 w-52 rounded-xl border border-[var(--glass-border)] bg-[var(--card-bg)] shadow-2xl animate-fade-in overflow-hidden"
@@ -1296,20 +1410,20 @@ export function SessionMenu({
                 return (
                   <MenuItem
                     icon={<Play size={13} />}
-                    label="Start Class"
-                    hint={blocked ? 'own day only' : 'now'}
+                    label={t('menu.startClass')}
+                    hint={blocked ? t('menu.hintOwnDay') : t('menu.hintNow')}
                     disabled={blocked !== null}
                     onClick={() => fire(onStart)}
                   />
                 )
               })()}
-              <MenuItem icon={<Pencil size={13} />} label="Edit THIS instance" onClick={() => openModal('edit')} />
-              <MenuItem icon={<CalendarClock size={13} />} label="Reschedule" onClick={() => openModal('resched')} />
-              <MenuItem icon={<XCircle size={13} />} label="Cancel Class" danger onClick={() => openModal('cancel')} />
-              <MenuItem icon={<UserX size={13} />} label="Teacher Absent" danger onClick={() => openModal('absent')} />
-              <MenuItem icon={<Gift size={13} />} label={nextFree === true ? 'Next marked Free ✓' : 'Mark NEXT as Free'} onClick={() => openModal('free')} />
-              <MenuItem icon={<Wallet size={13} />} label="Show Finances" onClick={() => openModal('fin')} />
-              <MenuItem icon={<ScrollText size={13} />} label="View Log" onClick={() => openModal('log')} />
+              <MenuItem icon={<Pencil size={13} />} label={t('menu.editThis')} onClick={() => openModal('edit')} />
+              <MenuItem icon={<CalendarClock size={13} />} label={t('menu.reschedule')} onClick={() => openModal('resched')} />
+              <MenuItem icon={<XCircle size={13} />} label={t('menu.cancelClass')} danger onClick={() => openModal('cancel')} />
+              <MenuItem icon={<UserX size={13} />} label={t('menu.teacherAbsent')} danger onClick={() => openModal('absent')} />
+              <MenuItem icon={<Gift size={13} />} label={nextFree === true ? t('menu.nextMarkedFree') : t('menu.markNextFree')} onClick={() => openModal('free')} />
+              <MenuItem icon={<Wallet size={13} />} label={t('menu.showFinances')} onClick={() => openModal('fin')} />
+              <MenuItem icon={<ScrollText size={13} />} label={t('menu.viewLog')} onClick={() => openModal('log')} />
             </>
           )}
           {isLive && (
@@ -1320,30 +1434,31 @@ export function SessionMenu({
               {onOpenRegister && (
                 <MenuItem
                   icon={<UserCheck size={13} />}
-                  label="Log Students Present"
-                  hint="register"
+                  label={t('menu.logStudentsPresent')}
+                  hint={t('menu.hintRegister')}
                   onClick={() => fire(onOpenRegister)}
                 />
               )}
-              <MenuItem icon={<Timer size={13} />} label={`Extend +${EXTEND_MINUTES}`} onClick={() => void handleExtend()} disabled={extending} />
-              <MenuItem icon={<CheckCircle2 size={13} />} label="End Class" hint="PIN" onClick={() => fire(onFinish)} />
+              <MenuItem icon={<Timer size={13} />} label={t('menu.extend', { minutes: EXTEND_MINUTES })} onClick={() => void handleExtend()} disabled={extending} />
+              <MenuItem icon={<CheckCircle2 size={13} />} label={t('menu.endClass')} hint={t('menu.hintPin')} onClick={() => fire(onFinish)} />
               {/* No Edit here. A live class accepts a later end time and
                   nothing else, so the only edits that exist are Extend and
                   the two ways to stop — End Class, or Void. */}
-              <MenuItem icon={<Gift size={13} />} label={nextFree === true ? 'Next marked Free ✓' : 'Mark NEXT as Free'} onClick={() => openModal('free')} />
-              <MenuItem icon={<Ban size={13} />} label="Void Live Session" hint="Owner PIN" danger onClick={() => openModal('void')} />
-              <MenuItem icon={<Plus size={13} />} label="Add Compensatory Session" onClick={() => openModal('comp')} />
-              <MenuItem icon={<Wallet size={13} />} label="Show Finances" onClick={() => openModal('fin')} />
-              <MenuItem icon={<ScrollText size={13} />} label="View Log" onClick={() => openModal('log')} />
+              <MenuItem icon={<Gift size={13} />} label={nextFree === true ? t('menu.nextMarkedFree') : t('menu.markNextFree')} onClick={() => openModal('free')} />
+              <MenuItem icon={<Ban size={13} />} label={t('menu.voidLive')} hint={t('menu.hintOwnerPin')} danger onClick={() => openModal('void')} />
+              <MenuItem icon={<Plus size={13} />} label={t('menu.addCompensatory')} onClick={() => openModal('comp')} />
+              <MenuItem icon={<Wallet size={13} />} label={t('menu.showFinances')} onClick={() => openModal('fin')} />
+              <MenuItem icon={<ScrollText size={13} />} label={t('menu.viewLog')} onClick={() => openModal('log')} />
             </>
           )}
           {!isScheduled && !isLive && (
             <>
-              <MenuItem icon={<Wallet size={13} />} label="Show Finances" onClick={() => openModal('fin')} />
-              <MenuItem icon={<ScrollText size={13} />} label="View Log" onClick={() => openModal('log')} />
+              <MenuItem icon={<Wallet size={13} />} label={t('menu.showFinances')} onClick={() => openModal('fin')} />
+              <MenuItem icon={<ScrollText size={13} />} label={t('menu.viewLog')} onClick={() => openModal('log')} />
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
 
       {modal === 'edit' && (
@@ -1354,9 +1469,9 @@ export function SessionMenu({
       )}
       {modal === 'cancel' && (
         <DangerConfirmModal
-          title="Cancel Class"
-          body={`Cancel THIS ${session.class_name} session on ${session.date}?`}
-          confirmLabel="Cancel THIS session"
+          title={t('menu.cancelClass')}
+          body={t('danger.bodyCancel', { class: session.class_name, date: session.date })}
+          confirmLabel={t('danger.confirmCancel')}
           session={session}
           onClose={() => setModal(null)}
           onChanged={onChanged}
@@ -1364,9 +1479,9 @@ export function SessionMenu({
       )}
       {modal === 'absent' && (
         <DangerConfirmModal
-          title="Teacher Absent"
-          body={`Mark the teacher absent for THIS ${session.class_name} session on ${session.date}? The session is cancelled and the reason is recorded, so it shows in this class's log.`}
-          confirmLabel="Mark absent + cancel"
+          title={t('menu.teacherAbsent')}
+          body={t('danger.bodyAbsent', { class: session.class_name, date: session.date })}
+          confirmLabel={t('danger.confirmAbsent')}
           reason="TEACHER_ABSENT"
           session={session}
           onClose={() => setModal(null)}

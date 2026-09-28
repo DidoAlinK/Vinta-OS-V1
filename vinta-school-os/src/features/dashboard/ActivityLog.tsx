@@ -1,4 +1,5 @@
 import { forwardRef, useMemo, useState, type HTMLAttributes } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   CreditCard,
   UserCheck,
@@ -46,23 +47,41 @@ const ICON_STYLE: Record<ActivityLogEntry['type'], string> = {
 
 /* ─── Relative Time ─── */
 
-function relativeTime(iso: string): string {
+/**
+ * Where a timestamp sits relative to now, as a key plus the count it needs —
+ * not as a formatted sentence.
+ *
+ * A helper that called `t()` for itself would have to be handed the live `t`
+ * on every render, and a module-scope lookup would freeze in whatever language
+ * happened to be active at import time. Returning the key keeps the decision
+ * here and the wording in the dictionary, where the plural rules live: "1 min
+ * ago" and "قبل دقيقة" are not the same shape.
+ *
+ * Past a week the exact date says more than "8d ago" ever could, so that case
+ * falls through to the shared date formatter.
+ */
+type RelativeTime =
+  | { kind: 'now' }
+  | { kind: 'plural'; key: string; count: number }
+  | { kind: 'date'; text: string }
+
+function relativeTime(iso: string): RelativeTime {
   const diffMs = Date.now() - new Date(iso).getTime()
-  if (diffMs < 0) return 'just now'
+  if (diffMs < 0) return { kind: 'now' }
 
   const seconds = Math.floor(diffMs / 1000)
-  if (seconds < 60) return 'just now'
+  if (seconds < 60) return { kind: 'now' }
 
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes} min ago`
+  if (minutes < 60) return { kind: 'plural', key: 'log.minutesAgo', count: minutes }
 
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return { kind: 'plural', key: 'log.hoursAgo', count: hours }
 
   const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
+  if (days < 7) return { kind: 'plural', key: 'log.daysAgo', count: days }
 
-  return formatDateShort(iso)
+  return { kind: 'date', text: formatDateShort(iso) }
 }
 
 /* ─── Activity Row ─── */
@@ -73,8 +92,17 @@ interface ActivityRowProps {
 }
 
 function ActivityRow({ entry, isLast }: ActivityRowProps) {
+  const { t } = useTranslation('dashboard')
   const Icon = ICON_MAP[entry.type]
   const iconClasses = ICON_STYLE[entry.type]
+  const rel = relativeTime(entry.timestamp)
+  // Three shapes, one label: a fixed word, a counted one, or the exact date.
+  const timeLabel =
+    rel.kind === 'now'
+      ? t('log.justNow')
+      : rel.kind === 'plural'
+        ? t(rel.key, { count: rel.count })
+        : rel.text
 
   return (
     <div className={cn('flex gap-3', !isLast && 'pb-4')}>
@@ -97,7 +125,7 @@ function ActivityRow({ entry, isLast }: ActivityRowProps) {
           {entry.description}
         </p>
         <p className="text-[10px] text-[var(--muted)]/70 mt-1">
-          {relativeTime(entry.timestamp)}
+          {timeLabel}
           <span className="mx-1 opacity-40">·</span>
           {entry.staff_name}
         </p>
@@ -115,6 +143,8 @@ function ActivityRow({ entry, isLast }: ActivityRowProps) {
  * bug in the wrong place.
  */
 function EmptyState({ filtered = false }: { filtered?: boolean }) {
+  const { t } = useTranslation('dashboard')
+
   return (
     <div className="flex flex-col items-center justify-center py-8 text-center">
       <div className="w-10 h-10 rounded-full bg-[var(--input-bg)] border border-[var(--glass-border)] flex items-center justify-center mb-3">
@@ -125,7 +155,7 @@ function EmptyState({ filtered = false }: { filtered?: boolean }) {
         )}
       </div>
       <p className="text-xs text-[var(--muted)]">
-        {filtered ? 'Nothing matches this filter' : 'No recent activity'}
+        {filtered ? t('log.emptyFiltered') : t('log.empty')}
       </p>
     </div>
   )
@@ -139,13 +169,17 @@ function EmptyState({ filtered = false }: { filtered?: boolean }) {
  * "All" is not a type but the absence of one, so it is spelled out separately
  * rather than folded into the map — a wrong entry there would filter to nothing
  * and look like an empty log.
+ *
+ * The entries hold key *names* rather than labels: this array is module scope,
+ * and a `t()` called here would resolve once, at import, in whatever language
+ * was active then (see CONVENTIONS).
  */
 const TYPE_FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'payment', label: 'Payments' },
-  { key: 'checkin', label: 'Check-ins' },
-  { key: 'student', label: 'Students' },
-  { key: 'alert', label: 'Alerts' },
+  { key: 'all', labelKey: 'log.filter.all' },
+  { key: 'payment', labelKey: 'log.filter.payment' },
+  { key: 'checkin', labelKey: 'log.filter.checkin' },
+  { key: 'student', labelKey: 'log.filter.student' },
+  { key: 'alert', labelKey: 'log.filter.alert' },
 ] as const
 
 type TypeFilter = (typeof TYPE_FILTERS)[number]['key']
@@ -156,6 +190,7 @@ const COLLAPSED_HEIGHT = 300
 
 export const ActivityLog = forwardRef<HTMLDivElement, ActivityLogProps>(
   ({ activities = [], className, ...rest }, ref) => {
+    const { t } = useTranslation('dashboard')
     const [query, setQuery] = useState('')
     const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
     const [expanded, setExpanded] = useState(false)
@@ -200,7 +235,7 @@ export const ActivityLog = forwardRef<HTMLDivElement, ActivityLogProps>(
         <div className="px-5 pt-5 pb-3 border-b border-[var(--glass-border)] shrink-0">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-base font-semibold font-[family-name:var(--font-heading)] text-[var(--text)]">
-              Recent Activity
+              {t('log.title')}
             </h3>
 
             {/* Expand. The list is scrollable either way — this only changes how
@@ -210,8 +245,8 @@ export const ActivityLog = forwardRef<HTMLDivElement, ActivityLogProps>(
               type="button"
               onClick={() => setExpanded(v => !v)}
               aria-expanded={expanded}
-              aria-label={expanded ? 'Collapse activity list' : 'Expand activity list'}
-              title={expanded ? 'Collapse' : 'Expand'}
+              aria-label={expanded ? t('log.collapse') : t('log.expand')}
+              title={expanded ? t('log.collapseShort') : t('log.expandShort')}
               className={cn(
                 'p-1.5 rounded-lg shrink-0 transition-colors duration-150',
                 'text-[var(--muted)] hover:text-[var(--text)]',
@@ -235,8 +270,8 @@ export const ActivityLog = forwardRef<HTMLDivElement, ActivityLogProps>(
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search activity..."
-                aria-label="Search activity"
+                placeholder={t('log.searchPlaceholder')}
+                aria-label={t('log.searchLabel')}
                 className="bg-transparent border-none outline-none text-[12px] w-full min-w-0"
                 style={{ color: 'var(--text)' }}
               />
@@ -244,7 +279,7 @@ export const ActivityLog = forwardRef<HTMLDivElement, ActivityLogProps>(
                 <button
                   type="button"
                   onClick={() => setQuery('')}
-                  aria-label="Clear search"
+                  aria-label={t('log.clearSearch')}
                   className="shrink-0 text-[var(--muted)] hover:text-[var(--text)]"
                 >
                   <X size={12} />
@@ -254,7 +289,7 @@ export const ActivityLog = forwardRef<HTMLDivElement, ActivityLogProps>(
           </div>
 
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-            {TYPE_FILTERS.map(({ key, label }) => {
+            {TYPE_FILTERS.map(({ key, labelKey }) => {
               const active = typeFilter === key
               return (
                 <button
@@ -269,13 +304,13 @@ export const ActivityLog = forwardRef<HTMLDivElement, ActivityLogProps>(
                       : 'bg-transparent text-[var(--muted)] border-[var(--glass-border)] hover:text-[var(--text)]',
                   )}
                 >
-                  {label}
+                  {t(labelKey)}
                 </button>
               )
             })}
             {isFiltering && (
-              <span className="text-[10px] text-[var(--muted)] ml-auto tabular-nums">
-                {filtered.length} of {activities.length}
+              <span className="text-[10px] text-[var(--muted)] ms-auto tabular-nums">
+                {t('log.count', { shown: filtered.length, total: activities.length })}
               </span>
             )}
           </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useMatch } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import { useAuthStore } from '../../stores/authStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -15,6 +16,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 }
 
 export function Sidebar() {
+  const { t } = useTranslation('nav')
   const navigate = useNavigate()
   const match = useMatch('/app/:page')
   const activePage = match?.params.page ?? 'dashboard'
@@ -91,7 +93,7 @@ export function Sidebar() {
               } : { color: 'var(--muted)' }}
             >
               {Icon && <Icon size={18} />}
-              <span>{item.label}</span>
+              <span>{t(item.key)}</span>
             </button>
           )
         })}
@@ -105,7 +107,7 @@ export function Sidebar() {
           style={{ color: 'var(--muted)' }}
         >
           <Users size={18} />
-          <span>Switch Profile</span>
+          <span>{t('switchProfile')}</span>
         </button>
         <button
           onClick={() => { logout(); navigate('/') }}
@@ -113,7 +115,7 @@ export function Sidebar() {
           style={{ color: 'var(--red)' }}
         >
           <LogOut size={18} />
-          <span>Logout</span>
+          <span>{t('logout')}</span>
         </button>
       </div>
     </div>
@@ -122,8 +124,8 @@ export function Sidebar() {
   if (!isMobile) {
     return (
       <aside
-        className="fixed left-0 top-0 h-full z-50 glass overflow-y-auto"
-        style={{ width: 222, borderRadius: '0 var(--radius-lg) var(--radius-lg) 0' }}
+        className="fixed start-0 top-0 h-full z-50 glass overflow-y-auto rounded-e-[var(--radius-lg)]"
+        style={{ width: 222 }}
       >
         {sidebar}
       </aside>
@@ -141,14 +143,18 @@ export function Sidebar() {
       )}
       <aside
         className={cn(
-          'fixed top-0 left-0 h-full z-50 glass overflow-y-auto transition-transform duration-300',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+          'fixed top-0 start-0 h-full z-50 glass overflow-y-auto transition-transform duration-300',
+          'rounded-e-[var(--radius-lg)]',
+          // Positive X is still to the right in Arabic, so the closed position
+          // has to mirror: off-screen left in English, off-screen right where
+          // the panel is anchored to the right edge.
+          mobileOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'
         )}
-        style={{ width: 260, borderRadius: '0 var(--radius-lg) var(--radius-lg) 0' }}
+        style={{ width: 260 }}
       >
         <button
           onClick={() => setMobileOpen(false)}
-          className="absolute top-4 right-4 p-1 rounded-full"
+          className="absolute top-4 end-4 p-1 rounded-full"
           style={{ color: 'var(--muted)' }}
         >
           <X size={18} />

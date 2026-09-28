@@ -1,0 +1,328 @@
+{
+  "day": {
+    "sun": "Dim",
+    "mon": "Lun",
+    "tue": "Mar",
+    "wed": "Mer",
+    "thu": "Jeu",
+    "fri": "Ven",
+    "sat": "Sam"
+  },
+  "status": {
+    "active": "Actif",
+    "withdrawn": "Retiré",
+    "expired": "Expiré",
+    "overdue": "En retard",
+    "transferred": "Transféré",
+    "notEnrolled": "Non inscrit à un groupe"
+  },
+  "grid": {
+    "status": {
+      "scheduled": "Programmé",
+      "active": "Actif",
+      "empty": "Vide"
+    },
+    "emptyTitle": "Aucune classe pour l'instant",
+    "emptyBody": "Créez votre première classe pour commencer à gérer les élèves et les horaires.",
+    "enrolled": "{{enrolled}}/{{capacity}} inscrits"
+  },
+  "form": {
+    "billingModel": "Modèle de facturation",
+    "creditBased": "Basé sur les crédits",
+    "timeBased": "Basé sur le temps",
+    "price": "Prix (DA)",
+    "creditsPerCycle": "Crédits / Cycle (N · 1–20)",
+    "cycleWeekLimit": "Limite de semaines du cycle",
+    "optional": "Facultatif",
+    "allowRollover": "Autoriser le report",
+    "allowMakeups": "Autoriser les rattrapages",
+    "accessDuration": "Durée d'accès (semaines)"
+  },
+  "quickCreate": {
+    "title": "Nouvelle classe",
+    "selected": "Créée et sélectionnée ici",
+    "namePlaceholder": "ex. Maths — CM2",
+    "subject": "Matière",
+    "teacher": "Enseignant",
+    "teacherNone": "— Aucun —",
+    "searchSubjects": "Rechercher une matière…",
+    "searchTeachers": "Rechercher un enseignant…",
+    "capacity": "Capacité",
+    "colour": "Couleur",
+    "billing": "Facturation",
+    "creating": "Création…",
+    "submit": "Créer la classe",
+    "error": {
+      "name": "Une classe doit avoir un nom.",
+      "create": "Impossible de créer la classe. Veuillez réessayer."
+    },
+    "toast": {
+      "created": "Classe créée",
+      "createdBody": "{{name}} est prête — elle est sélectionnée ci-dessous."
+    }
+  },
+  "addGroup": {
+    "title": "Ajouter un groupe de cours",
+    "submit": "Ajouter un groupe de cours",
+    "name": "Nom du groupe",
+    "namePlaceholder": "ex. Maths — CM2",
+    "subject": "Matière",
+    "teacher": "Enseignant",
+    "teacherNone": "— Aucun —",
+    "unnamedTeacher": "Enseignant sans nom",
+    "capacity": "Capacité",
+    "classType": "Type de classe",
+    "classTypeWeekly": "Hebdomadaire",
+    "classTypeTemporary": "Temporaire",
+    "meetingDay": "Jour du cours",
+    "sessionDate": "Date de la séance",
+    "dayPlaceholder": "Choisissez le jour hebdomadaire…",
+    "repeatsEvery": "Se répète chaque {{day}}",
+    "dayHint": "Le jour de la semaine ancre la série hebdomadaire.",
+    "datePlaceholder": "Choisissez la date unique…",
+    "oneOffHint": "Une seule séance — ne génère jamais de série.",
+    "startAt": "Heure de début",
+    "endAt": "Heure de fin",
+    "durationSession": "Une séance de {{duration}}.",
+    "timeHint": "Le cours se déroule de l'heure de début à l'heure de fin.",
+    "color": "Couleur",
+    "notes": "Notes",
+    "notesPlaceholder": "Notes facultatives…",
+    "level": "Niveau scolaire",
+    "levelPlaceholder": "ex. CM2",
+    "groupName": "Nom du groupe",
+    "maxGroups": "Groupes maximum inclus",
+    "enforceAttendance": "Exiger la présence",
+    "attendanceThreshold": "Seuil de présence :",
+    "section": {
+      "basic": "Informations de base",
+      "academic": "Scolaire",
+      "billing": "Facturation",
+      "attendance": "Présence"
+    },
+    "billing": {
+      "model": "Modèle de facturation",
+      "creditBased": "Basé sur les crédits",
+      "timeBased": "Basé sur le temps",
+      "price": "Prix (DA)",
+      "creditsPerCycle": "Crédits / Cycle (N · 1–20)",
+      "cycleWeekLimit": "Limite de semaines du cycle",
+      "optional": "Facultatif",
+      "allowRollover": "Autoriser le report",
+      "allowMakeups": "Autoriser les rattrapages",
+      "accessDuration": "Durée d'accès (semaines)"
+    },
+    "error": {
+      "name": "Donnez un nom au groupe.",
+      "times": "Définissez l'heure de début et de fin du cours.",
+      "timeOrder": "L'heure de fin doit être postérieure à l'heure de début.",
+      "day": "Choisissez le jour où ce groupe se réunit chaque semaine.",
+      "teacher": "Choisissez un enseignant — un groupe hebdomadaire en a besoin avant que ses séances puissent être créées.",
+      "date": "Choisissez la date de cette séance unique."
+    }
+  },
+  "addRoom": {
+    "title": "Ajouter une salle",
+    "submit": "Ajouter une salle",
+    "name": "Nom de la salle",
+    "namePlaceholder": "ex. Salle A",
+    "capacity": "Capacité"
+  },
+  "rooms": {
+    "loading": "Chargement des salles…",
+    "emptyTitle": "Aucune salle physique pour l'instant",
+    "emptyBody": "Ajoutez une salle pour commencer",
+    "capacity": "Cap. {{capacity}}",
+    "deleteConfirm": "Supprimer la salle",
+    "deleteTitle": "Supprimer cette salle ?",
+    "deleteBody": "sera retirée de la liste des salles physiques. Les séances qui y sont déjà placées conservent leur historique."
+  },
+  "page": {
+    "title": "Salles de classe",
+    "subtitle": "Gérez les groupes de cours et les salles physiques",
+    "addCourseGroup": "Ajouter un groupe de cours",
+    "addRoom": "Ajouter une salle",
+    "tab": {
+      "courses": "Groupes de cours",
+      "rooms": "Salles physiques"
+    },
+    "stats": {
+      "scheduled": "Programmés",
+      "active": "Actifs",
+      "empty": "Vides"
+    },
+    "toast": {
+      "notCreated": "Groupe non créé",
+      "createFallback": "Impossible de créer le groupe. Veuillez réessayer.",
+      "created": "Groupe créé",
+      "createdWithSessions_one": "{{name}} ajouté, avec {{count}} séance au calendrier.",
+      "createdWithSessions_other": "{{name}} ajouté, avec {{count}} séances au calendrier.",
+      "createdNoSessions": "{{name}} ajouté. Aucune séance n'a été générée — vérifiez les horaires.",
+      "createdOneOff": "{{name}} ajouté, avec sa séance unique.",
+      "createdTimesExist": "{{name}} ajouté. Ses horaires étaient déjà définis.",
+      "sessionsFailedTitle": "Séances non générées",
+      "sessionsFailedFallback": "Le groupe a été créé, mais pas ses séances. Définissez les horaires depuis le panneau du groupe.",
+      "deleteFailed": "Échec de la suppression",
+      "roomDeleteFailed": "La salle n'a pas été supprimée. Appuyez sur Réessayer.",
+      "roomDeleted": "Salle supprimée",
+      "roomDeletedBody": "« {{name}} » a été retirée."
+    }
+  },
+  "cardMenu": {
+    "menuLabel": "Menu du groupe",
+    "menuLoading": "Chargement des séances de ce groupe…",
+    "freeLabel": "La prochaine classe de ce groupe est gratuite — aucun crédit dépensé, aucun revenu",
+    "freeChip": "GRATUIT",
+    "openGroup": "Ouvrir le groupe",
+    "light": {
+      "overdue": "Une classe de ce groupe a dépassé son heure de fin et reste ouverte",
+      "running": "Une classe de ce groupe est en cours"
+    },
+    "noSession": {
+      "failedTitle": "Impossible de lire le planning",
+      "title": "Aucune séance à venir",
+      "failedBody": "Le serveur n'a pas répondu, ce groupe n'a donc aucun menu à proposer. Rechargez pour réessayer.",
+      "body": "Démarrer la classe, Terminer la classe et l'indicateur de séance gratuite agissent tous sur une seule séance, et ce groupe n'en a aucune de programmée à partir d'aujourd'hui."
+    },
+    "toast": {
+      "alreadyRunning": "Classe déjà en cours",
+      "started": "Classe démarrée",
+      "registerOpened_one": "Feuille d'appel ouverte — {{count}} élève marqué absent jusqu'à son arrivée.",
+      "registerOpened_other": "Feuille d'appel ouverte — {{count}} élèves marqués absents jusqu'à leur arrivée.",
+      "inProgress": "{{name}} est maintenant en cours.",
+      "startFailed": "Impossible de démarrer la classe",
+      "startRefused": "Le serveur a refusé la demande.",
+      "extended": "Classe prolongée",
+      "extendedBody": "{{name}} se termine maintenant à {{time}}",
+      "extendFailed": "Impossible de prolonger",
+      "extendFailedBody": "L'heure de fin n'a pas été modifiée. Veuillez réessayer."
+    },
+    "endClass": {
+      "title": "Terminer la classe",
+      "submit": "Terminer la classe",
+      "ending": "Fin en cours…",
+      "thisClass": "Cette classe",
+      "pin": "Code PIN du personnel",
+      "body": "Fermer la feuille d'appel marque la classe comme effectuée. Toute personne encore marquée absente est facturée pour la séance manquée, selon les règles de facturation de cette académie.",
+      "alreadyFinished": "Classe déjà terminée",
+      "finished": "Classe terminée",
+      "absentCharged": "{{absent}} absent — {{charged}} facturé pour la séance manquée.",
+      "allPresent": "Tout le monde était présent. Aucun crédit n'a été déplacé.",
+      "error": "Impossible de terminer la classe."
+    }
+  },
+  "detail": {
+    "notSet": "Non défini",
+    "unassigned": "Non attribué",
+    "saving": "Enregistrement…",
+    "oneTime": "Ponctuel",
+    "groupName": "Groupe {{name}}",
+    "weeklySchedule": "Horaire hebdomadaire",
+    "scheduleNotSet": "Horaire non défini",
+    "slots_one": "{{count}} créneau",
+    "slots_other": "{{count}} créneaux",
+    "dedicatedNoteTitle": "Une note enregistrée sur ce groupe. Elle ne crée pas de séances — voir l'horaire hebdomadaire.",
+    "dedicatedNote": "Note : {{text}}",
+    "stats": {
+      "teacher": "Enseignant",
+      "capacity": "Capacité",
+      "billing": "Facturation"
+    },
+    "billing": {
+      "noSubs": "Aucun abonnement pour l'instant",
+      "overdueCount": "EN RETARD ×{{n}}",
+      "depletedCount": "ÉPUISÉ ×{{n}}",
+      "paidLow": "Payé · faible ×{{n}}",
+      "paidCount": "Payé ×{{n}}",
+      "creditLine": "N={{n}} · {{price}}",
+      "priceNotSet": "Prix non défini",
+      "timeBasedSoon": "Basé sur le temps · Bientôt disponible",
+      "debt": "dette {{n}}",
+      "credits": "{{n}} cr",
+      "paid": "Payé",
+      "depleted": "ÉPUISÉ",
+      "overdue": "EN RETARD"
+    },
+    "enrolled": {
+      "title": "Élèves inscrits",
+      "countOf": "{{enrolled}} sur {{capacity}}",
+      "addStudents": "Ajouter des élèves",
+      "loading": "Chargement des élèves…",
+      "empty": "Aucun élève inscrit pour l'instant.",
+      "statusTitle": "Inscription : {{status}}"
+    },
+    "form": {
+      "namePlaceholder": "Nom de la classe",
+      "subject": "Matière",
+      "teacher": "Enseignant",
+      "teacherNone": "Aucun",
+      "capacity": "Capacité",
+      "price": "Prix (DA)",
+      "groupName": "Nom du groupe",
+      "academicLevel": "Niveau scolaire",
+      "academicLevelPlaceholder": "ex. CM2",
+      "classType": "Type de classe",
+      "weekly": "Hebdomadaire",
+      "temporary": "Temporaire",
+      "meetsOn": "Se réunit le",
+      "dayPlaceholder": "Choisissez le jour hebdomadaire…",
+      "startAt": "Heure de début",
+      "endAt": "Heure de fin",
+      "sessionRepeats": "Une séance de {{duration}}, qui se répète chaque semaine.",
+      "slotHint": "Enregistrer un nouvel horaire ajoute un créneau et génère ses séances.",
+      "time": "Horaire",
+      "temporaryHint": "Un groupe temporaire n'a pas d'horaire hebdomadaire — sa date et ses heures figurent sur la séance unique elle-même, et se modifient depuis cette séance.",
+      "billingModel": "Modèle de facturation",
+      "creditBased": "Basé sur les crédits",
+      "timeBased": "Basé sur le temps",
+      "creditsPerCycle": "Crédits par cycle (N · 1–20)",
+      "notes": "Notes",
+      "notesPlaceholder": "Notes facultatives…",
+      "color": "Couleur"
+    },
+    "errors": {
+      "checkTimes": "Vérifiez les horaires",
+      "needBothTimes": "Un créneau nécessite une heure de début et une heure de fin.",
+      "endAfterStart": "L'heure de fin doit être postérieure à l'heure de début.",
+      "pickDay": "Choisissez le jour",
+      "pickDayBody": "Choisissez le jour de la semaine où ce groupe se réunit.",
+      "timeNotSaved": "Horaire non enregistré",
+      "timeNotSavedBody": "Le groupe a été enregistré, mais pas son horaire."
+    },
+    "toast": {
+      "updated": "Classe mise à jour",
+      "updatedBody": "Les modifications ont été enregistrées.",
+      "updateFailed": "Échec de la mise à jour",
+      "updateFailedBody": "Impossible d'enregistrer les modifications.",
+      "deleteFailed": "Échec de la suppression",
+      "deleteFailedBody": "Le groupe n'a pas été supprimé. Appuyez sur Réessayer."
+    },
+    "bulk": {
+      "title": "Ajouter des élèves à {{name}}",
+      "listFailed": "Liste des élèves non définie.",
+      "listFailedTitle": "Échec de l'ajout d'élèves",
+      "listFailedBody": "Liste des élèves non définie. Appuyez sur Réessayer.",
+      "available": "{{available}} disponibles · les inscrits n'apparaissent jamais",
+      "availableOf": "{{available}} disponibles sur {{total}} · les inscrits n'apparaissent jamais",
+      "searchPlaceholder": "Rechercher des élèves…",
+      "empty": "Aucun élève disponible à inscrire",
+      "enrolling": "Inscription…",
+      "add_one": "Ajouter {{count}} élève",
+      "add_other": "Ajouter {{count}} élèves",
+      "enrolled": "Élèves inscrits",
+      "enrolledBody_one": "{{count}} élève ajouté à {{name}}.",
+      "enrolledBody_other": "{{count}} élèves ajoutés à {{name}}.",
+      "skipped": "Certains ignorés",
+      "skippedBody_one": "{{count}} élève n'a pas pu être inscrit.",
+      "skippedBody_other": "{{count}} élèves n'ont pas pu être inscrits.",
+      "failed": "Échec de l'inscription",
+      "failedBody": "Impossible d'inscrire les élèves. Appuyez sur Réessayer."
+    },
+    "delete": {
+      "title": "Supprimer ce groupe ?",
+      "confirm": "Supprimer le groupe",
+      "groupTag": " (Groupe {{name}})",
+      "body": "et son horaire seront supprimés. Les élèves inscrits conservent leur dossier — ils ne font simplement plus partie de ce groupe."
+    }
+  }
+}

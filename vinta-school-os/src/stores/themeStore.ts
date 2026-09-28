@@ -5,10 +5,10 @@
 
 import { create } from 'zustand'
 import { THEME_KEY, FONT_SIZE_KEY, LANGUAGE_KEY } from '../lib/constants'
+import i18n, { applyDocumentLanguage, readStoredLanguage, type Language } from '../i18n'
 
 type Theme = 'light' | 'dark'
 type FontSize = 'small' | 'normal' | 'large'
-type Language = 'fr' | 'ar' | 'en'
 
 interface ThemeState {
   theme: Theme
@@ -49,6 +49,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     set({ language: lang })
     applyLanguage(lang)
     saveLanguage(lang)
+    /* The dictionary and the <html> attributes have to move together.
+       Swapping one without the other is exactly how you end up with an Arabic
+       interface laid out left-to-right, or an English one full of Arabic. */
+    void i18n.changeLanguage(lang)
   },
 
   initTheme: () => {
@@ -63,6 +67,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     const savedLanguage = loadLanguage()
     set({ language: savedLanguage })
     applyLanguage(savedLanguage)
+    void i18n.changeLanguage(savedLanguage)
   },
 }))
 
@@ -98,8 +103,9 @@ function applyFontSize(size: FontSize) {
 }
 
 function applyLanguage(lang: Language) {
-  document.documentElement.setAttribute('lang', lang)
-  document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
+  // Delegated, so the right-to-left rule lives in the i18n module rather than
+  // being restated here — see `applyDocumentLanguage`.
+  applyDocumentLanguage(lang)
 }
 
 function saveTheme(theme: Theme) {
@@ -155,14 +161,14 @@ function loadFontSize(): FontSize {
   return 'normal'
 }
 
+/**
+ * Restoring is delegated to the i18n bootstrap rather than re-read here.
+ *
+ * i18next has to pick its language before React mounts, so `readStoredLanguage`
+ * necessarily runs first. Reading storage a second time in this file would be a
+ * second source of truth for the same fact, and the two could disagree the day
+ * one of them learns a new language before the other does.
+ */
 function loadLanguage(): Language {
-  try {
-    const saved = localStorage.getItem(LANGUAGE_KEY)
-    if (saved === 'fr' || saved === 'ar' || saved === 'en') {
-      return saved
-    }
-  } catch {
-    // Ignore
-  }
-  return 'fr'
+  return readStoredLanguage()
 }

@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import {
   CALENDAR_HOURS,
@@ -14,6 +15,7 @@ import {
   formatHour12,
   timeToDecimal,
   formatDateISO,
+  formatDateShort,
   isToday,
   getDayName,
 } from '../../lib/formatters'
@@ -82,6 +84,7 @@ export default function DayView({
   onResizeSession,
   onSelectSession,
 }: DayViewProps) {
+  const { t } = useTranslation('calendar')
   const containerRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null)
@@ -228,20 +231,16 @@ export default function DayView({
             {getDayName(date, false)}
           </span>
           <span className="text-sm text-[var(--muted)]">
-            {date.toLocaleDateString('en-US', {
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric',
-            })}
+            {formatDateShort(date, false)}
           </span>
           {today && (
             <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-[var(--gold-soft)] text-[var(--gold)]">
-              Today
+              {t('day.today')}
             </span>
           )}
         </div>
         <p className="text-xs text-[var(--muted)] mt-0.5">
-          {daySessions.length} session{daySessions.length !== 1 ? 's' : ''} scheduled
+          {t('day.scheduledCount', { count: daySessions.length })}
         </p>
       </div>
 
@@ -256,11 +255,11 @@ export default function DayView({
           {CALENDAR_HOURS.map((hour) => (
             <div
               key={hour}
-              className="absolute left-0 right-0 border-t border-[var(--divider)]"
+              className="absolute start-0 end-0 border-t border-[var(--divider)]"
               style={{ top: (hour - CALENDAR_HOURS[0]) * HOUR_HEIGHT }}
             >
               <span
-                className="absolute -top-3 left-3 text-[10px] text-[var(--muted)] select-none"
+                className="absolute -top-3 start-3 text-[10px] text-[var(--muted)] select-none"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 {formatHour12(hour)}
@@ -272,7 +271,7 @@ export default function DayView({
           {calendarSessions.map((cs) => (
             <div
               key={cs.id}
-              className="absolute left-14 right-4"
+              className="absolute start-14 end-4"
               draggable={draggingSessionId !== cs.id}
             >
               <SessionBlock
@@ -287,11 +286,12 @@ export default function DayView({
           {/* Now indicator */}
           {showNowLine && (
             <div
-              className="absolute left-0 right-0 z-20 pointer-events-none"
+              className="absolute start-0 end-0 z-20 pointer-events-none"
               style={{ top: nowTop }}
             >
-              <div className="absolute left-0 w-2.5 h-2.5 rounded-full bg-[var(--red)] -translate-x-1 -translate-y-1/2" />
-              <div className="absolute left-2.5 right-0 h-px bg-[var(--red)] opacity-60" />
+              {/* The dot straddles the leading edge, so its nudge flips with the axis. */}
+              <div className="absolute start-0 w-2.5 h-2.5 rounded-full bg-[var(--red)] -translate-x-1 rtl:translate-x-1 -translate-y-1/2" />
+              <div className="absolute start-2.5 end-0 h-px bg-[var(--red)] opacity-60" />
             </div>
           )}
         </div>

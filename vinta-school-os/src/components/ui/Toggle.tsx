@@ -41,7 +41,9 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
             'block w-[18px] h-[18px] rounded-full',
             'bg-white shadow-sm',
             'transition-transform duration-200',
-            checked ? 'translate-x-[20px]' : 'translate-x-0',
+            /* The knob travels toward the far edge of the track, and in Arabic
+               the track's start edge is on the right — so the offset mirrors. */
+            checked ? 'translate-x-[20px] rtl:-translate-x-[20px]' : 'translate-x-0',
           )}
           style={{
             transitionTimingFunction: 'cubic-bezier(.4,0,.2,1)',

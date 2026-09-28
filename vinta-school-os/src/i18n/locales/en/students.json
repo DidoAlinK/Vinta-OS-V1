@@ -1,0 +1,196 @@
+{
+  "page": {
+    "title": "Students",
+    "subtitle": "Manage student records and billing status",
+    "addStudent": "Add Student",
+    "searchPlaceholder": "Search by name or phone…",
+    "showing_one": "Showing {{shown}} of {{total}}",
+    "showing_other": "Showing {{shown}} of {{total}}",
+    "scrollForMore": "— scroll for more"
+  },
+  "status": {
+    "paid": "Paid",
+    "due": "Due",
+    "overdue": "Overdue",
+    "unpaid": "Unpaid",
+    "noPlan": "No plan"
+  },
+  "stat": {
+    "total": "Total Students",
+    "totalHint": "Every student matching the current search — includes the unpaid and no-plan students that have pills of their own below",
+    "paidHint": "Active plan, inside its cycle window",
+    "dueHint": "Money owed — cycle closed, expired or depleted",
+    "overdueHint": "Plan suspended"
+  },
+  "table": {
+    "column": {
+      "student": "Student",
+      "class": "Class",
+      "sessions": "Sessions",
+      "status": "Status",
+      "plan": "Plan",
+      "renewal": "Renewal"
+    },
+    "empty": {
+      "title": "No students found",
+      "body": "Add your first student to get started"
+    },
+    "loadingMore": "Loading more…",
+    "endOfList": "End of list"
+  },
+  "card": {
+    "loading": "Loading"
+  },
+  "drawer": {
+    "title": "Student Profile",
+    "editTitle": "Edit Profile",
+    "editStudent": "Edit student",
+    "backToProfile": "Back to profile",
+    "details": "Details",
+    "profileError": "Could not load the full profile.",
+    "parentPhone": "Parent phone",
+    "enrolledSince": "Enrolled since",
+    "enrollment": "Enrollment",
+    "noNotes": "No notes",
+    "recordPayment": "Record Payment",
+    "call": "Call",
+    "message": "Message",
+    "field": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "parentPhone": "Parent Phone"
+    },
+    "placeholder": {
+      "phone": "e.g. 0555123456",
+      "parentPhone": "e.g. 0555789012",
+      "notes": "Any notes about this student…"
+    },
+    "toast": {
+      "updated": {
+        "title": "Student updated",
+        "body": "Profile has been saved."
+      },
+      "updateFailed": {
+        "title": "Update failed",
+        "body": "Could not save changes. Please try again."
+      }
+    }
+  },
+  "enrollment": {
+    "active": "Active",
+    "withdrawn": "Withdrawn",
+    "expired": "Expired",
+    "overdue": "Overdue",
+    "transferred": "Transferred",
+    "notEnrolled": "Not enrolled in a group"
+  },
+  "classes": {
+    "title": "Classes",
+    "empty": "Not enrolled in any group yet."
+  },
+  "guardians": {
+    "title": "Guardians",
+    "empty": "No guardians on record.",
+    "emergency": "Emergency",
+    "emergencyContact": "Emergency contact",
+    "parentFallback": "Parent / Guardian",
+    "call": "Call {{name}}"
+  },
+  "summary": {
+    "title": "Billing summary",
+    "loadingAria": "Loading billing summary",
+    "plan": "Plan",
+    "sessionsPerMonth": "Sessions per month",
+    "creditsLeft": "Credits left",
+    "creditsOf": "of {{total}}",
+    "renewsOn": "Renews on",
+    "dateRange": "{{start}} → {{end}}",
+    "from": "From {{date}}",
+    "until": "Until {{date}}"
+  },
+  "calendar": {
+    "title": "Billing calendar",
+    "loadingAria": "Loading billing calendar",
+    "empty": "No billing cycles yet {{dash}} nothing has been recorded for this student.",
+    "partialPaid": "{{paid}} of {{total}} paid"
+  },
+  "history": {
+    "title": "Payment history",
+    "loadingAria": "Loading payment history",
+    "empty": "No payments recorded yet.",
+    "error": "Could not load payment history.",
+    "credits": "Credits",
+    "access": "Access",
+    "method": {
+      "cash": "Cash",
+      "ccp": "CCP",
+      "baridiMob": "Baridi Mob"
+    },
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended",
+      "expired": "Expired",
+      "depleted": "Depleted",
+      "expiringSoon": "Expiring soon",
+      "renewRequired": "Renew required",
+      "attendanceWarning": "Attendance warning"
+    }
+  },
+  "attendance": {
+    "title": "Attendance",
+    "loadingAria": "Loading attendance",
+    "empty": "No sessions yet — this student is not enrolled in a group that has any.",
+    "month": "Month",
+    "year": "Year",
+    "showYear": "Show the whole year",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "openMonth": "Open {{month}} {{year}}",
+    "nothingScheduled": "{{day}}: nothing scheduled",
+    "dayStates": "{{day}}: {{states}}",
+    "groupFallback": "Group",
+    "legendNote": "A faint day is one before this student joined, or before they joined that group. A dashed day is one where no register was taken.",
+    "state": {
+      "attended": "Attended",
+      "unpaid": "Attended, not paid",
+      "absent": "Absent",
+      "upcoming": "Upcoming",
+      "cancelled": "Cancelled",
+      "notEnrolled": "Not in this group yet",
+      "unrecorded": "No register taken"
+    }
+  },
+  "modal": {
+    "title": "Add Student",
+    "submit": "Add Student",
+    "adding": "Adding…",
+    "section": {
+      "studentInfo": "Student Information",
+      "groupEnrollment": "Group Enrollment"
+    },
+    "groupEnrollmentHint": "Student must be enrolled in at least one group.",
+    "searchGroups": "Search groups to enroll…",
+    "noClasses": "No classes found",
+    "groupRequired": "At least one group enrollment is required",
+    "field": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "parentPhone": "Parent Phone"
+    },
+    "placeholder": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "notes": "Optional notes about the student…"
+    },
+    "error": {
+      "noGroup": "Please select at least one group to enroll the student in.",
+      "createFailed": "Failed to create student. Please try again."
+    },
+    "toast": {
+      "addedTitle": "Student added",
+      "notAdded": "Student not added",
+      "enrolled_one": "{{name}} was enrolled in {{count}} group.",
+      "enrolled_other": "{{name}} was enrolled in {{count}} groups."
+    }
+  }
+}

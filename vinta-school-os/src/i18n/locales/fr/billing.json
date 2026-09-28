@@ -1,0 +1,208 @@
+{
+  "page": {
+    "title": "Facturation",
+    "subtitle": "Gérez les abonnements, les versements et les paiements",
+    "multiPay": "Paiement multi-enseignants",
+    "loading": "Chargement des données de facturation…"
+  },
+  "tabs": {
+    "subscriptions": "Abonnements",
+    "payouts": "Versements"
+  },
+  "donut": {
+    "studentTuition": "Frais de scolarité",
+    "teacherPayroll": "Paie des enseignants",
+    "paid": "Payé",
+    "due": "Dû",
+    "overdue": "En retard",
+    "settled": "Réglé",
+    "pending": "En attente"
+  },
+  "kpi": {
+    "monthIncome": "Revenus du mois",
+    "totalEnrolled": "Total inscrits",
+    "financeBreakdown": "Répartition financière",
+    "viewDetails": "Voir le détail →"
+  },
+  "grossProfit": {
+    "label": "Activer le calcul de la marge brute",
+    "on": "Activé — modèle de commission visible, calcul marge/part affiché.",
+    "off": "Désactivé — enseignants payés à la séance, sans calcul marge/part."
+  },
+  "revenue": {
+    "title": "Revenus",
+    "property": {
+      "income": "Revenu total",
+      "paid": "Payé vs en retard",
+      "overdue": "En retard",
+      "enrollments": "Inscriptions"
+    },
+    "empty": {
+      "title": "Aucune donnée de revenus",
+      "body": "Les données apparaîtront ici dès que des écritures de facturation existeront."
+    }
+  },
+  "breakdown": {
+    "title": "Répartition financière",
+    "tab": {
+      "students": "Élèves",
+      "teachers": "Enseignants"
+    },
+    "aging": {
+      "days1to7": "1–7 jours",
+      "days8to30": "8–30 jours",
+      "days30plus": "30+ jours"
+    },
+    "summary": {
+      "overdue": "en retard",
+      "total": "au total"
+    },
+    "table": {
+      "amount": "Montant",
+      "days": "Jours"
+    },
+    "daysSuffix": "{{days}} j",
+    "unknownName": "Inconnu",
+    "empty": {
+      "title": "Aucun compte en retard",
+      "students": "Les élèves en retard apparaîtront ici",
+      "teachers": "Les enseignants en retard apparaîtront ici",
+      "bucket": "Aucun compte en retard dans cette tranche."
+    }
+  },
+  "subscriptions": {
+    "loading": "Chargement des abonnements…",
+    "model": {
+      "credits": "Crédits",
+      "time": "Temps"
+    },
+    "status": {
+      "active": "Actif",
+      "expired": "Expiré",
+      "depleted": "Épuisé",
+      "overdue": "En retard",
+      "cancelled": "Annulé",
+      "suspended": "Suspendu",
+      "unknown": "Inconnu",
+      "expiringSoon": "Expire bientôt",
+      "renewRequired": "Renouvellement requis",
+      "attendanceWarning": "Alerte présence"
+    },
+    "table": {
+      "student": "Élève",
+      "group": "Classe",
+      "model": "Modèle",
+      "value": "Valeur",
+      "price": "Prix",
+      "created": "Créé le"
+    },
+    "debt": {
+      "badge": "dette {{debt}}",
+      "tooltip": "Dette impayée {{debt}} — payez N={{credits}} du plus ancien au plus récent → {{remaining}} restant. Cliquez pour marquer comme réglé."
+    },
+    "void": {
+      "badge": "+{{credits}} restitués",
+      "tooltip": "Restauration T7 — crédit de cette séance uniquement"
+    },
+    "empty": {
+      "title": "Aucun abonnement",
+      "body": "Les abonnements des élèves apparaîtront ici une fois créés."
+    },
+    "error": {
+      "server": "Erreur serveur lors du chargement des abonnements (500).",
+      "load": "Impossible de charger les abonnements.",
+      "notCleared": "Aucune donnée n'a été effacée en silence."
+    },
+    "toast": {
+      "failedTitle": "Échec du chargement des abonnements",
+      "failedBody": "{{message}} Appuyez sur Réessayer.",
+      "noDebt": {
+        "title": "Aucune dette impayée",
+        "body": "{{student}} — rien à régler."
+      },
+      "settled": {
+        "title": "Dette réglée, du plus ancien au plus récent",
+        "body": "N={{n}} − dette {{debt}} → {{remaining}} restant ({{cleared}} réglés).",
+        "bodyOwed": "N={{n}} − dette {{debt}} → {{remaining}} restant, {{stillOwed}} encore dus ({{cleared}} réglés)."
+      }
+    }
+  },
+  "payouts": {
+    "loading": "Chargement des versements…",
+    "summary": {
+      "pending": "Total en attente",
+      "paid": "Total payé",
+      "all": "Total général"
+    },
+    "column": {
+      "gross": "Brut",
+      "type": "Type",
+      "cut": "Part"
+    },
+    "status": {
+      "pending": "En attente",
+      "paid": "Payé",
+      "unknown": "Inconnu"
+    },
+    "records_one": "{{count}} écriture",
+    "records_other": "{{count}} écritures",
+    "markPaid": "Marquer payé",
+    "grossOff": "Le calcul de la marge brute est désactivé — activez-le dans Facturation pour voir les montants bruts et les parts.",
+    "empty": {
+      "title": "Aucun versement",
+      "body": "Les versements aux enseignants apparaîtront ici."
+    },
+    "pin": {
+      "title": "Confirmer le versement",
+      "prompt": "Saisissez le code PIN à 4 chiffres pour confirmer",
+      "incorrect": "Code PIN incorrect. Réessayez.",
+      "processing": "Traitement…",
+      "digit": "Chiffre {{index}} du code PIN"
+    }
+  },
+  "multiPay": {
+    "title": "Paiement multi-enseignants",
+    "step": {
+      "student": "1. Sélectionner l'élève",
+      "items": "2. Lignes de paiement",
+      "method": "3. Mode de paiement",
+      "pin": "4. Vérification du PIN"
+    },
+    "change": "Modifier",
+    "searchPlaceholder": "Rechercher un élève par nom…",
+    "empty": "Cliquez sur « Ajouter » pour ajouter une ligne de paiement",
+    "selectGroup": "Sélectionner une classe…",
+    "amountPlaceholder": "Montant",
+    "line": {
+      "debtPreview": "Dette {{debt}} + paiement N={{n}} → {{remaining}} restant (du plus ancien au plus récent)"
+    },
+    "method": {
+      "cash": "Espèces",
+      "ccp": "CCP",
+      "baridiMob": "Baridi Mob"
+    },
+    "pin": {
+      "incomplete": "Saisissez les 4 chiffres du PIN du propriétaire.",
+      "incorrect": "Code PIN incorrect. Réessayez.",
+      "digit": "Chiffre {{index}} du code PIN"
+    },
+    "error": {
+      "failed": "Échec du paiement",
+      "sessionExpired": "Session expirée. Reconnectez-vous — le paiement n'a pas été enregistré."
+    },
+    "submit": {
+      "pay": "Payer {{amount}}",
+      "processing": "Traitement…"
+    },
+    "toast": {
+      "settled": {
+        "title": "Dette réglée, du plus ancien au plus récent",
+        "line": "{{cleared}} réglés → {{remaining}} restants (N={{n}})"
+      },
+      "previewFailed": {
+        "title": "Paiement enregistré, aperçu de la dette indisponible",
+        "body": "Rouvrez Facturation pour régler les lignes impayées."
+      }
+    }
+  }
+}

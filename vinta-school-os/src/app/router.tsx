@@ -18,6 +18,7 @@
  */
 
 import { lazy, Suspense, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   createBrowserRouter,
   Navigate,
@@ -55,7 +56,17 @@ const SettingsPage = lazy(() => import('../features/settings/SettingsPage'))
 // Loading Indicator
 // ============================================
 
+/**
+ * Spinner for the route-level Suspense fallback and for the auth guards.
+ *
+ * The label is translated rather than hardcoded: this renders while a lazy page
+ * chunk downloads and while the session resolves, so it is on screen at almost
+ * every navigation. It sits outside the app shell, but the i18n instance is a
+ * module singleton initialised before React mounts, so `t` resolves here as it
+ * does anywhere else.
+ */
 function PageLoader() {
+  const { t } = useTranslation('common')
   return (
     <div className="flex items-center justify-center h-full min-h-[200px]">
       <div className="flex flex-col items-center gap-3">
@@ -69,7 +80,7 @@ function PageLoader() {
             style={{ borderColor: 'var(--gold)', borderTopColor: 'transparent' }}
           />
         </div>
-        <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Loading...</span>
+        <span style={{ color: 'var(--muted)', fontSize: '13px' }}>{t('state.loading')}</span>
       </div>
     </div>
   )

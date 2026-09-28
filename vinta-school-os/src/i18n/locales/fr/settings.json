@@ -1,0 +1,397 @@
+{
+  "page": {
+    "navTitle": "Paramètres",
+    "loading": "Chargement des paramètres…",
+    "openNav": "Ouvrir la navigation des paramètres",
+    "toast": {
+      "academyUpdated": "Profil de l'académie mis à jour",
+      "settingsUpdated": "Paramètres mis à jour",
+      "saveFailed": "Échec de l'enregistrement. Veuillez réessayer.",
+      "staffDeactivated": "Membre du personnel désactivé",
+      "staffReactivated": "Membre du personnel réactivé",
+      "deactivateFailed": "Échec de la désactivation du membre",
+      "reactivateFailed": "Échec de la réactivation du membre",
+      "tryAgain": "Veuillez réessayer."
+    }
+  },
+  "section": {
+    "appearance": "Apparence",
+    "account": "Mon compte",
+    "academy": "Profil de l'académie",
+    "subjects": "Matières",
+    "staff": "Personnel et rôles",
+    "billing": "Facturation",
+    "automations": "Automatisations",
+    "export": "Données et export",
+    "danger": "Zone de danger"
+  },
+  "appearance": {
+    "theme": {
+      "title": "Thème",
+      "darkActive": "Le mode sombre est actif — reposant pour les yeux.",
+      "lightActive": "Le mode clair est actif — net et lumineux."
+    },
+    "fontSize": {
+      "title": "Taille du texte",
+      "hint": "Ajustez la taille du texte pour une lecture confortable.",
+      "small": "Petite",
+      "normal": "Normale",
+      "large": "Grande"
+    },
+    "language": {
+      "title": "Langue",
+      "hint": "Langue de l'interface pour les libellés et la navigation."
+    }
+  },
+  "account": {
+    "title": "Mon compte",
+    "fullName": "Nom complet",
+    "namePlaceholder": "Votre nom",
+    "changePin": {
+      "title": "Changer le code PIN",
+      "hint": "Mettez à jour votre code PIN à 4 chiffres utilisé pour la connexion.",
+      "current": "Code PIN actuel",
+      "new": "Nouveau code PIN",
+      "confirm": "Confirmer le code PIN",
+      "submit": "Changer le code PIN"
+    },
+    "pinChanged": "Code PIN modifié avec succès !",
+    "error": {
+      "saveProfile": "Échec de l'enregistrement du profil",
+      "currentPinRequired": "Saisissez votre code PIN actuel à 4 chiffres",
+      "newPinLength": "Le nouveau code PIN doit comporter 4 chiffres",
+      "pinMismatch": "Les nouveaux codes PIN ne correspondent pas",
+      "pinReused": "Le nouveau code PIN doit être différent de l'actuel",
+      "currentPinWrong": "Le code PIN actuel est incorrect"
+    },
+    "action": {
+      "save": "Enregistrer les modifications"
+    },
+    "saved": "Enregistré ✓"
+  },
+  "academy": {
+    "info": {
+      "title": "Informations de l'académie",
+      "name": "Nom de l'académie",
+      "namePlaceholder": "ex. Académie Vinta",
+      "email": "E-mail",
+      "address": "Adresse",
+      "addressPlaceholder": "Rue, ville, wilaya"
+    },
+    "schedule": {
+      "title": "Horaires",
+      "workingDays": "Jours ouvrés",
+      "hours": "Ouvert de 7h00 à 21h00, du dimanche au samedi",
+      "currentTerm": "Trimestre en cours"
+    },
+    "day": {
+      "sun": "Dim",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mer",
+      "thu": "Jeu",
+      "fri": "Ven",
+      "sat": "Sam"
+    },
+    "term": {
+      "term1": "Trimestre 1",
+      "term2": "Trimestre 2",
+      "fullYear": "Année complète"
+    },
+    "action": {
+      "save": "Enregistrer les modifications"
+    },
+    "saved": "Enregistré ✓"
+  },
+  "staff": {
+    "title": "Personnel et rôles",
+    "addProfile": "Ajouter un profil",
+    "description": "Gérez les membres du personnel et leurs niveaux d'accès. Les propriétaires ont un contrôle total, tandis que le personnel dispose d'un accès limité.",
+    "active_one": "Actif ({{count}})",
+    "active_other": "Actifs ({{count}})",
+    "deactivated_one": "Désactivé ({{count}})",
+    "deactivated_other": "Désactivés ({{count}})",
+    "role": {
+      "owner": "Propriétaire",
+      "staff": "Personnel"
+    },
+    "deactivatedBadge": "Désactivé",
+    "reactivate": "Réactiver",
+    "empty": "Aucun membre du personnel pour l'instant. Ajoutez votre premier profil pour commencer."
+  },
+  "addStaff": {
+    "title": "Ajouter un profil de personnel",
+    "namePlaceholder": "Nom du membre du personnel",
+    "role": "Rôle",
+    "roleOwner": "👑 Propriétaire",
+    "roleStaff": "👤 Personnel",
+    "pin": "Code PIN",
+    "confirmPin": "Confirmer le code PIN",
+    "ownerPin": "Votre code PIN de propriétaire",
+    "ownerPinPlaceholder": "Saisissez votre code PIN pour autoriser",
+    "submit": "Ajouter le membre",
+    "submitting": "Ajout…",
+    "error": {
+      "nameRequired": "Le nom est obligatoire",
+      "pinLength": "Le code PIN doit comporter 4 chiffres",
+      "pinMismatch": "Les codes PIN ne correspondent pas",
+      "ownerPinRequired": "Le code PIN du propriétaire est requis pour créer un profil de personnel",
+      "failed": "Échec de la création du profil de personnel"
+    }
+  },
+  "subjects": {
+    "title": "Les matières que nous enseignons",
+    "description": "Créez des matières personnalisées pour les profils des enseignants et l'affectation des classes.",
+    "loading": "Chargement des matières…",
+    "fromClass": "(issue d'une classe)",
+    "add": {
+      "title": "Ajouter une matière",
+      "name": "Nom de la matière",
+      "namePlaceholder": "ex. Physique, Arabe, Musique…",
+      "busy": "Ajout…",
+      "color": "Couleur"
+    },
+    "currentTitle_one": "Matière actuelle ({{count}})",
+    "currentTitle_other": "Matières actuelles ({{count}})",
+    "empty": {
+      "title": "Aucune matière créée pour l'instant",
+      "hint": "Ajoutez votre première matière ci-dessus"
+    },
+    "delete": {
+      "title": "Supprimer cette matière ?",
+      "label": "Supprimer la matière",
+      "message": "sera retirée de la liste des matières. Les classes qui l'utilisent déjà conservent leur nom."
+    },
+    "toast": {
+      "created": "Matière créée",
+      "createdBody": "« {{name}} » a été ajoutée.",
+      "createFailedTitle": "Échec de la création de la matière",
+      "unknownError": "Erreur inconnue",
+      "deleteBlockedTitle": "Suppression impossible",
+      "deleteBlockedBody": "Cette matière provient d'une classe et ne peut pas être supprimée ici.",
+      "deleteFailedTitle": "Échec de la suppression",
+      "deleteFailedBody": "Impossible de retirer la matière.",
+      "deleted": "Matière supprimée",
+      "deletedBody": "« {{name}} » a été supprimée."
+    }
+  },
+  "automations": {
+    "autoCheckout": {
+      "title": "Départ automatique",
+      "label": "Activer le départ automatique",
+      "hint": "Les élèves sont automatiquement pointés en sortie à la fin de la séance"
+    },
+    "endClassPopup": {
+      "title": "Fenêtre de fin de séance",
+      "label": "Afficher la fenêtre de fin de séance",
+      "hint": "Afficher le récapitulatif de présence à la fin d'une séance"
+    },
+    "proHintBefore": "Plus d'automatisations disponibles avec l'offre",
+    "proHintAfter": "."
+  },
+  "export": {
+    "title": "Exporter les données",
+    "description": "Téléchargez les données de votre académie au format CSV pour la sauvegarde ou l'analyse.",
+    "action": "Exporter",
+    "items": {
+      "students": "Élèves",
+      "teachers": "Enseignants",
+      "classes": "Classes",
+      "billing": "Écritures de facturation",
+      "activityLog": "Journal d'activité"
+    },
+    "toast": {
+      "success": "{{label}} exporté avec succès",
+      "failed": "Échec de l'export de {{label}}"
+    }
+  },
+  "billing": {
+    "rules": {
+      "title": "Règles de facturation",
+      "ownerOnlyHeader": "Règles de l'académie · propriétaire uniquement",
+      "ownerVerified": "Propriétaire vérifié",
+      "verifyOwnerPin": "Vérifier le code PIN du propriétaire",
+      "loadFailed": "Impossible de lire les règles depuis le serveur.",
+      "defaultsNotice": "Ce qui figure ci-dessous correspond aux valeurs par défaut documentées, et non nécessairement à la règle de cette académie.",
+      "changeRefused": "Le serveur a refusé la modification.",
+      "stateServer": "Actuellement {{state}} — enregistré sur le serveur.",
+      "stateDefault": "Affichage de la valeur par défaut ({{state}}) — pas encore lue depuis le serveur.",
+      "on": "Activé",
+      "off": "Désactivé",
+      "onUpper": "ACTIVÉ",
+      "offUpper": "DÉSACTIVÉ",
+      "toggleTitle": "{{field}} — enregistré sur le serveur, code PIN du propriétaire",
+      "footnote": "Une règle est lue au moment où la classe est finalisée : une modification s'applique donc à partir de la classe suivante et ne réécrit jamais une classe déjà payée.",
+      "absence": {
+        "label": "Facturer les séances manquées ?",
+        "hint": "ACTIVÉ : un élève qui ne s'est pas présenté consomme tout de même un crédit à la clôture. DÉSACTIVÉ : seuls les élèves présents sont facturés, et une absence ne coûte rien."
+      },
+      "makeups": {
+        "label": "Autoriser les rattrapages ?",
+        "hint": "ACTIVÉ : une absence crédite un rattrapage au lieu de consommer la place. C'est la valeur par défaut des nouveaux groupes, et chaque groupe peut être réglé différemment."
+      },
+      "gapSessions": {
+        "label": "Facturer les séances manquées pendant un impayé ?",
+        "hint": "ACTIVÉ : les classes manquées pendant une interruption de paiement sont imputées au forfait suivant. DÉSACTIVÉ : tout nouveau paiement démarre un cycle propre."
+      },
+      "restoreCredits": {
+        "label": "Rendre un crédit lorsqu'une classe est annulée ?",
+        "hint": "ACTIVÉ : annuler une classe déjà facturée rend le crédit. DÉSACTIVÉ : l'académie le conserve."
+      },
+      "freeSession": {
+        "label": "Les séances gratuites remplissent-elles leur propre feuille ?",
+        "hint": "ACTIVÉ : une séance gratuite marque tout le monde présent et ignore le suivi — aucun montant n'y est rattaché, la feuille ne rapporte donc rien. DÉSACTIVÉ : vous la remplissez vous-même pour l'historique. La facturation est de 0 dans les deux cas."
+      },
+      "shareCredits": {
+        "label": "Partager les crédits entre les groupes ?",
+        "hint": "ACTIVÉ : une seule réserve de crédits couvre tous les groupes d'une même matière. DÉSACTIVÉ : chaque groupe a besoin de son propre abonnement."
+      },
+      "earlyPayment": {
+        "label": "Demander le renouvellement à l'avance ?",
+        "hint": "ACTIVÉ : l'accueil est averti dès que des séances supplémentaires épuisent les crédits, sans attendre la fin du cycle."
+      }
+    },
+    "grossProfit": {
+      "label": "Activer le calcul du bénéfice brut",
+      "hint": "Désactivé par défaut. Une fois activé, le modèle de commission s'affiche par enseignant et le calcul brut/part apparaît dans les paiements et les finances des séances."
+    },
+    "swap": {
+      "title": "Fenêtre d'échange d'invité ?",
+      "hint": "MÊME JOUR : un invité ne se rattache qu'à une séance du même jour calendaire. 7 JOURS : une fenêtre glissante de 7 jours. Enregistré dans ce navigateur — le serveur ne conserve aucun champ pour ce réglage, il ne suit donc pas l'académie sur une autre machine.",
+      "sameDay": "Même jour",
+      "open7d": "7 jours"
+    },
+    "pin": {
+      "title": "Code PIN du propriétaire requis",
+      "hint": "Les règles de facturation ne changent qu'après vérification du propriétaire.",
+      "verifying": "Vérification…",
+      "verify": "Vérifier"
+    },
+    "currency": {
+      "title": "Devise",
+      "label": "Devise par défaut"
+    },
+    "moneyModel": {
+      "title": "Valeurs par défaut du modèle financier",
+      "hint": "Valeurs par défaut appliquées aux nouveaux groupes de cours. Modifiables groupe par groupe.",
+      "creditsPerCycle": "Crédits par cycle",
+      "forCreditBased": "Pour les groupes {{type}}",
+      "maxGroups": "Groupes max. par abonnement",
+      "accessDuration": "Durée d'accès (semaines)",
+      "notSet": "Non défini",
+      "forTimeBased": "Pour les groupes {{type}}",
+      "creditRollover": "Report des crédits",
+      "makeupSessions": "Séances de rattrapage"
+    },
+    "groupType": {
+      "creditBased": "à crédits",
+      "timeBased": "à durée"
+    },
+    "planDuration": {
+      "title": "Durée du forfait",
+      "hint": "Cycle de facturation par défaut pour les nouvelles inscriptions des élèves.",
+      "create": "Créer un préréglage",
+      "labelPlaceholder": "Libellé (ex. 4 mois)",
+      "daysPlaceholder": "Jours"
+    },
+    "preset": {
+      "oneMonth": "1 mois",
+      "threeMonths": "3 mois",
+      "sixMonths": "6 mois",
+      "daysShort_one": "({{count}} j)",
+      "daysShort_other": "({{count}} j)",
+      "remove": "Supprimer {{label}}"
+    },
+    "reminders": {
+      "title": "Jours de rappel",
+      "hint": "Nombre de jours avant l'échéance pour envoyer un rappel de paiement.",
+      "days_one": "{{count}} jour",
+      "days_other": "{{count}} jours"
+    },
+    "whatsapp": {
+      "title": "Modèle WhatsApp",
+      "hint": "Modèle de message personnalisé pour les rappels de paiement envoyés via WhatsApp. {{name}} = nom de l'élève, {{amount}} = montant, {{date}} = date d'échéance.",
+      "placeholder": "Bonjour {{name}}, votre paiement de {{amount}} est dû le {{date}}. Merci de régulariser."
+    },
+    "action": {
+      "save": "Enregistrer les modifications"
+    },
+    "saved": "Enregistré ✓",
+    "toast": {
+      "ownerPinOnly": "Code PIN du propriétaire uniquement",
+      "ownerRoleRequired": "Les règles de facturation exigent le rôle propriétaire.",
+      "ruleUpdated": "Règle mise à jour",
+      "ruleUpdatedBody": "{{label}} — s'applique à partir de la prochaine classe, sans effet rétroactif.",
+      "ruleChangeFailed": "Impossible de modifier la règle",
+      "ownerNotSet": "Profil du propriétaire non défini.",
+      "pinBlocked": "Code PIN bloqué",
+      "invalidPin": "Code PIN invalide.",
+      "verificationFailed": "Échec de la vérification. Appuyez sur Réessayer.",
+      "ownerVerified": "Propriétaire vérifié",
+      "unlocked": "Règles de facturation déverrouillées pour cette session."
+    }
+  },
+  "subscription": {
+    "title": "Abonnement",
+    "current": "Actuel",
+    "currentPlanBefore": "Vous utilisez actuellement l'offre",
+    "currentPlanAfter": "plan (gratuit).",
+    "tier": {
+      "starter": "Découverte",
+      "pro": "Pro",
+      "scaler": "Évolutif"
+    },
+    "price": {
+      "free": "Gratuit",
+      "pro": "2 500 DA/mois",
+      "scaler": "5 000 DA/mois"
+    },
+    "feature": {
+      "basicManagement": "Gestion de base des élèves et des enseignants",
+      "upTo3Staff": "Jusqu'à 3 profils de personnel",
+      "billingAlerts": "Alertes de facturation",
+      "calendar": "Calendrier",
+      "basicAnalytics": "Statistiques de base",
+      "upTo10Staff": "Jusqu'à 10 profils de personnel",
+      "automations": "Automatisations",
+      "unlimitedStudents": "Élèves illimités",
+      "advancedAnalytics": "Statistiques avancées",
+      "unlimitedStaff": "Personnel illimité"
+    }
+  },
+  "danger": {
+    "reset": {
+      "title": "Réinitialiser toutes les données",
+      "description": "Supprime tous les élèves, enseignants, classes et écritures de facturation. Cette action est irréversible.",
+      "action": "Réinitialiser les données de l'académie"
+    },
+    "delete": {
+      "title": "Supprimer l'académie",
+      "warning": "Cette action est irréversible",
+      "description": "Supprimer votre académie effacera définitivement toutes les données, y compris les dossiers des élèves, l'historique de facturation et les comptes du personnel."
+    },
+    "resetModal": {
+      "bodyBefore": "Toutes les données seront définitivement supprimées. Saisissez",
+      "bodyAfter": "pour confirmer.",
+      "placeholder": "Saisissez Reset",
+      "busy": "Réinitialisation…",
+      "confirm": "Tout réinitialiser"
+    },
+    "deleteModal": {
+      "warning": "Cela supprimera définitivement votre académie et TOUTES les données associées. Cette action est irréversible.",
+      "bodyBefore": "Saisissez",
+      "bodyAfter": "pour confirmer.",
+      "placeholder": "Saisissez DELETE",
+      "busy": "Suppression…",
+      "confirm": "Supprimer définitivement l'académie"
+    },
+    "toast": {
+      "resetDone": "Les données de l'académie ont été réinitialisées.",
+      "resetFailedTitle": "Échec de la réinitialisation",
+      "resetFailedBody": "Veuillez réessayer.",
+      "deletedDone": "Académie supprimée. Redirection…",
+      "deleteFailedTitle": "Échec de la suppression",
+      "deleteFailedBody": "Veuillez réessayer."
+    }
+  }
+}

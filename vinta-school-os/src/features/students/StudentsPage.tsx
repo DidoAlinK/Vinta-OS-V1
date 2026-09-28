@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Users,
   Plus,
@@ -60,143 +61,252 @@ function activePillClass(key: FilterKey): string {
 // Component
 // ============================================
 
-/** Ask for the server's own ceiling. More than this is clamped, not honoured. */
-const PAGE_SIZE = 100
-
 /**
- * How many pages to walk before giving up.
+ * How many students one request asks for.
  *
- * 60 pages is 6,000 students — far past any academy this is built for, and the
- * point of the number is that a bad `pages` value on the wire cannot turn this
- * into an unbounded loop of requests. If it is ever reached the table says it
- * is showing a slice, so the cap can never be mistaken for the whole roster.
+ * Small enough that the first screen paints on one round trip, large enough
+ * that scrolling a normal roster is a handful of requests rather than dozens.
  */
-const MAX_PAGES = 60
+const PAGE_SIZE = 40
 
 export default function StudentsPage() {
+  const { t } = useTranslation('students')
+
   /* ── State ── */
+  /* The students loaded SO FAR — one page at first, growing as the user
+     scrolls. Not the whole roster, and nothing here should ever be read as if
+     it were: `totalMatching` is what the server says exists. */
   const [students, setStudents] = useState<Student[]>([])
-  /* Every student the server matched. `students` now holds all of them unless
-     the walk hit MAX_PAGES, so this is only larger when the table is a slice. */
+  /* How many students the server matched for the current search and filter.
+     Larger than `students.length` until every page has been scrolled to, which
+     is the normal state rather than an exceptional one. */
   const [totalMatching, setTotalMatching] = useState(0)
-  /* Counts for the whole roster, straight from the API. Not derived from
-     `students` even though that is now the whole set: these are the server's
-     own numbers, and keeping them independent is what lets the two disagree
-     loudly if a walk ever comes back short. */
+  /* Counts by status for the current search, straight from the API. These are
+     what the pills print, and they count the whole matching set rather than
+     the loaded slice — a pill that said "Overdue 2" because only two of the
+     four pages had been scrolled to would be worse than no number at all. */
   const [stats, setStats] = useState<StudentStats>({
     total: 0,
     paid: 0,
     due: 0,
     overdue: 0,
+    unpaid: 0,
+    no_plan: 0,
   })
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  /* First page of a query: the table has nothing to show yet. */
   const [isLoading, setIsLoading] = useState(true)
+  /* A later page, appended under rows that are already on screen. */
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterKey>('all')
 
-  /* ── Fetch students ──
-     `q` is still sent to the server rather than filtering a loaded array in the
-     browser: the roster is the academy's, not this page's, and a search that
-     only looked at what had already been fetched would miss students it had
-     never asked for.
+  /* ── Refs ── */
+  /* The element that actually scrolls. The infinite-scroll observer is rooted
+     here rather than on the viewport, because the viewport is not what moves. */
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  /* The page number of the last page that landed, so the next request knows
+     what to ask for without waiting for a re-render. */
+  const pageRef = useRef(1)
+  /* Guards against a second page request starting while one is in flight. The
+     observer can fire repeatedly as rows land and push the sentinel around. */
+  const inFlightRef = useRef(false)
 
-     What changed is that the page no longer stops at the first twenty. It used
-     to render `GET /students` once and show whichever fifty came back, which
-     meant a 437-student academy could only ever see its first fifty — the rail
-     said 437, the table showed 50, and every filter below counted the fifty.
-     Now the first response's `pages` is used to pull the rest, so `students` is
-     the whole match set and the pills count the roster instead of the page.
+  /**
+   * The generation counter — the thing that makes this correct.
+   *
+   * Every new query (mount, typing, a pill click, a manual refresh) increments
+   * it, and every response checks it before touching state. Type "yac" then
+   * "yacin" and two requests race; without this the first can land second and
+   * repopulate the table with results for a query the user has already
+   * abandoned. A response from an older generation is dropped on the floor.
+   */
+  const generation = useRef(0)
 
-     `per_page` asks for the server's own ceiling; asking for more is silently
-     clamped, so the page count is read back rather than computed here. */
-  const fetchStudents = useCallback(async (query: string) => {
-    setIsLoading(true)
-    try {
-      const trimmed = query.trim()
-      const params = trimmed ? { q: trimmed } : {}
-      const first = await api.get<StudentsListResponse>('/students', {
-        params: { ...params, per_page: PAGE_SIZE },
-      })
-      const data = first.data
-
-      // A bare array means a response that predates paging — one page, no more
-      // to ask for.
-      if (Array.isArray(data)) {
-        setStudents(data)
-        setTotalMatching(data.length)
-        return
+  /* ── Query params ──
+     `q` and `status` are both sent to the server rather than applied to the
+     loaded array. The roster is the academy's, not this page's: filtering a
+     loaded slice would silently miss every student not yet scrolled into. */
+  const buildParams = useCallback(
+    (page: number) => {
+      const params: Record<string, string | number> = {
+        per_page: PAGE_SIZE,
+        page,
       }
+      const trimmed = search.trim()
+      if (trimmed) params.q = trimmed
+      if (filter !== 'all') params.status = filter
+      return params
+    },
+    [search, filter],
+  )
 
-      const head = data.students ?? []
-      const pageCount = Math.min(data.pages ?? 1, MAX_PAGES)
-      const rest =
-        pageCount > 1
-          ? await Promise.all(
-              Array.from({ length: pageCount - 1 }, (_, i) =>
-                api
-                  .get<StudentsListResponse>('/students', {
-                    params: { ...params, per_page: PAGE_SIZE, page: i + 2 },
-                  })
-                  // One page failing must not throw away the ones that landed:
-                  // a partial roster the desk can see beats an empty table.
-                  .then(r => (Array.isArray(r.data) ? r.data : (r.data.students ?? [])))
-                  .catch(() => [] as Student[]),
-              ),
-            )
-          : []
+  /* ── Load the first page ──
+     Runs on mount and on every search or filter change. Both start over from
+     page one and replace the list, rather than appending: appending a new
+     query's first page onto the previous query's rows would show a list
+     matching neither query.
 
-      const all = [head, ...rest].flat()
-      setStudents(all)
-      // `total` is every match on the server. If the two disagree the walk was
-      // cut short, and the caller says so rather than implying this is all.
-      setTotalMatching(data.total ?? all.length)
-    } catch {
-      // Error handled by empty state
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+     The roster and the counts are fetched together under one generation, so
+     they are discarded together too. If each bumped the counter itself, the
+     slower of the two could survive a reset and leave the pills describing a
+     search the table has already left. */
+  const runQuery = useCallback(async () => {
+    const myGeneration = ++generation.current
+    setIsLoading(true)
+    setIsLoadingMore(false)
 
-  /* ── Fetch stats ──
-     `total` is the real roster size: a student who is `unpaid` or `no_plan`
-     counts here and nowhere else, so `total !== paid + due + overdue`. */
-  const fetchStats = useCallback(async () => {
+    const trimmed = search.trim()
+
+    const listPromise = api
+      .get<StudentsListResponse | Student[]>('/students', { params: buildParams(1) })
+      .then(({ data }) => {
+        if (generation.current !== myGeneration) return
+
+        // A bare array means a response that predates paging — one page, and
+        // no further page to ask for.
+        if (Array.isArray(data)) {
+          setStudents(data)
+          setTotalMatching(data.length)
+          pageRef.current = 1
+          setHasMore(false)
+          return
+        }
+
+        setStudents(data.students ?? [])
+        setTotalMatching(data.total ?? 0)
+        pageRef.current = data.page ?? 1
+        setHasMore((data.page ?? 1) < (data.pages ?? 0))
+      })
+      .catch(() => {
+        if (generation.current !== myGeneration) return
+        setStudents([])
+        setTotalMatching(0)
+        setHasMore(false)
+      })
+      .finally(() => {
+        if (generation.current !== myGeneration) return
+        setIsLoading(false)
+      })
+
+    /* Stats are not awaited against the list: the whole roster's status counts
+       cannot come from an aggregate query (status is derived, not stored), so
+       this walk can take longer than the page it sits above. Letting the table
+       paint as soon as its own page lands keeps the slower number from holding
+       up the rows. */
+    const statsPromise = api
+      .get<StudentStats>('/students/stats', {
+        params: trimmed ? { q: trimmed } : {},
+      })
+      .then(({ data }) => {
+        if (generation.current !== myGeneration) return
+        setStats(data)
+      })
+      .catch(() => {
+        // Keep the last counts we trust rather than reporting a silent zero.
+      })
+
+    await Promise.all([listPromise, statsPromise])
+  }, [buildParams, search])
+
+  /* ── Load the next page ──
+     Appends. Deliberately does NOT bump the generation: this belongs to the
+     query that is already on screen, so it must be invalidated by the same
+     reset that invalidates it — not invalidate itself. */
+  const loadMore = useCallback(async () => {
+    if (inFlightRef.current || !hasMore) return
+
+    const myGeneration = generation.current
+    inFlightRef.current = true
+    setIsLoadingMore(true)
+
     try {
-      const { data } = await api.get<StudentStats>('/students/stats')
-      setStats(data)
+      const { data } = await api.get<StudentsListResponse | Student[]>('/students', {
+        params: buildParams(pageRef.current + 1),
+      })
+
+      /* The user searched or changed a pill while this was in flight. These
+         rows belong to a query that is no longer on screen. */
+      if (generation.current !== myGeneration) return
+
+      const incoming = Array.isArray(data) ? [] : (data.students ?? [])
+      const landedPage = Array.isArray(data)
+        ? pageRef.current
+        : (data.page ?? pageRef.current + 1)
+      const pageCount = Array.isArray(data) ? landedPage : (data.pages ?? landedPage)
+
+      pageRef.current = landedPage
+
+      /* Dedupe by id. `page` is an offset query, so a student created or
+         edited between two requests shifts the window underneath us and a row
+         can arrive on two consecutive pages. A duplicate key would be a React
+         warning; a duplicate row would be a visibly wrong roster. */
+      setStudents((prev) => {
+        const seen = new Set(prev.map((s) => s.id))
+        return [...prev, ...incoming.filter((s) => !seen.has(s.id))]
+      })
+      setHasMore(landedPage < pageCount)
     } catch {
-      // Keep the last counts we trust rather than reporting a silent zero.
+      // Leave the list as it stands. The sentinel is still there and the next
+      // scroll will try again — better than blanking a table mid-read.
+    } finally {
+      inFlightRef.current = false
+      if (generation.current === myGeneration) setIsLoadingMore(false)
     }
-  }, [])
+  }, [buildParams, hasMore])
 
-  /* Every change that can move a student between buckets refreshes both the
-     roster and the counts (refresh button, new student, drawer reports). */
-  const refresh = useCallback(async () => {
-    await Promise.all([fetchStudents(search), fetchStats()])
-  }, [fetchStudents, fetchStats, search])
-
-  /* Stats describe the whole roster and do not depend on the search, so they
-     load once and on explicit refresh — not on every keystroke. */
+  /* ── Infinite scroll ──
+     Observe the tail row against the table's own scroller. `rootMargin` buys
+     the next page a head start so the rows are usually in place by the time
+     the user actually arrives at the bottom, rather than appearing into a
+     viewport that has already stopped moving. */
   useEffect(() => {
-    void fetchStats()
-  }, [fetchStats])
+    const sentinel = sentinelRef.current
+    const root = scrollRef.current
+    if (!sentinel || !root) return
+    if (!hasMore || isLoading) return
 
-  /* Typing re-queries the server. The debounce is what makes that acceptable:
-     without it every keystroke is a request, and a fast typist races their own
-     results. The first run skips the delay so the page paints immediately. */
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void loadMore()
+      },
+      { root, rootMargin: '240px 0px', threshold: 0 },
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMore, isLoading, loadMore])
+
+  /* ── Search / filter ──
+     Both re-query the server. Only typing is debounced: without it every
+     keystroke is a request and a fast typist races their own results. A pill
+     click is a single deliberate act, and 300ms of nothing after it reads as
+     lag rather than as care. */
+  const prevSearch = useRef(search)
   const isFirstLoad = useRef(true)
   useEffect(() => {
-    const delay = isFirstLoad.current ? 0 : 300
+    const searchChanged = prevSearch.current !== search
+    const delay = isFirstLoad.current || !searchChanged ? 0 : 300
     isFirstLoad.current = false
+    prevSearch.current = search
+
     const handle = setTimeout(() => {
-      void fetchStudents(search)
+      void runQuery()
     }, delay)
     return () => clearTimeout(handle)
-  }, [search, fetchStudents])
+  }, [search, filter, runQuery])
 
   /* ── Handlers ── */
+  /* Manual refresh, and the callback a create or an edit in the drawer reports
+     back through — both re-run the current query from the top. */
+  const refresh = useCallback(async () => {
+    await runQuery()
+  }, [runQuery])
+
   const handleSelectStudent = useCallback((student: Student) => {
     setSelectedStudent(student)
     setIsDrawerOpen(true)
@@ -221,23 +331,11 @@ export default function StudentsPage() {
     handleSelectStudent(focusTarget.student)
   }, [focusTarget, clearFocusTarget, handleSelectStudent])
 
-  /* ── Filtered list ──
-     `students` is already the server's answer for the current search, so only
-     the status pill is applied here. */
-  const filteredStudents =
-    filter === 'all' ? students : students.filter((s) => s.status === filter)
-
-  /* Pill counts describe the whole match set. They used to be page-local and
-     the rail had to be pointed at instead; now that every page is fetched they
-     count the same students the pills filter, which is what a pill is for. */
-  const countFor = (key: FilterKey) =>
-    key === 'all' ? students.length : students.filter((s) => s.status === key).length
-
-  /* The server matched more students than were walked, so the table is showing
-     a slice. Only reachable if the walk hit MAX_PAGES. Saying so is the
-     difference between "this is everyone" and "this is the first 6,000" — the
-     table would otherwise imply the latter is the former. */
-  const truncated = totalMatching > students.length
+  /* ── Pill counts ──
+     From the server, for the whole matching set. `all` is every student the
+     search matched, whatever their status; the rest are their own bucket. */
+  const countFor = (key: FilterKey): number =>
+    key === 'all' ? stats.total : stats[key]
 
   /* ── Render ── */
   return (
@@ -254,10 +352,10 @@ export default function StudentsPage() {
                 className="text-xl font-bold text-[var(--text)]"
                 style={{ fontFamily: 'var(--font-heading)' }}
               >
-                Students
+                {t('page.title')}
               </h1>
               <p className="text-xs text-[var(--muted)]">
-                Manage student records and billing status
+                {t('page.subtitle')}
               </p>
             </div>
           </div>
@@ -270,7 +368,7 @@ export default function StudentsPage() {
                 'hover:bg-[var(--glass)] hover:text-[var(--text)]',
                 'transition-colors duration-150',
               )}
-              title="Refresh"
+              title={t('common:action.refresh')}
             >
               <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
             </button>
@@ -289,40 +387,40 @@ export default function StudentsPage() {
               }}
             >
               <Plus size={16} />
-              Add Student
+              {t('page.addStudent')}
             </button>
           </div>
         </div>
 
         {/* ── Stats Rail ──
-            Whole-roster counts from `GET /students/stats`, so the rail and the
-            filter pills agree on what exists. The three buckets do NOT sum to
-            the total: `unpaid` and `no_plan` students count toward the roster
-            only, hence the hints below. */}
+            Counts for the students the current search matched, so the rail and
+            the pills below it describe the same set. `Total` is every one of
+            them — the five statuses partition the roster, so it includes the
+            unpaid and no-plan students the other three cards here do not. */}
         <div className="flex items-center gap-5 mb-4">
           <StatCard
-            label="Total Students"
+            label={t('stat.total')}
             value={stats.total}
             color="var(--text)"
             icon={<Users size={14} />}
-            hint="Whole roster — includes students who are unpaid or have no plan, so this is not the sum of the other three"
+            hint={t('stat.totalHint')}
           />
           <StatCard
-            label="Paid"
+            label={t('status.paid')}
             value={stats.paid}
             color="var(--emerald)"
             icon={<span className="w-1.5 h-1.5 rounded-full bg-[var(--emerald)]" />}
-            hint="Active plan, inside its cycle window"
+            hint={t('stat.paidHint')}
           />
           <StatCard
-            label="Due"
+            label={t('status.due')}
             value={stats.due}
             color="var(--gold)"
             icon={<span className="w-1.5 h-1.5 rounded-full bg-[var(--gold)]" />}
-            hint="Money owed — cycle closed, expired or depleted"
+            hint={t('stat.dueHint')}
           />
           <StatCard
-            label="Overdue"
+            label={t('status.overdue')}
             value={stats.overdue}
             // Solid token, matching `--text`/`--emerald`/`--gold` on the siblings.
             // `--red-soft` is already a 14%-alpha wash, and `StatCard` derives the
@@ -330,7 +428,7 @@ export default function StudentsPage() {
             // number and double-fade the chip into near-invisibility.
             color="var(--red)"
             icon={<span className="w-1.5 h-1.5 rounded-full bg-[var(--red)]" />}
-            hint="Plan suspended"
+            hint={t('stat.overdueHint')}
           />
         </div>
 
@@ -338,7 +436,7 @@ export default function StudentsPage() {
         <div className="relative">
           <Search
             size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+            className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
           />
           {/* The placeholder matches what the server actually searches: name,
               phone and parent phone — NOT class. Advertising a field the query
@@ -347,9 +445,9 @@ export default function StudentsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or phone..."
+            placeholder={t('page.searchPlaceholder')}
             className={cn(
-              'w-full pl-9 pr-4 py-2 rounded-xl text-sm text-[var(--text)]',
+              'w-full ps-9 pe-4 py-2 rounded-xl text-sm text-[var(--text)]',
               'bg-[var(--input-bg)] border border-[var(--glass-border)]',
               'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
               'placeholder:text-[var(--muted)]/50',
@@ -361,16 +459,16 @@ export default function StudentsPage() {
         {/* ── Filter Pills ──
             One pill per status the backend emits. `unpaid` and `no_plan` are
             "nothing recorded yet" states, not money, so they stay neutral.
-            Each count is of the whole roster for the current search. */}
+            Counts are the server's, for the whole match set. */}
         <div className="flex items-center gap-2 mt-3">
           {([
-            { key: 'all', label: 'All' },
-            { key: 'paid', label: 'Paid' },
-            { key: 'due', label: 'Due' },
-            { key: 'overdue', label: 'Overdue' },
-            { key: 'unpaid', label: 'Unpaid' },
-            { key: 'no_plan', label: 'No plan' },
-          ] as const).map(({ key, label }) => (
+            { key: 'all', labelKey: 'common:label.all' },
+            { key: 'paid', labelKey: 'status.paid' },
+            { key: 'due', labelKey: 'status.due' },
+            { key: 'overdue', labelKey: 'status.overdue' },
+            { key: 'unpaid', labelKey: 'status.unpaid' },
+            { key: 'no_plan', labelKey: 'status.noPlan' },
+          ] as const).map(({ key, labelKey }) => (
             <button
               key={key}
               onClick={() => setFilter(key)}
@@ -382,27 +480,43 @@ export default function StudentsPage() {
                   : 'bg-transparent text-[var(--muted)] border-[var(--glass-border)] hover:text-[var(--text)] hover:border-[var(--muted)]/30',
               )}
             >
-              {label}
-              <span className="ml-1.5 tabular-nums opacity-60">{countFor(key)}</span>
+              {/* Keys, translated here rather than at module scope: a map of
+                  rendered strings would be evaluated once, at import, in
+                  whatever language happened to be active. */}
+              {t(labelKey)}
+              <span className="ms-1.5 tabular-nums opacity-60">{countFor(key)}</span>
             </button>
           ))}
         </div>
 
-        {/* Only when the server matched more than it returned. */}
-        {truncated && (
+        {/* How much of the matching set is actually on screen. The table stops
+            at the bottom of what it has loaded, so without this the only honest
+            reading of a short list would be "that is all of them". */}
+        {!isLoading && students.length > 0 && (
           <p className="text-[11px] text-[var(--muted)] mt-2">
-            Showing {students.length} of {totalMatching} matching students — refine
-            your search to narrow this down.
+            {t('page.showing', {
+              shown: students.length,
+              total: totalMatching,
+              // Drives the plural form, which agrees with `total` — the size of
+              // the set being described. `shown` is always the smaller number.
+              count: totalMatching,
+            })}
+            {hasMore ? ` ${t('page.scrollForMore')}` : ''}
           </p>
         )}
       </div>
 
-      {/* ── Student Table ────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+      {/* ── Student Table ──
+          The scroller the infinite-scroll observer is rooted on: this element
+          is what moves when the user scrolls, not the window. */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-6">
         <StudentTable
-          students={filteredStudents}
+          students={students}
           onSelect={handleSelectStudent}
           isLoading={isLoading}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+          sentinelRef={sentinelRef}
         />
       </div>
 

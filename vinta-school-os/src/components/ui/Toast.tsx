@@ -4,6 +4,7 @@
  */
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
@@ -31,6 +32,7 @@ export function useToast() {
 /* ─── Provider ─── */
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const { t, i18n } = useTranslation('common')
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const toast = useCallback((message: string, type: Toast['type'] = 'info') => {
@@ -39,7 +41,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const dismiss = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
+    // `item`, not `t`: the translation function is in scope in this component,
+    // and a param called `t` would silently shadow it for anyone who later
+    // needs to translate something inside this callback.
+    setToasts(prev => prev.filter(item => item.id !== id))
   }, [])
 
   // Auto-dismiss
@@ -60,22 +65,28 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      {/* Toast container */}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
-        {toasts.map(t => (
+      {/* Toast container. `end-4` follows the writing direction, so the stack
+          sits bottom-left in Arabic rather than overlapping the content it is
+          reporting on. */}
+      <div className="fixed bottom-4 end-4 z-[100] flex flex-col gap-2 pointer-events-none">
+        {toasts.map(item => (
           <div
-            key={t.id}
+            key={item.id}
             className={cn(
               'pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl',
               'bg-[var(--glass)] backdrop-blur-xl border border-[var(--glass-border)]',
-              'shadow-lg animate-slide-in-right',
+              'shadow-lg',
+              /* Hand-written keyframes, so the direction is chosen here: no
+                 `rtl:` variant can reach a class Tailwind does not generate. */
+              i18n.dir() === 'rtl' ? 'animate-slide-in-left' : 'animate-slide-in-right',
               'max-w-sm',
             )}
           >
-            {icons[t.type]}
-            <span className="text-sm text-[var(--text)] flex-1">{t.message}</span>
+            {icons[item.type]}
+            <span className="text-sm text-[var(--text)] flex-1">{item.message}</span>
             <button
-              onClick={() => dismiss(t.id)}
+              onClick={() => dismiss(item.id)}
+              aria-label={t('notify.dismiss')}
               className="p-1 rounded-lg hover:bg-[var(--glass)] text-[var(--muted)] transition-colors"
             >
               <X size={14} />

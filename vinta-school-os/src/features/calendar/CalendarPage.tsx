@@ -18,15 +18,16 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CalendarPlus, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
+import { formatDateShort, formatHour12, getDayName } from '../../lib/formatters'
 import {
   CALENDAR_HOURS,
   HOUR_HEIGHT,
 } from '../../lib/constants'
 import {
-  DAY_NAMES,
   addDays,
   startOfWeek,
   timeToHours,
@@ -56,11 +57,28 @@ const GRID_COLUMNS = `${GUTTER_WIDTH}px repeat(${GRID_DAYS}, minmax(0, 1fr))`
 const TOTAL_HEIGHT = (CALENDAR_HOURS[CALENDAR_HOURS.length - 1] + 1 - CALENDAR_HOURS[0]) * HOUR_HEIGHT
 const MIN_BLOCK_HEIGHT = 22
 
-/** Hour label for the gutter, e.g. 13 → "1 PM" */
-function hourLabel(hour: number): string {
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const h12 = hour % 12 === 0 ? 12 : hour % 12
-  return `${h12} ${ampm}`
+/**
+ * Status labels the grid needs, held as *keys* rather than sentences: a
+ * module-level `t()` call would freeze at import time and never notice a
+ * language switch.
+ *
+ * Weekday names need no entry here — `getDayName()` already formats through the
+ * active locale, so the hand-kept seven-name array this file used to carry is
+ * gone rather than translated.
+ */
+const STATUS_KEYS: Record<string, string> = {
+  scheduled: 'status.scheduled',
+  in_progress: 'status.inProgress',
+  conducted: 'status.conducted',
+  completed: 'status.completed',
+  cancelled: 'status.cancelled',
+}
+
+const REASON_KEYS: Record<string, string> = {
+  Makeup: 'badge.reason.makeup',
+  Trial: 'badge.reason.trial',
+  Extra: 'badge.reason.extra',
+  Reschedule: 'badge.reason.reschedule',
 }
 
 // ============================================
@@ -68,6 +86,8 @@ function hourLabel(hour: number): string {
 // ============================================
 
 export function CalendarPage() {
+  const { t } = useTranslation('calendar')
+
   /* ── Data ── */
   const [sessions, setSessions] = useState<Session[]>([])
   const [groups, setGroups] = useState<GroupOption[]>([])
@@ -257,7 +277,15 @@ export function CalendarPage() {
 
   /* ── Render ── */
 
-  const weekLabel = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${addDays(weekStart, 6).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+  const weekLabel = `${formatDateShort(weekStart)} – ${formatDateShort(addDays(weekStart, 6))}`
+
+  /* API lifecycle status → label. An unmapped value falls back to the raw
+     string rather than printing a key path, so a new backend state shows up
+     as a slightly untranslated tooltip rather than as `calendar:status.x`. */
+  const statusLabel = (status: string | undefined): string => {
+    const key = status ? STATUS_KEYS[status] : undefined
+    return key ? t(key) : (status ?? '')
+  }
 
   return (
     <div className="flex flex-col h-full gap-3 animate-fade-in">
@@ -268,10 +296,10 @@ export function CalendarPage() {
             className="text-xl font-bold text-[var(--text)]"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
-            Week Calendar
+            {t('page.title')}
           </h1>
           <p className="text-[11px] text-[var(--muted)] mt-0.5">
-            Sessions are added, removed and moved here — start and finish them from the Dashboard.
+            {t('page.subtitle')}
           </p>
         </div>
 
@@ -281,9 +309,10 @@ export function CalendarPage() {
             onClick={() => setWeekStart((w) => addDays(w, -7))}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--text)] transition-colors"
             style={{ background: 'var(--input-bg)', border: '1px solid var(--glass-border)' }}
-            aria-label="Previous week"
+            aria-label={t('page.previousWeek')}
           >
-            <ChevronLeft size={15} />
+            {/* Back in time points the other way in Arabic. */}
+            <ChevronLeft size={15} className="rtl:rotate-180" />
           </button>
           <span
             className="text-sm font-semibold text-[var(--text)] text-center min-w-[130px]"
@@ -296,9 +325,9 @@ export function CalendarPage() {
             onClick={() => setWeekStart((w) => addDays(w, 7))}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--text)] transition-colors"
             style={{ background: 'var(--input-bg)', border: '1px solid var(--glass-border)' }}
-            aria-label="Next week"
+            aria-label={t('page.nextWeek')}
           >
-            <ChevronRight size={15} />
+            <ChevronRight size={15} className="rtl:rotate-180" />
           </button>
           <button
             type="button"
@@ -306,7 +335,7 @@ export function CalendarPage() {
             className="px-3 h-8 text-xs font-semibold rounded-lg transition-colors"
             style={{ background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text)' }}
           >
-            Today
+            {t('page.today')}
           </button>
           <button
             type="button"
@@ -318,7 +347,7 @@ export function CalendarPage() {
             )}
           >
             <CalendarPlus size={14} />
-            Add Session
+            {t('page.addSession')}
           </button>
         </div>
       </div>
@@ -328,22 +357,22 @@ export function CalendarPage() {
         className="flex flex-wrap items-center gap-2 shrink-0 px-3 py-2 rounded-[var(--radius-md)]"
         style={{ background: 'var(--glass)', border: '1px solid var(--glass-border)' }}
       >
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)] mr-1">
-          Teachers
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)] me-1">
+          {t('filter.teachers')}
         </span>
 
         <div className="relative">
           <Search
             size={12}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
+            className="absolute start-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
           />
           <input
             type="text"
             value={teacherSearch}
             onChange={(e) => setTeacherSearch(e.target.value)}
-            placeholder="Search teacher…"
+            placeholder={t('filter.searchPlaceholder')}
             className={cn(
-              'w-[180px] pl-7 pr-7 py-1.5 rounded-full text-xs',
+              'w-[180px] ps-7 pe-7 py-1.5 rounded-full text-xs',
               'bg-[var(--input-bg)] border border-[var(--glass-border)]',
               'text-[var(--text)] outline-none',
               'focus:ring-2 focus:ring-[var(--gold)]/30',
@@ -354,8 +383,8 @@ export function CalendarPage() {
             <button
               type="button"
               onClick={() => setTeacherSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--text)]"
-              aria-label="Clear search"
+              className="absolute end-2 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--text)]"
+              aria-label={t('filter.clearSearch')}
             >
               <X size={11} />
             </button>
@@ -373,42 +402,42 @@ export function CalendarPage() {
               : 'bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)] hover:text-[var(--text)]',
           )}
         >
-          All teachers
+          {t('filter.allTeachers')}
         </button>
 
         {/* One chip per teacher; the search narrows the list, clicking filters */}
-        {visibleTeachers.map((t) => {
-          const active = teacherFilter === t.id
+        {visibleTeachers.map((teacher) => {
+          const active = teacherFilter === teacher.id
           return (
             <button
-              key={t.id}
+              key={teacher.id}
               type="button"
-              onClick={() => setTeacherFilter(active ? 'all' : t.id)}
+              onClick={() => setTeacherFilter(active ? 'all' : teacher.id)}
               className={cn(
                 'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all',
                 active
                   ? 'bg-[var(--gold-soft)] text-[var(--text)] border border-[var(--gold)]/40'
                   : 'bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)] hover:text-[var(--text)]',
               )}
-              title={active ? 'Clear this filter' : `Show only ${t.name}`}
+              title={active ? t('filter.clearThisFilter') : t('filter.showOnly', { name: teacher.name })}
             >
               <span
                 className="w-2 h-2 rounded-full shrink-0"
-                style={{ background: teacherColor(t.id) }}
+                style={{ background: teacherColor(teacher.id) }}
               />
-              <span className="truncate max-w-[120px]">{t.name}</span>
+              <span className="truncate max-w-[120px]">{teacher.name}</span>
             </button>
           )
         })}
 
         {teachers.length === 0 && (
-          <span className="text-[11px] text-[var(--muted)]">No teachers yet.</span>
+          <span className="text-[11px] text-[var(--muted)]">{t('filter.noTeachers')}</span>
         )}
 
         <div className="flex-1" />
 
         <span className="text-[11px] text-[var(--muted)]">
-          {weekCount} session{weekCount === 1 ? '' : 's'}
+          {t('filter.sessionCount', { count: weekCount })}
         </span>
 
         <button
@@ -421,7 +450,7 @@ export function CalendarPage() {
               : 'bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)] hover:text-[var(--text)]',
           )}
         >
-          {showCancelled ? 'Hide removed' : 'Show removed'}
+          {showCancelled ? t('filter.hideRemoved') : t('filter.showRemoved')}
         </button>
       </div>
 
@@ -462,11 +491,11 @@ export function CalendarPage() {
                       ? 'color-mix(in srgb, var(--gold) 8%, var(--card-bg))'
                       : 'var(--card-bg)',
                     borderBottom: '1px solid var(--divider)',
-                    borderLeft: '1px solid var(--divider)',
+                    borderInlineStart: '1px solid var(--divider)',
                   }}
                 >
                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                    {DAY_NAMES[date.getDay()]}
+                    {getDayName(date)}
                   </span>
                   <span
                     className={cn(
@@ -489,11 +518,11 @@ export function CalendarPage() {
               {CALENDAR_HOURS.map((hour) => (
                 <div
                   key={hour}
-                  className="absolute left-0 right-0"
+                  className="absolute start-0 end-0"
                   style={{ top: (hour - CALENDAR_HOURS[0]) * HOUR_HEIGHT }}
                 >
-                  <span className="absolute -top-2 right-2 text-[10px] text-[var(--muted)] select-none">
-                    {hourLabel(hour)}
+                  <span className="absolute -top-2 end-2 text-[10px] text-[var(--muted)] select-none">
+                    {formatHour12(hour)}
                   </span>
                 </div>
               ))}
@@ -514,7 +543,7 @@ export function CalendarPage() {
                     gridColumn: i + 2,
                     gridRow: 2,
                     height: TOTAL_HEIGHT,
-                    borderLeft: '1px solid var(--divider)',
+                    borderInlineStart: '1px solid var(--divider)',
                     background: isTodayCol
                       ? 'color-mix(in srgb, var(--gold) 3%, transparent)'
                       : undefined,
@@ -558,10 +587,10 @@ export function CalendarPage() {
                         key={s.id}
                         type="button"
                         onClick={(e) => { e.stopPropagation(); openEdit(s) }}
-                        title={`${s.class_name}\n${timeRangeLabel(s.start_time, s.end_time)}\n${s.teacher_name ?? ''}${isDone ? `\n${s.status}` : ''}`}
+                        title={`${s.class_name}\n${timeRangeLabel(s.start_time, s.end_time)}\n${s.teacher_name ?? ''}${isDone ? `\n${statusLabel(s.status)}` : ''}`}
                         className={cn(
-                          'absolute rounded-md px-1.5 py-1 text-left overflow-hidden',
-                          'border-l-[3px] transition-all',
+                          'absolute rounded-md px-1.5 py-1 text-start overflow-hidden',
+                          'border-s-[3px] transition-all',
                           'hover:shadow-lg hover:z-20 hover:brightness-105',
                           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]',
                           isDone && 'opacity-55',
@@ -569,21 +598,21 @@ export function CalendarPage() {
                         style={{
                           top,
                           height,
-                          left: `calc(${leftPct}% + 2px)`,
+                          insetInlineStart: `calc(${leftPct}% + 2px)`,
                           width: `calc(${widthPct}% - 4px)`,
                           backgroundColor: isDone ? 'var(--muted-soft)' : hexToRgba(color, 0.16),
-                          borderLeftColor: isDone ? 'var(--muted)' : color,
+                          borderInlineStartColor: isDone ? 'var(--muted)' : color,
                         }}
                       >
                         <span className="flex items-center gap-1 min-w-0">
                           {!isDone && isSessionFree(s) && (
                             <span className="px-1 rounded text-[8px] font-bold bg-[var(--emerald)] text-white shrink-0">
-                              FREE
+                              {t('grid.freeBadge')}
                             </span>
                           )}
                           {!isDone && origin.kind === 'TEMPORARY' && (
                             <span className="px-1 rounded text-[8px] font-bold bg-[var(--gold-soft)] text-[var(--gold)] shrink-0">
-                              {origin.reason ? origin.reason.slice(0, 4) : '1×'}
+                              {origin.reason ? t(REASON_KEYS[origin.reason] ?? 'badge.reason.extra') : '1×'}
                             </span>
                           )}
                           <span
@@ -624,7 +653,7 @@ export function CalendarPage() {
         {!isLoading && groups.length === 0 && (
           <div className="absolute inset-x-0 bottom-0 px-4 py-2 text-center text-[11px] text-[var(--muted)]"
             style={{ background: 'var(--card-bg)', borderTop: '1px solid var(--divider)' }}>
-            No groups yet — a session has to belong to a group. Create one in Classrooms and it joins the calendar.
+            {t('grid.noGroups')}
           </div>
         )}
       </div>
@@ -665,11 +694,11 @@ function NowLine() {
 
   return (
     <div
-      className="absolute left-0 right-0 z-20 pointer-events-none"
+      className="absolute start-0 end-0 z-20 pointer-events-none"
       style={{ top: (hours - first) * HOUR_HEIGHT }}
     >
       <div className="h-[2px] bg-[var(--red)] shadow-[0_0_8px_var(--red)]" />
-      <div className="absolute -left-[3px] -top-[3px] w-[8px] h-[8px] rounded-full bg-[var(--red)]" />
+      <div className="absolute -start-[3px] -top-[3px] w-[8px] h-[8px] rounded-full bg-[var(--red)]" />
     </div>
   )
 }

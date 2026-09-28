@@ -1,4 +1,5 @@
 import { forwardRef, useState, type ImgHTMLAttributes, type CSSProperties } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 
 /* ─── Helpers ─── */
@@ -67,6 +68,7 @@ export interface AvatarProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, '
 
 export const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
   ({ name = '', colors, src, alt, size = 'md', className, style, ...imgProps }, ref) => {
+    const { t } = useTranslation('common')
     const [imgError, setImgError] = useState(false)
     const config = sizeConfig[size]
     const showImage = src && !imgError
@@ -83,7 +85,7 @@ export const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
       <div
         ref={ref}
         role="img"
-        aria-label={alt || name || 'Avatar'}
+        aria-label={alt || name || t('avatar.label')}
         className={cn(
           'relative shrink-0 overflow-hidden',
           'flex items-center justify-center',

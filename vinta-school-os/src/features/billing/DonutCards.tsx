@@ -95,7 +95,7 @@ export function DonutCards({ title, data, centerLabel, centerValue }: DonutCards
                   style={{ backgroundColor: segment.color }}
                 />
                 <span className="text-sm text-[var(--muted)] truncate">{segment.name}</span>
-                <span className="ml-auto text-sm font-semibold text-[var(--text)] tabular-nums shrink-0">
+                <span className="ms-auto text-sm font-semibold text-[var(--text)] tabular-nums shrink-0">
                   {segment.value}
                 </span>
               </div>

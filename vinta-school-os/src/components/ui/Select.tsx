@@ -34,6 +34,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { Check, ChevronDown, Search } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
@@ -55,7 +56,7 @@ export interface SelectProps {
   value: string
   onChange: (value: string) => void
   options: SelectOption[]
-  /** Shown on the trigger while nothing is selected. */
+  /** Shown on the trigger while nothing is selected (default: common:select.placeholder). */
   placeholder?: string
   disabled?: boolean
   /** Rendered above the trigger, matching Input. */
@@ -82,6 +83,7 @@ export interface SelectProps {
   emptyText?: string
   /** Adds a search field. Defaults to on at 8+ options. */
   searchable?: boolean
+  /** Default: common:select.search. */
   searchPlaceholder?: string
   /** Floor for the menu width, so a narrow trigger still gets a legible menu. */
   menuMinWidth?: number
@@ -96,7 +98,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
       value,
       onChange,
       options,
-      placeholder = 'Select…',
+      placeholder,
       disabled = false,
       label,
       error,
@@ -107,14 +109,15 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
       id,
       name,
       action,
-      emptyText = 'Nothing to choose from',
+      emptyText,
       searchable,
-      searchPlaceholder = 'Search…',
+      searchPlaceholder,
       menuMinWidth = 180,
       'aria-label': ariaLabel,
     },
     ref,
   ) => {
+    const { t } = useTranslation('common')
     const autoId = useId()
     const selectId = id ?? autoId
     const listId = `${selectId}-list`
@@ -362,7 +365,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
           aria-describedby={error ? errorId : helperText ? helperId : undefined}
           className={cn(
             /* base — mirrors Input's field treatment */
-            'w-full flex items-center gap-2 text-left',
+            'w-full flex items-center gap-2 text-start',
             'font-[family-name:var(--font-body)]',
             'bg-[var(--input-bg)] backdrop-blur-sm',
             'border border-[var(--glass-border)]',
@@ -392,7 +395,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
               !selected || selected.value === '' ? 'text-[var(--muted)]' : 'text-[var(--text)]',
             )}
           >
-            {selected ? selected.label : placeholder}
+            {selected ? selected.label : (placeholder ?? t('select.placeholder'))}
           </span>
           <ChevronDown
             size={15}
@@ -420,16 +423,16 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                 <div className="relative border-b border-[var(--glass-border)]">
                   <Search
                     size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
+                    className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
                   />
                   <input
                     ref={searchRef}
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder={searchPlaceholder}
+                    placeholder={searchPlaceholder ?? t('select.search')}
                     className={cn(
-                      'w-full pl-9 pr-3 py-2.5 text-sm text-[var(--text)]',
+                      'w-full ps-9 pe-3 py-2.5 text-sm text-[var(--text)]',
                       'bg-transparent outline-none',
                       'placeholder:text-[var(--muted)]',
                     )}
@@ -446,7 +449,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
               >
                 {filtered.length === 0 ? (
                   <p className="px-3 py-4 text-center text-xs text-[var(--muted)]">
-                    {emptyText}
+                    {emptyText ?? t('select.empty')}
                   </p>
                 ) : (
                   filtered.map((option, i) => {
@@ -470,7 +473,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         }}
                         onMouseEnter={() => !option.disabled && setActiveIndex(i)}
                         className={cn(
-                          'w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left',
+                          'w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-start',
                           'transition-colors duration-75',
                           'disabled:opacity-40 disabled:cursor-not-allowed',
                           isSelected
@@ -502,7 +505,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                       action.onClick()
                     }}
                     className={cn(
-                      'w-full flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-left',
+                      'w-full flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-start',
                       'text-[var(--gold)] hover:bg-[var(--gold-soft)]',
                       'transition-colors duration-75',
                     )}

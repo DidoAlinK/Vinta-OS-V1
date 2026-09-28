@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import { Card, CardHeader, CardBody } from '../../components/ui/Card'
 import { Avatar } from '../../components/ui/Avatar'
@@ -19,6 +20,7 @@ export interface StaffRolesProps {
 /* ─── Component ─── */
 
 export function StaffRoles({ staff, onAdd, onDeactivate, onReactivate }: StaffRolesProps) {
+  const { t } = useTranslation('settings')
   const activeStaff = staff.filter((s) => s.is_active)
   const inactiveStaff = staff.filter((s) => !s.is_active)
 
@@ -27,18 +29,17 @@ export function StaffRoles({ staff, onAdd, onDeactivate, onReactivate }: StaffRo
       {/* Header card */}
       <Card>
         <CardHeader
-          title="Staff & Roles"
+          title={t('staff.title')}
           actions={
             <Button variant="primary" size="sm" onClick={onAdd}>
               <UserPlus className="w-4 h-4" />
-              Add Profile
+              {t('staff.addProfile')}
             </Button>
           }
         />
         <CardBody>
           <p className="text-sm text-[var(--muted)]">
-            Manage staff members and their access levels. Owners have full control,
-            while staff members have limited access.
+            {t('staff.description')}
           </p>
         </CardBody>
       </Card>
@@ -46,7 +47,7 @@ export function StaffRoles({ staff, onAdd, onDeactivate, onReactivate }: StaffRo
       {/* Active staff */}
       {activeStaff.length > 0 && (
         <Card>
-          <CardHeader title={`Active (${activeStaff.length})`} />
+          <CardHeader title={t('staff.active', { count: activeStaff.length })} />
           <CardBody>
             <div className="flex flex-col gap-1">
               {activeStaff.map((member) => (
@@ -80,8 +81,8 @@ export function StaffRoles({ staff, onAdd, onDeactivate, onReactivate }: StaffRo
                     variant={member.role === 'owner' ? 'gold' : 'emerald'}
                     size="sm"
                   >
-                    <Shield className="w-3 h-3 mr-1" />
-                    {member.role === 'owner' ? 'Owner' : 'Staff'}
+                    <Shield className="w-3 h-3 me-1" />
+                    {member.role === 'owner' ? t('staff.role.owner') : t('staff.role.staff')}
                   </Badge>
 
                   {/* Deactivate toggle (only for staff, not owner) */}
@@ -101,7 +102,7 @@ export function StaffRoles({ staff, onAdd, onDeactivate, onReactivate }: StaffRo
       {/* Inactive staff */}
       {inactiveStaff.length > 0 && (
         <Card>
-          <CardHeader title={`Deactivated (${inactiveStaff.length})`} />
+          <CardHeader title={t('staff.deactivated', { count: inactiveStaff.length })} />
           <CardBody>
             <div className="flex flex-col gap-1">
               {inactiveStaff.map((member) => (
@@ -127,7 +128,7 @@ export function StaffRoles({ staff, onAdd, onDeactivate, onReactivate }: StaffRo
                   </div>
 
                   <Badge variant="grey" size="sm">
-                    Deactivated
+                    {t('staff.deactivatedBadge')}
                   </Badge>
 
                   <button
@@ -138,7 +139,7 @@ export function StaffRoles({ staff, onAdd, onDeactivate, onReactivate }: StaffRo
                       'hover:opacity-80 transition-opacity',
                     )}
                   >
-                    Reactivate
+                    {t('staff.reactivate')}
                   </button>
                 </div>
               ))}
@@ -153,7 +154,7 @@ export function StaffRoles({ staff, onAdd, onDeactivate, onReactivate }: StaffRo
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <Users className="w-10 h-10 text-[var(--muted)]" />
               <p className="text-sm text-[var(--muted)]">
-                No staff members yet. Add your first profile to get started.
+                {t('staff.empty')}
               </p>
             </div>
           </CardBody>

@@ -4,6 +4,29 @@
  */
 
 import { toLocalISO } from './sessionTime'
+import i18n, { DEFAULT_LANGUAGE, isLanguage, localeTag } from '../i18n'
+
+// ============================================
+// Locale
+// ============================================
+
+/**
+ * The BCP-47 tag every date and number below is rendered in.
+ *
+ * Read from the live i18n instance on each call rather than captured once at
+ * module load, so switching language re-formats the next thing that renders
+ * instead of leaving the tab on the old language until a reload. The guard is
+ * for the window between `init` and the first `changeLanguage`, where
+ * `i18n.language` can briefly be a tag i18next inferred rather than one of ours.
+ *
+ * These four formatters used to be pinned to `en-US`, which meant an Arabic
+ * interface still printed "Monday, January 5, 2026" and "1,240" — English
+ * month names, English day names, and thousands separators that belong to a
+ * locale nobody in this app is reading.
+ */
+function activeLocale(): string {
+  return localeTag(isLanguage(i18n.language) ? i18n.language : DEFAULT_LANGUAGE)
+}
 
 // ============================================
 // Phone Formatting
@@ -130,7 +153,7 @@ export function formatDateISO(date: Date | string): string {
  */
 export function formatDateFull(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleDateString(activeLocale(), {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -146,7 +169,7 @@ export function formatDateFull(date: Date | string): string {
  */
 export function formatDateShort(date: Date | string, short = true): string {
   const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleDateString(activeLocale(), {
     month: short ? 'short' : 'long',
     day: 'numeric',
   })
@@ -159,8 +182,28 @@ export function formatDateShort(date: Date | string, short = true): string {
  */
 export function getDayName(date: Date | string, short = true): string {
   const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleDateString(activeLocale(), {
     weekday: short ? 'short' : 'long',
+  })
+}
+
+/**
+ * Format an instant as a date and a time together — "14 Jan, 14:30".
+ *
+ * Separate from `formatDateShort` because a timestamp needs both halves and
+ * there was nowhere to get them at once, which is how one caller ended up
+ * calling `toLocaleString('en-GB', …)` inline and printing a British-ordered
+ * date inside an otherwise localised list. Deliberately omits the year: the
+ * activity lists that use it are all recent history, and the extra `2026` costs
+ * a line break in a narrow column.
+ */
+export function formatDateTime(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  return d.toLocaleString(activeLocale(), {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
@@ -218,7 +261,7 @@ export function timeToDecimal(time: string): number {
 }
 
 /**
- * How long a class ran, from two "HH:MM" times — "1 h 45 min".
+ * How long a class ran, from two "HH:MM" times — "1h 45m", « 1 h 45 min ».
  *
  * Written here rather than in a date library because the codebase has none by
  * design, and this is the only shape it needs: two times on one clock. Callers
@@ -226,8 +269,16 @@ export function timeToDecimal(time: string): number {
  * for unparseable input and for a non-positive span, so a mistake never reads as
  * a zero-minute class.
  *
+ * The units come from the dictionary rather than being concatenated here. The
+ * shape it used to return, "${hours} h ${rest} min", is French — so an English
+ * or Arabic interface was printing French units, and the apostrophe in "1 h
+ * 45 min" was the only hint. Unit *abbreviations* are used rather than words
+ * ("h"/"m", « h »/« min », « س »/« د ») because a spelled-out Arabic unit would
+ * need the full six-form plural set for a string that renders inside a table
+ * cell.
+ *
  * Shared, not local: the group form and the teacher form both print it, and two
- * copies of this would eventually disagree about what "1 h 45 min" means.
+ * copies of this would eventually disagree about what "1h 45m" means.
  */
 export function formatDuration(start: string, end: string): string {
   const [sh, sm] = start.split(':').map(Number)
@@ -237,9 +288,22 @@ export function formatDuration(start: string, end: string): string {
   if (minutes <= 0) return ''
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
-  if (hours === 0) return `${rest} min`
-  if (rest === 0) return `${hours} h`
-  return `${hours} h ${rest} min`
+  if (hours === 0) return i18n.t('duration.minutes', { count: rest })
+  if (rest === 0) return i18n.t('duration.hours', { count: hours })
+  return i18n.t('duration.hoursMinutes', { hours, minutes: rest })
+}
+
+/**
+ * The day-half marker for a 24-hour clock value — "AM"/"PM", « ص »/« م ».
+ *
+ * Latin AM/PM was printed in every language, so an Arabic calendar gutter read
+ * "7 AM – 9 PM" and an Arabic session chip read "7:30AM". French keeps AM/PM,
+ * which is what a 12-hour school timetable uses locally; Arabic takes the
+ * standard ص/م markers. The hour is the only input, so this cannot drift out of
+ * step with the number it is printed beside.
+ */
+function hourMarker(h24: number): string {
+  return i18n.t(h24 >= 12 ? 'time.pm' : 'time.am')
 }
 
 /**
@@ -249,22 +313,23 @@ export function formatDuration(start: string, end: string): string {
  */
 export function formatHour12(hours: number): string {
   const h = Math.floor(hours)
-  const ampm = h >= 12 ? 'PM' : 'AM'
   const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h
-  return `${h12} ${ampm}`
+  return `${h12} ${hourMarker(h)}`
 }
 
 /**
- * Format decimal hours to "1:30PM" style
+ * Format decimal hours to "1:30 PM" style
  * @param hours - Decimal hours
- * @returns Formatted time like "1:30PM"
+ * @returns Formatted time like "1:30 PM"
  */
 export function formatTime12(hours: number): string {
   const h = Math.floor(hours)
   const m = Math.round((hours - h) * 60)
-  const ampm = h >= 12 ? 'PM' : 'AM'
   const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h
-  return m > 0 ? `${h12}:${m.toString().padStart(2, '0')}${ampm}` : `${h12}${ampm}`
+  const marker = hourMarker(h)
+  return m > 0
+    ? `${h12}:${m.toString().padStart(2, '0')} ${marker}`
+    : `${h12} ${marker}`
 }
 
 /**
@@ -411,7 +476,7 @@ export function getStatusBg(status: string): string {
  * @returns Formatted number string
  */
 export function formatNumber(num: number): string {
-  return new Intl.NumberFormat('en-US').format(num)
+  return new Intl.NumberFormat(activeLocale()).format(num)
 }
 
 /**

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../stores/authStore'
 import { getInitials } from '../../lib/formatters'
 import { AVATAR_PRESETS } from '../../lib/constants'
@@ -8,6 +9,7 @@ import { Plus, Crown, Shield } from 'lucide-react'
 import { PINModal } from './PINModal'
 
 export default function ProfilePicker() {
+  const { t } = useTranslation('auth')
   const navigate = useNavigate()
   const { user, profiles, profilesLoading, loadProfiles } = useAuthStore()
   const [selectedForPin, setSelectedForPin] = useState<Profile | null>(null)
@@ -39,19 +41,25 @@ export default function ProfilePicker() {
     }
   }
 
+  // Greeted by given name only, and the greeting has a separate form for an
+  // account whose name has not arrived yet — hence two keys rather than one.
+  const firstName = user?.name?.trim() ? user.name.trim().split(' ')[0] : ''
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
       {/* Background orbs */}
-      <div className="absolute top-[-200px] left-[-100px] w-[500px] h-[500px] rounded-full opacity-10" style={{ background: 'radial-gradient(circle, var(--gold), transparent)' }} />
-      <div className="absolute bottom-[-200px] right-[-100px] w-[400px] h-[400px] rounded-full opacity-10" style={{ background: 'radial-gradient(circle, var(--violet), transparent)' }} />
+      <div className="absolute top-[-200px] start-[-100px] w-[500px] h-[500px] rounded-full opacity-10" style={{ background: 'radial-gradient(circle, var(--gold), transparent)' }} />
+      <div className="absolute bottom-[-200px] end-[-100px] w-[400px] h-[400px] rounded-full opacity-10" style={{ background: 'radial-gradient(circle, var(--violet), transparent)' }} />
 
       {/* Header */}
       <div className="text-center mb-10 animate-fade-in">
         <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: 'Space Grotesk', color: 'var(--text)' }}>
-          Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''}!
+          {firstName
+            ? t('profilePicker.greeting', { name: firstName })
+            : t('profilePicker.greetingNoName')}
         </h1>
         <p className="text-sm" style={{ color: 'var(--muted)' }}>
-          {profiles.length > 0 ? 'Select your profile to continue' : 'Create your first profile to get started'}
+          {profiles.length > 0 ? t('profilePicker.subtitle.select') : t('profilePicker.subtitle.create')}
         </p>
       </div>
 
@@ -98,7 +106,7 @@ export default function ProfilePicker() {
 
                   {/* Role badge */}
                   <div
-                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center"
+                    className="absolute -bottom-1 -end-1 w-6 h-6 rounded-full flex items-center justify-center"
                     style={{
                       background: profile.role === 'owner' ? 'var(--gold)' : 'var(--emerald)',
                       boxShadow: '0 2px 8px rgba(0,0,0,.25)',
@@ -124,7 +132,7 @@ export default function ProfilePicker() {
                     background: profile.role === 'owner' ? 'rgba(179,135,42,.12)' : 'rgba(15,107,77,.12)',
                   }}
                 >
-                  {profile.role === 'owner' ? 'Owner' : 'Staff'}
+                  {profile.role === 'owner' ? t('profilePicker.role.owner') : t('profilePicker.role.staff')}
                 </span>
               </button>
             )
@@ -143,14 +151,14 @@ export default function ProfilePicker() {
                 <Plus size={36} style={{ color: 'var(--muted)' }} />
               </div>
               <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                No profiles yet
+                {t('profilePicker.empty.title')}
               </p>
               <button
                 onClick={() => navigate('/profile/create')}
                 className="px-6 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
                 style={{ background: 'var(--gold)' }}
               >
-                Create your first profile
+                {t('profilePicker.empty.action')}
               </button>
             </div>
           )}
@@ -171,7 +179,7 @@ export default function ProfilePicker() {
               <div className="w-[100px] h-[100px] rounded-[28px] flex items-center justify-center" style={{ background: 'var(--input-bg)' }}>
                 <Plus size={32} />
               </div>
-              <span className="text-[13px] font-medium">Add Profile</span>
+              <span className="text-[13px] font-medium">{t('profilePicker.addProfile')}</span>
             </button>
           )}
         </div>

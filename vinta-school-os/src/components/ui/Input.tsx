@@ -51,7 +51,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {/* Input */}
         <div className="relative flex items-center">
           {leftIcon && (
-            <span className="absolute left-3 text-[var(--muted)] pointer-events-none">
+            <span className="absolute start-3 text-[var(--muted)] pointer-events-none">
               {leftIcon}
             </span>
           )}
@@ -73,9 +73,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               'disabled:opacity-50 disabled:cursor-not-allowed',
               /* size */
               sizeStyles[size],
-              /* icons */
-              leftIcon && 'pl-10',
-              rightIcon && 'pr-10',
+              /* icons — logical padding, so the text clears the icon in Arabic too */
+              leftIcon && 'ps-10',
+              rightIcon && 'pe-10',
               /* error state */
               error &&
                 'border-[var(--red)] focus:ring-[var(--red-soft)] focus:border-[var(--red)]',
@@ -84,7 +84,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...rest}
           />
           {rightIcon && (
-            <span className="absolute right-3 text-[var(--muted)]">
+            <span className="absolute end-3 text-[var(--muted)]">
               {rightIcon}
             </span>
           )}

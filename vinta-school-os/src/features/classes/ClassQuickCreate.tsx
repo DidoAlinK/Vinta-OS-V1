@@ -18,9 +18,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { GraduationCap, Loader2 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
+import { teacherSubjectOf } from '../../lib/teacherSubject'
 import { toast } from '../../stores/uiStore'
 import Select from '../../components/ui/Select'
 import {
@@ -59,6 +61,8 @@ export interface ClassQuickCreateProps {
 interface TeacherOption {
   id: string
   name: string
+  /** The subject this teacher is registered for, when the profile names one. */
+  subject?: string
 }
 
 function errMsg(err: unknown, fallback: string): string {
@@ -66,13 +70,23 @@ function errMsg(err: unknown, fallback: string): string {
   return typeof backend === 'string' && backend ? backend : fallback
 }
 
+/**
+ * A refusal is either one of our own keys or a sentence the server wrote.
+ *
+ * Kept apart rather than collapsed into a string: a key holds a translation
+ * that follows the language switch, and a server sentence is already text
+ * nothing here can retranslate.
+ */
+type FormError = { key: string } | { text: string }
+
 export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps) {
+  const { t } = useTranslation('classes')
   const [values, setValues] = useState<ClassFormValues>(() => emptyClassForm())
   const [teachers, setTeachers] = useState<TeacherOption[]>([])
   const [subjects, setSubjects] = useState<string[]>(DEFAULT_SUBJECT_OPTIONS)
   const [loadingLookups, setLoadingLookups] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<FormError | null>(null)
 
   const patch = useCallback((p: Partial<ClassFormValues>) => {
     setValues((v) => ({ ...v, ...p }))
@@ -93,12 +107,13 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
         if (cancelled) return
         const list = tRes.data.teachers ?? tRes.data ?? []
         setTeachers(
-          list.map((t: any) => ({
-            id: t.id,
+          list.map((tc: any) => ({
+            id: tc.id,
             name:
-              t.full_name ||
-              t.name ||
-              `${t.first_name ?? ''} ${t.last_name ?? ''}`.trim(),
+              tc.full_name ||
+              tc.name ||
+              `${tc.first_name ?? ''} ${tc.last_name ?? ''}`.trim(),
+            subject: teacherSubjectOf(tc),
           })),
         )
         const subs = (sRes.data.subjects ?? []).map((s: any) => s.name).filter(Boolean)
@@ -123,6 +138,8 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
     return () => { cancelled = true }
   }, [])
 
+  // Subject names are the school's own (`/subjects`), so they are shown
+  // exactly as configured — only the "Nothing chosen" row is ours to word.
   const subjectOptions = useMemo(
     () => subjects.map((s) => ({ value: s, label: s })),
     [subjects],
@@ -130,10 +147,30 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
 
   const teacherOptions = useMemo(
     () => [
-      { value: '', label: '— None —' },
-      ...teachers.map((t) => ({ value: t.id, label: t.name })),
+      { value: '', label: t('quickCreate.teacherNone') },
+      ...teachers.map((tc) => ({ value: tc.id, label: tc.name })),
     ],
-    [teachers],
+    [teachers, t],
+  )
+
+  /**
+   * Choosing a teacher also chooses the subject: a teacher teaches one subject,
+   * and this group is a group of it — the same reason the session flows derive
+   * a session's teacher from its group.
+   *
+   * Only a subject this school actually lists is applied. `Select` matches its
+   * options strictly, so writing a subject the picker does not offer would
+   * leave the field rendering empty while the payload carried the value — the
+   * same trap the default subject is moved out of on load.
+   */
+  const handleTeacherChange = useCallback(
+    (id: string) => {
+      const teacher = teachers.find((t) => t.id === id)
+      const subject =
+        teacher?.subject && subjects.includes(teacher.subject) ? teacher.subject : undefined
+      patch(subject ? { teacherId: id, subject } : { teacherId: id })
+    },
+    [teachers, subjects, patch],
   )
 
   /** Guards against a second POST before `saving` has re-rendered the button. */
@@ -146,7 +183,7 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
     if (inFlight.current) return
     const name = values.name.trim()
     if (!name) {
-      setError('A class needs a name.')
+      setError({ key: 'quickCreate.error.name' })
       return
     }
     inFlight.current = true
@@ -154,7 +191,7 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
     setSaving(true)
     try {
       const { data } = await api.post('/classes', buildClassPayload(values))
-      const teacher = teachers.find((t) => t.id === values.teacherId)
+      const teacher = teachers.find((tc) => tc.id === values.teacherId)
       const created: CreatedGroup = {
         id: data?.id ?? `temp-${Date.now()}`,
         name: data?.name ?? name,
@@ -163,15 +200,18 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
         teacher_id: values.teacherId || undefined,
         teacher_name: teacher?.name,
       }
-      toast.success('Class created', `${created.name} is ready — it is selected below.`)
+      toast.success(
+        t('quickCreate.toast.created'),
+        t('quickCreate.toast.createdBody', { name: created.name }),
+      )
       onCreated(created)
     } catch (err) {
-      setError(errMsg(err, 'Could not create the class. Please try again.'))
+      setError({ text: errMsg(err, t('quickCreate.error.create')) })
     } finally {
       inFlight.current = false
       setSaving(false)
     }
-  }, [values, teachers, onCreated])
+  }, [values, teachers, onCreated, t])
 
   return (
     <div
@@ -193,17 +233,17 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
           className="text-sm font-bold text-[var(--text)]"
           style={{ fontFamily: 'var(--font-heading)' }}
         >
-          New class
+          {t('quickCreate.title')}
         </p>
-        <span className="ml-auto text-[10px] text-[var(--muted)]">
-          {loadingLookups ? 'Loading…' : 'Created and selected here'}
+        <span className="ms-auto text-[10px] text-[var(--muted)]">
+          {loadingLookups ? t('common:state.loading') : t('quickCreate.selected')}
         </span>
       </div>
 
       {/* Name */}
       <div>
         <label className={classLabelCls} style={{ color: 'var(--muted)' }}>
-          Name <span style={{ color: 'var(--red)' }}>*</span>
+          {t('common:label.name')} <span style={{ color: 'var(--red)' }}>*</span>
         </label>
         <input
           type="text"
@@ -213,7 +253,7 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
           onKeyDown={(e) => {
             if (e.key === 'Enter') void handleCreate()
           }}
-          placeholder="e.g. Math — CM2"
+          placeholder={t('quickCreate.namePlaceholder')}
           className={classInputCls}
         />
       </div>
@@ -221,33 +261,33 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
       {/* Subject + Teacher */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={classLabelCls} style={{ color: 'var(--muted)' }}>Subject</label>
+          <label className={classLabelCls} style={{ color: 'var(--muted)' }}>{t('quickCreate.subject')}</label>
           <Select
             value={values.subject}
             onChange={(v) => patch({ subject: v })}
             options={subjectOptions}
-            searchPlaceholder="Search subjects…"
+            searchPlaceholder={t('quickCreate.searchSubjects')}
             className="h-[38px]"
-            aria-label="Subject"
+            aria-label={t('quickCreate.subject')}
           />
         </div>
         <div>
-          <label className={classLabelCls} style={{ color: 'var(--muted)' }}>Teacher</label>
+          <label className={classLabelCls} style={{ color: 'var(--muted)' }}>{t('quickCreate.teacher')}</label>
           <Select
             value={values.teacherId}
-            onChange={(v) => patch({ teacherId: v })}
+            onChange={handleTeacherChange}
             options={teacherOptions}
-            placeholder="— None —"
-            searchPlaceholder="Search teachers…"
+            placeholder={t('quickCreate.teacherNone')}
+            searchPlaceholder={t('quickCreate.searchTeachers')}
             className="h-[38px]"
-            aria-label="Teacher"
+            aria-label={t('quickCreate.teacher')}
           />
         </div>
       </div>
 
       {/* Capacity */}
       <div>
-        <label className={classLabelCls} style={{ color: 'var(--muted)' }}>Capacity</label>
+        <label className={classLabelCls} style={{ color: 'var(--muted)' }}>{t('quickCreate.capacity')}</label>
         <input
           type="number"
           value={values.capacity}
@@ -259,7 +299,7 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
 
       {/* Colour */}
       <div>
-        <label className={classLabelCls} style={{ color: 'var(--muted)' }}>Colour</label>
+        <label className={classLabelCls} style={{ color: 'var(--muted)' }}>{t('quickCreate.colour')}</label>
         <div className="flex gap-2 flex-wrap">
           {CLASS_COLOR_PRESETS.map((p) => (
             <button
@@ -289,19 +329,21 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
           className="text-[10px] uppercase tracking-wider font-semibold mb-2"
           style={{ color: 'var(--gold)' }}
         >
-          Billing
+          {t('quickCreate.billing')}
         </p>
         <ClassBillingFields values={values} onChange={patch} />
       </div>
 
       {error && (
-        <p className="text-xs text-[var(--red)] font-medium" role="alert">{error}</p>
+        <p className="text-xs text-[var(--red)] font-medium" role="alert">
+          {'key' in error ? t(error.key) : error.text}
+        </p>
       )}
 
       {/* Actions */}
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onCancel} disabled={saving} className={classCancelBtnCls}>
-          Cancel
+          {t('common:action.cancel')}
         </button>
         <button
           type="button"
@@ -312,10 +354,10 @@ export function ClassQuickCreate({ onCreated, onCancel }: ClassQuickCreateProps)
           {saving ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 size={14} className="animate-spin" />
-              Creating…
+              {t('quickCreate.creating')}
             </span>
           ) : (
-            'Create class'
+            t('quickCreate.submit')
           )}
         </button>
       </div>

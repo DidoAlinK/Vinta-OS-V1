@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import { formatCurrency } from '../../lib/formatters'
 import { Modal } from '../../components/ui/Modal'
@@ -8,14 +9,15 @@ import api from '../../lib/api'
 /* ─── Types ─── */
 
 interface AgingEntry {
-  name: string
+  /** `null` when the API sent no name; the table substitutes a translated
+      placeholder at render, which keeps the fetch itself free of text. */
+  name: string | null
   amount: number
   days_overdue: number
 }
 
 interface AgingBucket {
   range: string
-  label: string
   count: number
   total_amount: number
   entries: AgingEntry[]
@@ -37,9 +39,24 @@ const BUCKET_COLORS: Record<string, { badge: 'red' | 'gold' | 'emerald'; bar: st
   '30+': { badge: 'red', bar: 'bg-[var(--red)]' },
 }
 
+/* Bucket range → dictionary key. The label is resolved from the range at render
+   rather than carried on the fetched bucket, so switching language relabels the
+   aging buckets without a refetch. */
+const BUCKET_LABEL_KEYS: Record<string, string> = {
+  '1-7': 'breakdown.aging.days1to7',
+  '8-30': 'breakdown.aging.days8to30',
+  '30+': 'breakdown.aging.days30plus',
+}
+
+const TAB_LABEL_KEYS: Record<'students' | 'teachers', string> = {
+  students: 'breakdown.tab.students',
+  teachers: 'breakdown.tab.teachers',
+}
+
 /* ─── Component ─── */
 
 export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProps) {
+  const { t } = useTranslation('billing')
   const [activeTab, setActiveTab] = useState<'students' | 'teachers'>(type)
   const [expandedBucket, setExpandedBucket] = useState<string | null>(null)
   const [buckets, setBuckets] = useState<AgingBucket[]>([])
@@ -59,26 +76,25 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
         })
         if (!cancelled) {
           // Transform backend shape {recent, aging, critical} → bucket array
-          const BUCKET_MAP: { key: string; range: string; label: string }[] = [
-            { key: 'recent', range: '1-7', label: '1–7 Days' },
-            { key: 'aging', range: '8-30', label: '8–30 Days' },
-            { key: 'critical', range: '30+', label: '30+ Days' },
+          const BUCKET_MAP: { key: string; range: string }[] = [
+            { key: 'recent', range: '1-7' },
+            { key: 'aging', range: '8-30' },
+            { key: 'critical', range: '30+' },
           ]
           const raw = data.buckets ?? data
           if (Array.isArray(raw)) {
             // Already in expected format
             setBuckets(raw)
           } else if (raw && typeof raw === 'object') {
-            const transformed: AgingBucket[] = BUCKET_MAP.map(({ key, range, label }) => {
+            const transformed: AgingBucket[] = BUCKET_MAP.map(({ key, range }) => {
               const bucket = raw[key] ?? {}
               const items = (bucket.items ?? []).map((item: Record<string, unknown>) => ({
-                name: item.student_name ?? item.name ?? 'Unknown',
+                name: (item.student_name ?? item.name ?? null) as string | null,
                 amount: item.amount_da ?? item.amount ?? 0,
                 days_overdue: item.days_overdue ?? 0,
               }))
               return {
                 range,
-                label,
                 count: bucket.count ?? items.length,
                 total_amount: items.reduce(
                   (sum: number, e: { amount: number }) => sum + (e.amount || 0),
@@ -111,7 +127,7 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
   }
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="Finance Breakdown" size="lg">
+    <Modal open={isOpen} onClose={onClose} title={t('breakdown.title')} size="lg">
       {/* Tab switcher */}
       <div className="flex gap-1 p-1 rounded-[var(--radius-sm)] bg-[var(--input-bg)] border border-[var(--glass-border)] mb-5">
         {(['students', 'teachers'] as const).map((tab) => (
@@ -129,7 +145,7 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
                 : 'text-[var(--muted)] hover:text-[var(--text)]',
             )}
           >
-            {tab}
+            {t(TAB_LABEL_KEYS[tab])}
           </button>
         ))}
       </div>
@@ -147,8 +163,10 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
           <div className="w-16 h-16 rounded-full bg-[var(--input-bg)] flex items-center justify-center">
             <div className="w-8 h-8 rounded-full border-2 border-dashed border-[var(--muted)]/30" />
           </div>
-          <p className="text-sm text-[var(--muted)]">No overdue accounts</p>
-          <p className="text-xs text-[var(--muted)]/60">Overdue {activeTab} will appear here</p>
+          <p className="text-sm text-[var(--muted)]">{t('breakdown.empty.title')}</p>
+          <p className="text-xs text-[var(--muted)]/60">
+            {t(activeTab === 'students' ? 'breakdown.empty.students' : 'breakdown.empty.teachers')}
+          </p>
         </div>
       )}
 
@@ -158,12 +176,13 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
           {/* Summary */}
           <div className="flex items-center gap-4 mb-5 text-sm">
             <span className="text-[var(--muted)]">
-              <span className="font-semibold text-[var(--text)]">{totalCount}</span> overdue
+              <span className="font-semibold text-[var(--text)]">{totalCount}</span>{' '}
+              {t('breakdown.summary.overdue')}
             </span>
             <span className="text-[var(--muted)]">·</span>
             <span className="text-[var(--muted)]">
               <span className="font-semibold text-[var(--red)]">{formatCurrency(totalAmount)}</span>{' '}
-              total
+              {t('breakdown.summary.total')}
             </span>
           </div>
 
@@ -188,10 +207,10 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
                   <button
                     type="button"
                     onClick={() => toggleBucket(bucket.range)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-start"
                   >
                     <Badge variant={colors.badge} size="sm">
-                      {bucket.label}
+                      {t(BUCKET_LABEL_KEYS[bucket.range] ?? BUCKET_LABEL_KEYS['1-7'])}
                     </Badge>
 
                     {/* Bar */}
@@ -202,7 +221,7 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
                       />
                     </div>
 
-                    <span className="text-sm font-medium text-[var(--text)] tabular-nums shrink-0 w-24 text-right">
+                    <span className="text-sm font-medium text-[var(--text)] tabular-nums shrink-0 w-24 text-end">
                       {formatCurrency(bucket.total_amount)}
                     </span>
 
@@ -217,9 +236,9 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
                       <div className="rounded-[var(--radius-xs)] border border-[var(--glass-border)] overflow-hidden">
                         {/* Table header */}
                         <div className="grid grid-cols-[1fr_100px_80px] gap-2 px-3 py-2 bg-[var(--input-bg)] text-xs font-medium text-[var(--muted)]">
-                          <span>Name</span>
-                          <span className="text-right">Amount</span>
-                          <span className="text-right">Days</span>
+                          <span>{t('common:label.name')}</span>
+                          <span className="text-end">{t('breakdown.table.amount')}</span>
+                          <span className="text-end">{t('breakdown.table.days')}</span>
                         </div>
 
                         {/* Rows */}
@@ -232,12 +251,14 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
                               'hover:bg-[var(--glass)] transition-colors',
                             )}
                           >
-                            <span className="text-[var(--text)] truncate">{entry.name}</span>
-                            <span className="text-right font-medium text-[var(--text)] tabular-nums">
+                            <span className="text-[var(--text)] truncate">
+                              {entry.name ?? t('breakdown.unknownName')}
+                            </span>
+                            <span className="text-end font-medium text-[var(--text)] tabular-nums">
                               {formatCurrency(entry.amount)}
                             </span>
-                            <span className="text-right text-[var(--muted)] tabular-nums">
-                              {entry.days_overdue}d
+                            <span className="text-end text-[var(--muted)] tabular-nums">
+                              {t('breakdown.daysSuffix', { days: entry.days_overdue })}
                             </span>
                           </div>
                         ))}
@@ -247,7 +268,7 @@ export function FinanceBreakdown({ isOpen, onClose, type }: FinanceBreakdownProp
 
                   {isExpanded && bucket.entries.length === 0 && (
                     <div className="px-3 pb-3 text-sm text-[var(--muted)]">
-                      No overdue accounts in this range.
+                      {t('breakdown.empty.bucket')}
                     </div>
                   )}
                 </div>

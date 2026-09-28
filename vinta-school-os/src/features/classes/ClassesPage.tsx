@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, GraduationCap, X, DoorOpen, Trash2, MapPin, Users } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { classStateOf } from '../../lib/classState'
@@ -13,7 +14,8 @@ import { PinConfirmDialog } from '../../components/ui/PinConfirmDialog'
 import { Select } from '../../components/ui/Select'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { Toggle } from '../../components/ui/Toggle'
-import { formatDa, formatDuration } from '../../lib/formatters'
+import { formatDa, formatDuration, getDayName } from '../../lib/formatters'
+import { teacherSubjectOf } from '../../lib/teacherSubject'
 import { toast, useUIStore } from '../../stores/uiStore'
 import { SUBJECT_COLORS } from '../../lib/constants'
 import ClassGrid from './ClassGrid'
@@ -58,7 +60,10 @@ const submitBtnCls = cn(
   'transition-all duration-150',
 )
 
-/* ─── Color presets ─── */
+/* ─── Color presets ───
+   The eight labels are subject names — the same strings the school configures
+   in Settings → Subjects and the same ones posted as `subject` — so they stay
+   as they are. Only the surrounding chrome is translated. */
 const COLOR_PRESETS = [
   { color: '#b3872a', label: 'Math' },
   { color: '#7c3aed', label: 'French' },
@@ -79,6 +84,8 @@ type Tab = 'courses' | 'rooms'
 interface TeacherOption {
   id: string
   name: string
+  /** The subject this teacher is registered for, when the profile names one. */
+  subject?: string
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -90,6 +97,7 @@ function AddCourseGroupModal({
   isOpen: boolean; onClose: () => void
   onAdd: (data: any) => void
 }) {
+  const { t } = useTranslation('classes')
   // Basic fields
   const [name, setName] = useState('')
   const [subject, setSubject] = useState<string>(SUBJECT_OPTIONS[0])
@@ -100,6 +108,8 @@ function AddCourseGroupModal({
   const [classType, setClassType] = useState<'weekly' | 'temporary'>('weekly')
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
+  /** A key of this namespace, not a sentence: the banner is read at render, so
+      a refusal written in English mid-form follows a language switch. */
   const [error, setError] = useState<string | null>(null)
   // Themed day selection (DayPicker popup): weekly = weekday anchor,
   // temporary = exact one-off date.
@@ -140,9 +150,10 @@ function AddCourseGroupModal({
           // The API sends `full_name`; reading `name` off it left every option
           // in this dropdown blank, so the desk was choosing between three
           // identical empty rows.
-          setTeachers(list.map((t: any) => ({
-            id: t.id,
-            name: t.full_name || [t.first_name, t.last_name].filter(Boolean).join(' ') || 'Unnamed teacher',
+          setTeachers(list.map((tc: any) => ({
+            id: tc.id,
+            name: tc.full_name || [tc.first_name, tc.last_name].filter(Boolean).join(' ') || t('addGroup.unnamedTeacher'),
+            subject: teacherSubjectOf(tc),
           })))
           const subs = subjectRes.data.subjects ?? []
           if (subs.length > 0) {
@@ -153,7 +164,7 @@ function AddCourseGroupModal({
     }
     load()
     return () => { cancelled = true }
-  }, [isOpen])
+  }, [isOpen, t])
 
   const resetAll = useCallback(() => {
     setName('')
@@ -187,35 +198,49 @@ function AddCourseGroupModal({
     onClose()
   }, [onClose, resetAll])
 
+  /**
+   * Choosing a teacher also chooses the subject: a teacher teaches one subject,
+   * and this group is a group of it. Only a subject the picker actually offers
+   * is applied — `Select` matches its options strictly, so a value outside the
+   * list would leave the field blank while the payload carried it.
+   */
+  const handleTeacherChange = useCallback((id: string) => {
+    setTeacherId(id)
+    const picked = teachers.find(t => t.id === id)
+    if (picked?.subject && subjectOptions.includes(picked.subject)) {
+      setSubject(picked.subject)
+    }
+  }, [teachers, subjectOptions])
+
   const handleSubmit = useCallback(() => {
     if (!name.trim()) {
-      setError('Give the group a name.')
+      setError('addGroup.error.name')
       return
     }
     // A group with no time is a group that can never produce a session, which
     // is exactly the state every group created through this form used to end
     // up in. Refusing here is cheaper than a silent empty calendar.
     if (!startTime || !endTime) {
-      setError('Set when the class starts and ends.')
+      setError('addGroup.error.times')
       return
     }
     if (endTime <= startTime) {
-      setError('End At must be after Start At.')
+      setError('addGroup.error.timeOrder')
       return
     }
     if (classType === 'weekly' && !dayAnchor) {
-      setError('Pick the day this group meets each week.')
+      setError('addGroup.error.day')
       return
     }
     // Sessions carry a teacher (sessions.teacher_id is NOT NULL), so a weekly
     // group without one cannot have a calendar generated. Asking here keeps the
     // desk from filling in the whole form only to be refused at the last step.
     if (classType === 'weekly' && !teacherId) {
-      setError('Pick a teacher — a weekly group needs one before its sessions can be created.')
+      setError('addGroup.error.teacher')
       return
     }
     if (classType === 'temporary' && !tempDate) {
-      setError('Pick the date for this one-off session.')
+      setError('addGroup.error.date')
       return
     }
 
@@ -284,7 +309,7 @@ function AddCourseGroupModal({
               <GraduationCap size={16} style={{ color: 'var(--gold)' }} />
             </div>
             <h2 className="text-lg font-bold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--text)' }}>
-              Add Course Group
+              {t('addGroup.title')}
             </h2>
           </div>
           <button
@@ -304,22 +329,22 @@ function AddCourseGroupModal({
               silent no-op: the Create button did nothing and said nothing. */}
           {error && (
             <div className="px-3 py-2 rounded-lg bg-[var(--red-soft)] text-[var(--red)] text-xs font-medium">
-              {error}
+              {t(error)}
             </div>
           )}
           {/* ── Basic Info ── */}
           <div>
-            <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--gold)' }}>Basic Info</p>
+            <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--gold)' }}>{t('addGroup.section.basic')}</p>
             <div className="space-y-3">
               {/* Group Name */}
               <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Group Name <span style={{ color: 'var(--red)' }}>*</span></label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Math — CM2" className={inputCls} />
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.name')} <span style={{ color: 'var(--red)' }}>*</span></label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('addGroup.namePlaceholder')} className={inputCls} />
               </div>
 
               {/* Subject */}
               <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Subject</label>
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.subject')}</label>
                 <Select
                   value={subject}
                   onChange={setSubject}
@@ -331,17 +356,19 @@ function AddCourseGroupModal({
               {/* Teacher */}
               <div>
                 <label className={labelCls} style={{ color: 'var(--muted)' }}>
-                  Teacher
+                  {t('addGroup.teacher')}
                   {/* Required only for a weekly group: a one-off session can be
-                      created without one, but a series cannot. */}
-                  {classType === 'weekly' && <span className="text-[var(--gold)] ml-0.5">*</span>}
+                      created without one, but a series cannot. The mark sits at
+                      the inline end of the label so it trails the word in
+                      Arabic as well as in English. */}
+                  {classType === 'weekly' && <span className="text-[var(--gold)] ms-0.5">*</span>}
                 </label>
                 <Select
                   value={teacherId}
-                  onChange={setTeacherId}
+                  onChange={handleTeacherChange}
                   options={[
-                    { value: '', label: '— None —' },
-                    ...teachers.map(t => ({ value: t.id, label: t.name })),
+                    { value: '', label: t('addGroup.teacherNone') },
+                    ...teachers.map(tc => ({ value: tc.id, label: tc.name })),
                   ]}
                   className={cn(inputCls, 'h-auto')}
                 />
@@ -349,27 +376,27 @@ function AddCourseGroupModal({
 
               {/* Capacity */}
               <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Capacity</label>
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.capacity')}</label>
                 <input type="number" value={capacity} onChange={e => setCapacity(Number(e.target.value))} min={1} className={inputCls} />
               </div>
 
               {/* Class Type */}
               <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Class Type</label>
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.classType')}</label>
                 <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)]">
-                  {(['weekly', 'temporary'] as const).map(t => (
+                  {(['weekly', 'temporary'] as const).map(ct => (
                     <button
-                      key={t}
+                      key={ct}
                       type="button"
-                      onClick={() => setClassType(t)}
+                      onClick={() => setClassType(ct)}
                       className={cn(
                         'flex-1 py-2 text-xs font-semibold transition-all duration-150',
-                        classType === t
+                        classType === ct
                           ? 'bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] text-white'
                           : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
                       )}
                     >
-                      {t === 'weekly' ? 'Weekly' : 'Temporary'}
+                      {ct === 'weekly' ? t('addGroup.classTypeWeekly') : t('addGroup.classTypeTemporary')}
                     </button>
                   ))}
                 </div>
@@ -378,19 +405,19 @@ function AddCourseGroupModal({
               {/* Day selection — themed calendar popup (NOT a generic input) */}
               <div>
                 <label className={labelCls} style={{ color: 'var(--muted)' }}>
-                  {classType === 'weekly' ? 'Meeting Day' : 'Session Date'}
+                  {classType === 'weekly' ? t('addGroup.meetingDay') : t('addGroup.sessionDate')}
                 </label>
                 {classType === 'weekly' ? (
                   <>
                     <DayPicker
                       value={dayAnchor}
                       onChange={setDayAnchor}
-                      placeholder="Pick the weekly day…"
+                      placeholder={t('addGroup.dayPlaceholder')}
                     />
                     <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
                       {dayAnchor
-                        ? `Repeats every ${new Date(`${dayAnchor}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' })}`
-                        : 'The weekday anchors the weekly series.'}
+                        ? t('addGroup.repeatsEvery', { day: getDayName(new Date(`${dayAnchor}T12:00:00`), false) })
+                        : t('addGroup.dayHint')}
                     </p>
                   </>
                 ) : (
@@ -398,10 +425,10 @@ function AddCourseGroupModal({
                     <DayPicker
                       value={tempDate}
                       onChange={setTempDate}
-                      placeholder="Pick the one-off date…"
+                      placeholder={t('addGroup.datePlaceholder')}
                     />
                     <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
-                      One session only — never spawns a series.
+                      {t('addGroup.oneOffHint')}
                     </p>
                   </>
                 )}
@@ -414,7 +441,7 @@ function AddCourseGroupModal({
                   two values are what `POST /classes/:id/schedules` consumes. */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls} style={{ color: 'var(--muted)' }}>Start At</label>
+                  <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.startAt')}</label>
                   <TimePicker
                     value={startTime}
                     onChange={setStartTime}
@@ -422,7 +449,7 @@ function AddCourseGroupModal({
                   />
                 </div>
                 <div>
-                  <label className={labelCls} style={{ color: 'var(--muted)' }}>End At</label>
+                  <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.endAt')}</label>
                   <TimePicker
                     value={endTime}
                     onChange={setEndTime}
@@ -432,13 +459,13 @@ function AddCourseGroupModal({
               </div>
               <p className="text-[10px] -mt-2" style={{ color: 'var(--muted)' }}>
                 {startTime && endTime && endTime > startTime
-                  ? `A ${formatDuration(startTime, endTime)} session.`
-                  : 'The class runs from Start At to End At.'}
+                  ? t('addGroup.durationSession', { duration: formatDuration(startTime, endTime) })
+                  : t('addGroup.timeHint')}
               </p>
 
               {/* Color */}
               <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Color</label>
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.color')}</label>
                 <div className="flex gap-2 flex-wrap">
                   {COLOR_PRESETS.map(p => (
                     <button
@@ -462,11 +489,11 @@ function AddCourseGroupModal({
 
               {/* Notes */}
               <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Notes</label>
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.notes')}</label>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  placeholder="Optional notes…"
+                  placeholder={t('addGroup.notesPlaceholder')}
                   rows={2}
                   className={cn(inputCls, 'resize-none')}
                 />
@@ -476,15 +503,17 @@ function AddCourseGroupModal({
 
           {/* ── Academic / Group Info ── */}
           <div>
-            <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--gold)' }}>Academic</p>
+            <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--gold)' }}>{t('addGroup.section.academic')}</p>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls} style={{ color: 'var(--muted)' }}>Academic Level</label>
-                  <input type="text" value={academicLevel} onChange={e => setAcademicLevel(e.target.value)} placeholder="e.g. CM2" className={inputCls} />
+                  <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.level')}</label>
+                  <input type="text" value={academicLevel} onChange={e => setAcademicLevel(e.target.value)} placeholder={t('addGroup.levelPlaceholder')} className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls} style={{ color: 'var(--muted)' }}>Group Name</label>
+                  <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.groupName')}</label>
+                  {/* "A" is the group's own letter, stored as `group_name` —
+                      an example value, not a word of ours to translate. */}
                   <input type="text" value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="A" className={inputCls} />
                 </div>
               </div>
@@ -493,11 +522,12 @@ function AddCourseGroupModal({
 
           {/* ── Billing Section ── */}
           <div>
-            <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--gold)' }}>Billing</p>
+            <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--gold)' }}>{t('addGroup.section.billing')}</p>
             <div className="space-y-3">
-              {/* Billing model toggle */}
+              {/* Billing model toggle. The two buttons are labelled from the
+                  API's own enum — `CREDIT_BASED` never reaches the screen. */}
               <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Billing Model</label>
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.billing.model')}</label>
                 <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)]">
                   {(['CREDIT_BASED', 'TIME_BASED'] as const).map(m => (
                     <button
@@ -511,7 +541,7 @@ function AddCourseGroupModal({
                           : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
                       )}
                     >
-                      {m === 'CREDIT_BASED' ? 'Credit-Based' : 'Time-Based'}
+                      {m === 'CREDIT_BASED' ? t('addGroup.billing.creditBased') : t('addGroup.billing.timeBased')}
                     </button>
                   ))}
                 </div>
@@ -519,7 +549,7 @@ function AddCourseGroupModal({
 
               {/* Price */}
               <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>Price (DA)</label>
+                <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.billing.price')}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -527,9 +557,11 @@ function AddCourseGroupModal({
                     onChange={e => setPriceDa(Number(e.target.value))}
                     placeholder="0"
                     min={0}
-                    className={cn(inputCls, 'pr-10')}
+                    className={cn(inputCls, 'pe-10')}
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[var(--muted)]">DA</span>
+                  {/* Currency code, identical in every language — anchored to
+                      the inline end so it stays beside the field in Arabic. */}
+                  <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[var(--muted)]">DA</span>
                 </div>
               </div>
 
@@ -538,7 +570,7 @@ function AddCourseGroupModal({
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={labelCls} style={{ color: 'var(--muted)' }}>Credits / Cycle (N · 1–20)</label>
+                      <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.billing.creditsPerCycle')}</label>
                       <input
                         type="number"
                         value={creditsPerCycle}
@@ -553,12 +585,12 @@ function AddCourseGroupModal({
                       />
                     </div>
                     <div>
-                      <label className={labelCls} style={{ color: 'var(--muted)' }}>Cycle Week Limit</label>
+                      <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.billing.cycleWeekLimit')}</label>
                       <input
                         type="number"
                         value={cycleWeekLimit}
                         onChange={e => setCycleWeekLimit(e.target.value)}
-                        placeholder="Optional"
+                        placeholder={t('addGroup.billing.optional')}
                         min={0}
                         className={inputCls}
                       />
@@ -570,17 +602,17 @@ function AddCourseGroupModal({
                       <Toggle
                         checked={allowRollover}
                         onCheckedChange={setAllowRollover}
-                        aria-label="Allow Rollover"
+                        aria-label={t('addGroup.billing.allowRollover')}
                       />
-                      Allow Rollover
+                      {t('addGroup.billing.allowRollover')}
                     </div>
                     <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)' }}>
                       <Toggle
                         checked={allowMakeups}
                         onCheckedChange={setAllowMakeups}
-                        aria-label="Allow Makeups"
+                        aria-label={t('addGroup.billing.allowMakeups')}
                       />
-                      Allow Makeups
+                      {t('addGroup.billing.allowMakeups')}
                     </div>
                   </div>
                 </>
@@ -589,12 +621,12 @@ function AddCourseGroupModal({
               {/* Time-based fields */}
               {billingModel === 'TIME_BASED' && (
                 <div>
-                  <label className={labelCls} style={{ color: 'var(--muted)' }}>Access Duration (weeks)</label>
+                  <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.billing.accessDuration')}</label>
                   <input
                     type="number"
                     value={accessDurationWeeks}
                     onChange={e => setAccessDurationWeeks(e.target.value)}
-                    placeholder="Optional"
+                    placeholder={t('addGroup.billing.optional')}
                     min={1}
                     className={inputCls}
                   />
@@ -605,11 +637,11 @@ function AddCourseGroupModal({
 
           {/* ── Attendance ── */}
           <div>
-            <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--gold)' }}>Attendance</p>
+            <p className="text-[10px] uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--gold)' }}>{t('addGroup.section.attendance')}</p>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls} style={{ color: 'var(--muted)' }}>Max Groups Included</label>
+                  <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.maxGroups')}</label>
                   <input type="number" value={maxGroupsIncluded} onChange={e => setMaxGroupsIncluded(Number(e.target.value))} min={1} className={inputCls} />
                 </div>
                 <div />
@@ -619,15 +651,15 @@ function AddCourseGroupModal({
                 <Toggle
                   checked={enforceAttendance}
                   onCheckedChange={setEnforceAttendance}
-                  aria-label="Enforce Attendance"
+                  aria-label={t('addGroup.enforceAttendance')}
                 />
-                Enforce Attendance
+                {t('addGroup.enforceAttendance')}
               </div>
 
               {enforceAttendance && (
                 <div>
                   <label className={labelCls} style={{ color: 'var(--muted)' }}>
-                    Attendance Threshold: <span className="font-bold" style={{ color: 'var(--gold)' }}>{attendanceThreshold}%</span>
+                    {t('addGroup.attendanceThreshold')} <span className="font-bold" style={{ color: 'var(--gold)' }}>{attendanceThreshold}%</span>
                   </label>
                   <input
                     type="range"
@@ -645,7 +677,7 @@ function AddCourseGroupModal({
 
         {/* Actions */}
         <div className="flex gap-3 mt-6 sticky bottom-0 bg-[var(--card-bg)] pt-3">
-          <button onClick={resetAndClose} className={cancelBtnCls}>Cancel</button>
+          <button onClick={resetAndClose} className={cancelBtnCls}>{t('common:action.cancel')}</button>
           {/* Deliberately not `disabled={!name.trim()}`: a dead button tells the
               desk nothing, and there are now five things this form needs. Every
               one of them is refused in the banner above with its own sentence. */}
@@ -653,7 +685,7 @@ function AddCourseGroupModal({
             onClick={handleSubmit}
             className={submitBtnCls}
           >
-            Add Course Group
+            {t('addGroup.submit')}
           </button>
         </div>
       </div>
@@ -670,6 +702,7 @@ function AddClassroomModal({
   isOpen: boolean; onClose: () => void
   onAdd: (data: { name: string; capacity: number }) => void
 }) {
+  const { t } = useTranslation('classes')
   const [name, setName] = useState('')
   const [capacity, setCapacity] = useState(20)
 
@@ -706,7 +739,7 @@ function AddClassroomModal({
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--gold-soft)' }}>
               <DoorOpen size={16} style={{ color: 'var(--gold)' }} />
             </div>
-            <h2 className="text-lg font-bold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--text)' }}>Add Classroom</h2>
+            <h2 className="text-lg font-bold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--text)' }}>{t('addRoom.title')}</h2>
           </div>
           <button
             onClick={resetAndClose}
@@ -722,23 +755,23 @@ function AddClassroomModal({
 
         <div className="space-y-4">
           <div>
-            <label className={labelCls} style={{ color: 'var(--muted)' }}>Room Name <span style={{ color: 'var(--red)' }}>*</span></label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Hall A" className={inputCls} />
+            <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addRoom.name')} <span style={{ color: 'var(--red)' }}>*</span></label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t('addRoom.namePlaceholder')} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls} style={{ color: 'var(--muted)' }}>Capacity</label>
+            <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addRoom.capacity')}</label>
             <input type="number" value={capacity} onChange={e => setCapacity(Number(e.target.value))} min={1} className={inputCls} />
           </div>
         </div>
 
         <div className="flex gap-3 mt-6">
-          <button onClick={resetAndClose} className={cancelBtnCls}>Cancel</button>
+          <button onClick={resetAndClose} className={cancelBtnCls}>{t('common:action.cancel')}</button>
           <button
             onClick={handleSubmit}
             disabled={!name.trim()}
             className={submitBtnCls}
           >
-            Add Classroom
+            {t('addRoom.submit')}
           </button>
         </div>
       </div>
@@ -758,10 +791,12 @@ function ClassroomList({
   isLoading: boolean
   onDelete: (room: Classroom) => void
 }) {
+  const { t } = useTranslation('classes')
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-48">
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading rooms…</p>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>{t('rooms.loading')}</p>
       </div>
     )
   }
@@ -772,8 +807,8 @@ function ClassroomList({
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--glass)' }}>
           <DoorOpen size={20} style={{ color: 'var(--muted)' }} />
         </div>
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>No physical rooms yet</p>
-        <p className="text-xs" style={{ color: 'var(--muted)', opacity: 0.6 }}>Add a classroom to get started</p>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>{t('rooms.emptyTitle')}</p>
+        <p className="text-xs" style={{ color: 'var(--muted)', opacity: 0.6 }}>{t('rooms.emptyBody')}</p>
       </div>
     )
   }
@@ -800,13 +835,13 @@ function ClassroomList({
               <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{room.name}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Users size={11} style={{ color: 'var(--muted)' }} />
-                <span className="text-xs" style={{ color: 'var(--muted)' }}>Cap. {room.capacity}</span>
+                <span className="text-xs" style={{ color: 'var(--muted)' }}>{t('rooms.capacity', { capacity: room.capacity })}</span>
               </div>
             </div>
           </div>
           <button
             onClick={() => onDelete(room)}
-            title="Delete room"
+            title={t('rooms.deleteConfirm')}
             className={cn(
               'p-2 rounded-lg shrink-0',
               'text-[var(--muted)] hover:text-[var(--red)] hover:bg-[var(--red)]/10',
@@ -825,6 +860,8 @@ function ClassroomList({
    Main Component
    ═══════════════════════════════════════════════════════ */
 export function ClassesPage() {
+  const { t } = useTranslation('classes')
+
   /* ── Tab state ── */
   const [activeTab, setActiveTab] = useState<Tab>('courses')
 
@@ -899,19 +936,25 @@ export function ClassesPage() {
 
   /* ── Stats (course groups) ──
      Counted by the same states the cards show, from `classStateOf`, so the tiles
-     and the grid can never disagree. `full` used to be a bare
-     `enrolled >= capacity`, which counts a group with no capacity set (0 >= 0)
-     as a full room — the same reading of 0 that the enrollment check had.
+     and the grid can never disagree.
 
-     `unscheduled` is counted here for the same reason: it is now one of the
-     states a card can wear, so leaving it out of the tiles would make the three
-     numbers stop adding up to Total and hide the groups that need a time. */
+     `empty` counts both empty states — the grey "nothing to teach" card and the
+     red one, which is a class running with nobody in it or a group with
+     students and no time at all. They share a word on the card, so they share a
+     tile; the dots are what tell the two apart.
+
+     "Full" is gone along with the state. A room at capacity is a number rather
+     than a status, and counting it here is what used to make the tiles disagree
+     with the cards: it was computed from `enrolled >= capacity`, which reads a
+     group with no capacity set (0 >= 0) as a full room. */
   const stats = {
     total: classes.length,
+    scheduled: classes.filter(c => classStateOf(c) === 'scheduled').length,
     active: classes.filter(c => classStateOf(c) === 'active').length,
-    full: classes.filter(c => classStateOf(c) === 'full').length,
-    empty: classes.filter(c => classStateOf(c) === 'empty').length,
-    unscheduled: classes.filter(c => classStateOf(c) === 'unscheduled').length,
+    empty: classes.filter(c => {
+      const state = classStateOf(c)
+      return state === 'empty' || state === 'unattended'
+    }).length,
   }
 
   /* ── Handlers: Course Groups ── */
@@ -936,13 +979,12 @@ export function ClassesPage() {
     try {
       const { data } = await api.post('/classes', payload)
       newClass = data
-      setClasses(prev => [...prev, data])
     } catch (err: any) {
       const message =
         err?.response?.data?.error ??
         err?.response?.data?.message ??
-        'Could not create the group. Please try again.'
-      toast.error('Group not created', message)
+        t('page.toast.createFallback')
+      toast.error(t('page.toast.notCreated'), message)
       return
     }
 
@@ -957,10 +999,10 @@ export function ClassesPage() {
         })
         const made = data?.sessions_created ?? 0
         toast.success(
-          'Group created',
+          t('page.toast.created'),
           made > 0
-            ? `${payload.name} added, with ${made} sessions on the calendar.`
-            : `${payload.name} added. No sessions were generated — check the times.`,
+            ? t('page.toast.createdWithSessions', { name: payload.name, count: made })
+            : t('page.toast.createdNoSessions', { name: payload.name }),
         )
       } else {
         await api.post('/sessions', {
@@ -969,13 +1011,13 @@ export function ClassesPage() {
           start_time,
           end_time,
         })
-        toast.success('Group created', `${payload.name} added, with its one-off session.`)
+        toast.success(t('page.toast.created'), t('page.toast.createdOneOff', { name: payload.name }))
       }
     } catch (err: any) {
       // 409 means this group already meets at exactly these hours — a re-save,
       // not a failure. The sessions are already on the calendar.
       if (err?.response?.status === 409) {
-        toast.success('Group created', `${payload.name} added. Its times were already set.`)
+        toast.success(t('page.toast.created'), t('page.toast.createdTimesExist', { name: payload.name }))
         return
       }
       // Otherwise the group exists but has no calendar. Say so plainly rather
@@ -983,10 +1025,20 @@ export function ClassesPage() {
       // group's detail panel, but only if they know it is missing.
       const message =
         err?.response?.data?.error ??
-        'The group was created but its sessions were not. Set the times from the group panel.'
-      toast.error('Sessions not generated', message)
+        t('page.toast.sessionsFailedFallback')
+      toast.error(t('page.toast.sessionsFailedTitle'), message)
+    } finally {
+      // `POST /classes` answers with `{id, name, subject}` and nothing else — no
+      // capacity, no enrolled_count, no status_color. Pushing that straight into
+      // the grid put a card on the Classrooms tab that could not name its own
+      // state: it printed "/ enrolled" and fell back to a guessed dot and label.
+      // Ask the list again instead — it is the only shape that carries the
+      // counts and the server's own dot, so the new group lands with its real
+      // status — "Empty" in red when no time was set for it, since a group with
+      // no slot can never run.
+      await fetchClasses()
     }
-  }, [])
+  }, [fetchClasses, t])
 
   const handleDeleteClass = useCallback((id: string) => {
     setClasses(prev => prev.filter(c => c.id !== id))
@@ -1022,13 +1074,13 @@ export function ClassesPage() {
     try {
       await api.delete(`/classrooms/${room.id}`)
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? 'The room was not deleted. Press Retry.'
-      toast.error('Delete failed', msg)
+      const msg = err?.response?.data?.error ?? t('page.toast.roomDeleteFailed')
+      toast.error(t('page.toast.deleteFailed'), msg)
       throw new Error(msg)
     }
     setClassrooms(prev => prev.filter(r => r.id !== room.id))
-    toast.success('Room deleted', `"${room.name}" has been removed.`)
-  }, [roomToDelete])
+    toast.success(t('page.toast.roomDeleted'), t('page.toast.roomDeletedBody', { name: room.name }))
+  }, [roomToDelete, t])
 
   const tabBtnCls = (active: boolean) => cn(
     'px-4 py-2 text-xs font-semibold rounded-xl transition-all duration-150',
@@ -1048,8 +1100,8 @@ export function ClassesPage() {
               <GraduationCap size={20} />
             </div>
             <div>
-              <h1 className="text-lg font-bold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--text)' }}>Classrooms</h1>
-              <p className="text-xs" style={{ color: 'var(--muted)' }}>Manage course groups and physical rooms</p>
+              <h1 className="text-lg font-bold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--text)' }}>{t('page.title')}</h1>
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('page.subtitle')}</p>
             </div>
           </div>
           <button
@@ -1062,7 +1114,7 @@ export function ClassesPage() {
             )}
           >
             <Plus size={16} />
-            {activeTab === 'courses' ? 'Add Course Group' : 'Add Room'}
+            {activeTab === 'courses' ? t('page.addCourseGroup') : t('page.addRoom')}
           </button>
         </div>
 
@@ -1072,13 +1124,13 @@ export function ClassesPage() {
             onClick={() => setActiveTab('courses')}
             className={tabBtnCls(activeTab === 'courses')}
           >
-            Course Groups
+            {t('page.tab.courses')}
           </button>
           <button
             onClick={() => setActiveTab('rooms')}
             className={tabBtnCls(activeTab === 'rooms')}
           >
-            Physical Rooms
+            {t('page.tab.rooms')}
           </button>
         </div>
 
@@ -1087,18 +1139,10 @@ export function ClassesPage() {
           <>
             {/* Stats bar */}
             <div className="flex items-center gap-4 px-6 pb-4 shrink-0">
-              <StatChip label="Total" value={stats.total} color="var(--text)" />
-              <StatChip label="Active" value={stats.active} color="var(--emerald)" />
-              <StatChip label="Full" value={stats.full} color="var(--red)" />
-              {/* Only when there are any. A permanent "No schedule 0" tile would
-                  be one more number the desk learns to stop reading — the chip
-                  is here to say a group needs a time, and it has nothing to say
-                  when none does. The card's amber dot carries the same fact
-                  either way, so nothing is hidden by the chip's absence. */}
-              {stats.unscheduled > 0 && (
-                <StatChip label="No schedule" value={stats.unscheduled} color="var(--gold)" />
-              )}
-              <StatChip label="Empty" value={stats.empty} color="var(--muted)" />
+              <StatChip label={t('common:label.total')} value={stats.total} color="var(--text)" />
+              <StatChip label={t('page.stats.scheduled')} value={stats.scheduled} color="var(--gold)" />
+              <StatChip label={t('page.stats.active')} value={stats.active} color="var(--emerald)" />
+              <StatChip label={t('page.stats.empty')} value={stats.empty} color="var(--muted)" />
             </div>
 
             {/* Class Grid */}
@@ -1153,14 +1197,16 @@ export function ClassesPage() {
       <PinConfirmDialog
         open={!!roomToDelete}
         onClose={() => setRoomToDelete(null)}
-        title="Delete this room?"
-        confirmLabel="Delete room"
+        title={t('rooms.deleteTitle')}
+        confirmLabel={t('rooms.deleteConfirm')}
+        // The room's name is the subject of the sentence in every language, so
+        // it stays outside the translated tail rather than inside a string
+        // that would have to be re-ordered for Arabic.
         message={
           roomToDelete ? (
             <>
-              <strong className="font-semibold">{roomToDelete.name}</strong> will be removed
-              from the list of physical rooms. Sessions already placed in it keep their
-              history.
+              <strong className="font-semibold">{roomToDelete.name}</strong>{' '}
+              {t('rooms.deleteBody')}
             </>
           ) : null
         }

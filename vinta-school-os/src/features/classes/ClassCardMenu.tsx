@@ -22,6 +22,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Menu, Loader2, CalendarOff, AlertCircle, ArrowRight } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
@@ -92,6 +93,7 @@ export function ClassCardMenu({
   onOpenGroup,
   onOpenRegister,
 }: ClassCardMenuProps) {
+  const { t } = useTranslation('classes')
   /** null until the first read lands — distinct from "read it, nothing there". */
   const [sessions, setSessions] = useState<Session[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -151,10 +153,10 @@ export function ClassCardMenu({
         const { data } = await api.post(`/sessions/${session.id}/start`)
         const opened = data?.roster_created ?? 0
         toast.success(
-          data?.already_started ? 'Class already running' : 'Class started',
+          data?.already_started ? t('cardMenu.toast.alreadyRunning') : t('cardMenu.toast.started'),
           opened > 0
-            ? `Register opened — ${opened} student${opened === 1 ? '' : 's'} marked absent until they arrive.`
-            : `${session.class_name ?? cls.name} is now in progress.`,
+            ? t('cardMenu.toast.registerOpened', { count: opened })
+            : t('cardMenu.toast.inProgress', { name: session.class_name ?? cls.name }),
         )
         // "Register opened" has to be true, not just said: the whole point of
         // the false-until-true rule is that somebody now walks the list. Same
@@ -163,14 +165,14 @@ export function ClassCardMenu({
         handleChanged()
       } catch (err) {
         toast.error(
-          'Could not start the class',
-          serverMessage(err, 'The server refused the request.'),
+          t('cardMenu.toast.startFailed'),
+          serverMessage(err, t('cardMenu.toast.startRefused')),
         )
       } finally {
         starting.current = false
       }
     },
-    [cls.name, handleChanged, onOpenRegister],
+    [cls.name, handleChanged, onOpenRegister, t],
   )
 
   /**
@@ -185,19 +187,21 @@ export function ClassCardMenu({
       try {
         const result = await extendSession(session)
         toast.success(
-          'Class extended',
-          `${session.class_name ?? cls.name} now ends at ${result.end_time}` +
-            (result.duration_label ? ` · ${result.duration_label}` : ''),
+          t('cardMenu.toast.extended'),
+          t('cardMenu.toast.extendedBody', {
+            name: session.class_name ?? cls.name,
+            time: result.end_time,
+          }) + (result.duration_label ? ` · ${result.duration_label}` : ''),
         )
         handleChanged()
       } catch (err) {
         toast.error(
-          'Could not extend',
-          serverMessage(err, 'The end time was not changed. Please try again.'),
+          t('cardMenu.toast.extendFailed'),
+          serverMessage(err, t('cardMenu.toast.extendFailedBody')),
         )
       }
     },
-    [cls.name, handleChanged],
+    [cls.name, handleChanged, t],
   )
 
   /**
@@ -357,7 +361,7 @@ type RunningLightState = 'running' | 'overdue' | 'idle' | 'unknown'
  *
  * This used to be a two-colour lamp — green live, red idle — and the red one
  * was the bug the desk reported. It sat immediately beside the card's other
- * dot, the enrollment state the server sends as `status_color`, so every
+ * dot, the activity state the server sends as `status_color`, so every
  * ordinary group wore a green dot and a red dot at the same time with nothing
  * to say which was which. Red is read as a fault; "this group meets on
  * Thursday and today is Tuesday" is not one, and it is the state of almost
@@ -389,12 +393,13 @@ type RunningLightState = 'running' | 'overdue' | 'idle' | 'unknown'
  * reason it always did: guessing would be inventing a fact.
  */
 function RunningLight({ state }: { state: RunningLightState }) {
+  const { t } = useTranslation('classes')
   if (state === 'idle' || state === 'unknown') return null
 
   const overdue = state === 'overdue'
   const label = overdue
-    ? 'A class of this group is past its end time and still open'
-    : 'A class of this group is in progress'
+    ? t('cardMenu.light.overdue')
+    : t('cardMenu.light.running')
 
   return (
     <span
@@ -432,7 +437,8 @@ function RunningLight({ state }: { state: RunningLightState }) {
  * is visible at all.
  */
 function FreeChip() {
-  const label = 'The next class of this group is free — no credit spent, no revenue'
+  const { t } = useTranslation('classes')
+  const label = t('cardMenu.freeLabel')
   return (
     <span
       role="img"
@@ -445,7 +451,7 @@ function FreeChip() {
         'ring-1 ring-[var(--emerald)]/30',
       )}
     >
-      FREE
+      {t('cardMenu.freeChip')}
     </span>
   )
 }
@@ -476,6 +482,7 @@ function NoSessionTrigger({
   failed: boolean
   onOpenGroup?: () => void
 }) {
+  const { t } = useTranslation('classes')
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -527,8 +534,8 @@ function NoSessionTrigger({
         onKeyDown={(e) => e.stopPropagation()}
         disabled={loading}
         className={triggerCls}
-        aria-label="Group menu"
-        title={loading ? 'Loading this group’s sessions…' : 'Group menu'}
+        aria-label={t('cardMenu.menuLabel')}
+        title={loading ? t('cardMenu.menuLoading') : t('cardMenu.menuLabel')}
       >
         {loading ? <Loader2 size={14} className="animate-spin" /> : <Menu size={14} />}
       </button>
@@ -552,12 +559,12 @@ function NoSessionTrigger({
             )}
             <div className="min-w-0">
               <p className="text-xs font-semibold text-[var(--text)]">
-                {failed ? 'Could not read the schedule' : 'No upcoming session'}
+                {failed ? t('cardMenu.noSession.failedTitle') : t('cardMenu.noSession.title')}
               </p>
               <p className="text-[11px] text-[var(--muted)] mt-1 leading-snug">
                 {failed
-                  ? 'The server did not answer, so this group has no menu to offer. Reload to try again.'
-                  : 'Start Class, End Class and the free-session flag all act on one session, and this group has none scheduled from today on.'}
+                  ? t('cardMenu.noSession.failedBody')
+                  : t('cardMenu.noSession.body')}
               </p>
             </div>
           </div>
@@ -573,8 +580,9 @@ function NoSessionTrigger({
                 'transition-colors duration-150',
               )}
             >
-              Open the group
-              <ArrowRight size={11} />
+              {t('cardMenu.openGroup')}
+              {/* Points "onward" — which is the other way round in Arabic. */}
+              <ArrowRight size={11} className="rtl:rotate-180" />
             </button>
           )}
         </div>
@@ -603,6 +611,7 @@ function EndClassModal({
   onClose: () => void
   onEnded: () => void
 }) {
+  const { t } = useTranslation('classes')
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -617,26 +626,26 @@ function EndClassModal({
       const absent = data?.absent ?? 0
       const charged = data?.charged_absences ?? 0
       toast.success(
-        data?.already_ended ? 'Class already finished' : 'Class finished',
+        data?.already_ended ? t('cardMenu.endClass.alreadyFinished') : t('cardMenu.endClass.finished'),
         absent > 0
-          ? `${absent} absent — ${charged} charged for the missed session.`
-          : 'Everyone was present. No credits moved.',
+          ? t('cardMenu.endClass.absentCharged', { absent, charged })
+          : t('cardMenu.endClass.allPresent'),
       )
       onEnded()
     } catch (e) {
       // A wrong PIN is a 403 from verify_staff_pin; show the server's own
       // sentence, which distinguishes it from a tenant or permission refusal.
-      setErr(serverMessage(e, 'Could not end the class.'))
+      setErr(serverMessage(e, t('cardMenu.endClass.error')))
     } finally {
       setBusy(false)
     }
-  }, [pin, busy, session.id, onEnded])
+  }, [pin, busy, session.id, onEnded, t])
 
   return (
     <Modal
       open
       onClose={busy ? () => {} : onClose}
-      title="End class"
+      title={t('cardMenu.endClass.title')}
       size="sm"
       footer={
         <div className="flex gap-2">
@@ -651,7 +660,7 @@ function EndClassModal({
               'disabled:opacity-40',
             )}
           >
-            Cancel
+            {t('common:action.cancel')}
           </button>
           <button
             type="button"
@@ -665,23 +674,22 @@ function EndClassModal({
               'transition-all duration-150',
             )}
           >
-            {busy ? 'Ending…' : 'End Class'}
+            {busy ? t('cardMenu.endClass.ending') : t('cardMenu.endClass.submit')}
           </button>
         </div>
       }
     >
       <p className="text-xs text-[var(--muted)] leading-relaxed">
-        {session.class_name ?? 'This class'}
+        {session.class_name ?? t('cardMenu.endClass.thisClass')}
         {session.date ? ` · ${session.date}` : ''}
         {session.start_time ? ` · ${session.start_time}` : ''}
       </p>
       <p className="text-xs text-[var(--muted)] mt-2 leading-relaxed">
-        Closing the register marks the class conducted. Anyone still marked absent
-        is charged for the missed session, under this academy's Billing Rules.
+        {t('cardMenu.endClass.body')}
       </p>
 
       <label className="block text-xs font-medium mt-4 mb-1.5 text-[var(--muted)]">
-        Staff PIN
+        {t('cardMenu.endClass.pin')}
       </label>
       <input
         type="password"

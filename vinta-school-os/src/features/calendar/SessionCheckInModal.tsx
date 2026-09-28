@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   X,
   UserCheck,
@@ -86,9 +87,14 @@ export interface SessionCheckInModalProps {
 // Status Config
 // ============================================
 
-const STATUS_CONFIG: Record<AttendanceStatus, { label: string; icon: typeof UserCheck; color: string; bg: string }> = {
-  PRESENT: { label: 'Present', icon: UserCheck, color: 'var(--emerald)', bg: 'var(--emerald-soft)' },
-  ABSENT: { label: 'Absent', icon: UserX, color: 'var(--red)', bg: 'var(--red-soft)' },
+/**
+ * Attendance status → presentation. The label is held as a *key*, not a
+ * sentence: `t()` at module scope would freeze at import time and never notice
+ * a language switch.
+ */
+const STATUS_CONFIG: Record<AttendanceStatus, { labelKey: string; icon: typeof UserCheck; color: string; bg: string }> = {
+  PRESENT: { labelKey: 'statusPresent', icon: UserCheck, color: 'var(--emerald)', bg: 'var(--emerald-soft)' },
+  ABSENT: { labelKey: 'statusAbsent', icon: UserX, color: 'var(--red)', bg: 'var(--red-soft)' },
 }
 
 // ============================================
@@ -101,6 +107,7 @@ export default function SessionCheckInModal({
   session,
   onSuccess,
 }: SessionCheckInModalProps) {
+  const { t } = useTranslation('calendar')
   const [roster, setRoster] = useState<RosterEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -164,21 +171,25 @@ export default function SessionCheckInModal({
       })
       setStatuses(init)
       if (freeNow && autoNow) {
-        toast.info('FREE session — auto-present', 'Teacher pays. Tracking skipped, billing 0.')
+        toast.info(t('checkIn.freeAutoToastTitle'), t('checkIn.freeAutoToastBody'))
       }
     } catch (err: any) {
       // T2: no silent catch — surface + Retry.
       const status = err?.response?.status
       const msg = status === 500 || status >= 500
-        ? 'Server error loading roster (500).'
-        : 'Could not load roster.'
+        ? t('checkIn.serverError')
+        : t('checkIn.loadFailed')
       setRosterError(msg)
       setRoster([])
-      toast.error('Roster failed to load', `${msg} Press Retry.`, { duration: 8000 })
+      toast.error(
+        t('checkIn.rosterFailedTitle'),
+        t('checkIn.pressRetry', { message: msg }),
+        { duration: 8000 },
+      )
     } finally {
       setIsLoading(false)
     }
-  }, [session])
+  }, [session, t])
 
   // T5: load group N + price + per-student credit snapshot when the grid opens.
   // Missing data shows Not set / Retry — never silent.
@@ -194,7 +205,7 @@ export default function SessionCheckInModal({
     } catch {
       setGroupN(null)
       setGroupPrice(null)
-      setCreditError('Group billing Not set.')
+      setCreditError(t('checkIn.groupBillingNotSet'))
     }
     try {
       const subRes = await api.get('/billing/subscriptions', { params: { group_id: session.class_id, status: 'ACTIVE' } })
@@ -209,9 +220,9 @@ export default function SessionCheckInModal({
     } catch {
       // No active-subscription rows readable — rows render "Not set", debt still works.
       setCreditMap({})
-      setCreditError((prev) => prev ?? 'Subscription data Not set.')
+      setCreditError((prev) => prev ?? t('checkIn.subscriptionNotSet'))
     }
-  }, [session])
+  }, [session, t])
 
   useEffect(() => {
     if (!isOpen || !session) return
@@ -293,7 +304,7 @@ export default function SessionCheckInModal({
       const { data } = await api.get(`/classes/${session.class_id}/students`)
       const enrolled: Array<{ id: string }> = data.students ?? []
       if (enrolled.length === 0) {
-        toast.warning('No students enrolled yet', 'Enroll students in the Classes page first.')
+        toast.warning(t('checkIn.noneEnrolled'), t('checkIn.enrollFirst'))
         return
       }
       let failed = 0
@@ -306,17 +317,23 @@ export default function SessionCheckInModal({
         ),
       )
       if (failed > 0) {
-        toast.warning('Roster partially seeded', `${failed} row(s) failed — press Retry.`)
+        toast.warning(
+          t('checkIn.seedPartialTitle'),
+          t('checkIn.seedPartialBody', { count: failed }),
+        )
       } else {
-        toast.success('Roster seeded', `${enrolled.length} ABSENT rows created.`)
+        toast.success(
+          t('checkIn.seedDoneTitle'),
+          t('checkIn.seedDoneBody', { count: enrolled.length }),
+        )
       }
       await loadRoster()
     } catch {
-      toast.error('Add Students failed', 'Could not seed roster. Press Retry.')
+      toast.error(t('checkIn.seedFailedTitle'), t('checkIn.seedFailedBody'))
     } finally {
       setIsSeeding(false)
     }
-  }, [session, isSeeding, loadRoster])
+  }, [session, isSeeding, loadRoster, t])
 
   // ── Guest search (frontend-side filter; backend has no search param) ──
   const handleGuestSearch = useCallback(async (q: string) => {
@@ -342,15 +359,15 @@ export default function SessionCheckInModal({
       setGuestResults(filtered)
       setShowGuestResults(true)
     } catch {
-      toast.error('Guest search failed', 'Could not search students. Try again.')
+      toast.error(t('checkIn.guestSearchFailedTitle'), t('checkIn.guestSearchFailedBody'))
       setGuestResults([])
     } finally {
       setGuestSearching(false)
     }
-  }, [roster])
+  }, [roster, t])
 
   const handleGuestAdd = useCallback((s: StudentSearchResult) => {
-    const name = s.full_name || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || 'Guest'
+    const name = s.full_name || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || t('checkIn.guest')
     setRoster(prev => {
       if (prev.some(r => r.student_id === s.id)) return prev
       return [...prev, {
@@ -370,8 +387,8 @@ export default function SessionCheckInModal({
     setGuestQuery('')
     setGuestResults([])
     setShowGuestResults(false)
-    toast.info('Guest added', `${name} — ⚡ Swap`)
-  }, [session?.id])
+    toast.info(t('checkIn.guestAddedTitle'), t('checkIn.guestAddedBody', { name }))
+  }, [session?.id, t])
 
   const handleGuestRemove = useCallback((studentId: string) => {
     setRoster(prev => prev.filter(r => r.student_id !== studentId))
@@ -403,13 +420,13 @@ export default function SessionCheckInModal({
         targetBilling = null
       }
       if (targetBilling === 'TIME_BASED') {
-        toast.info('TIME_BASED — no link', 'Guest = PRESENT + swap flag, zero billing. // TODO Coming Soon')
+        toast.info(t('checkIn.timeBasedTitle'), t('checkIn.timeBasedBody'))
         return
       }
 
       const guestStart = new Date(`${session.date}T${session.start_time}:00`).getTime()
       if (Number.isNaN(guestStart)) {
-        toast.error('Link failed', 'Swap session time is Not set.')
+        toast.error(t('checkIn.linkFailedTitle'), t('checkIn.swapTimeNotSet'))
         return
       }
 
@@ -420,7 +437,7 @@ export default function SessionCheckInModal({
         const enrollments: Array<{ class_id: string }> = stRes.data?.enrollments ?? []
         studentClasses = enrollments.map((e) => e.class_id).filter(Boolean)
       } catch {
-        toast.error('Link failed', 'Could not load student groups. Guest stays as Extra — press Retry.')
+        toast.error(t('checkIn.linkFailedTitle'), t('checkIn.groupsNotLoaded'))
         return
       }
 
@@ -440,7 +457,7 @@ export default function SessionCheckInModal({
         }
       }
       if (sameTeacherGroups.length === 0) {
-        toast.info('No link — different teacher', 'Plain Extra, bills normally.')
+        toast.info(t('checkIn.noLinkTeacher'), t('checkIn.plainExtra'))
         return
       }
 
@@ -469,7 +486,7 @@ export default function SessionCheckInModal({
           candidateSessions.push(s)
         }
       } catch {
-        toast.error('Link failed', 'Could not scan past sessions. Guest stays as Extra — press Retry.')
+        toast.error(t('checkIn.linkFailedTitle'), t('checkIn.scanFailed'))
         return
       }
 
@@ -509,7 +526,7 @@ export default function SessionCheckInModal({
       absent.sort((a, b) => a.startMs - b.startMs)
       if (absent.length === 0) {
         // T1 rule: old ABSENT locks per Toggle 1 (no retroactive consumption changes).
-        toast.info('No linkable absence', 'Plain Extra. Old ABSENT locks per Toggle 1.')
+        toast.info(t('checkIn.noLinkableAbsence'), t('checkIn.absentLocked'))
         return
       }
       const pick = absent[0]
@@ -538,11 +555,11 @@ export default function SessionCheckInModal({
           cycleOk = subs.some((s) => s.status === 'ACTIVE' && (s.remaining_credits ?? 1) > 0) && gTeacher === session.teacher_id
         }
       } catch {
-        toast.error('Link failed', 'Could not verify active cycle. Guest stays as Extra — press Retry.')
+        toast.error(t('checkIn.linkFailedTitle'), t('checkIn.cycleFailed'))
         return
       }
       if (!cycleOk) {
-        toast.info('No link — cycle ended', 'Plain Extra, bills normally.')
+        toast.info(t('checkIn.noLinkCycle'), t('checkIn.plainExtra'))
         return
       }
 
@@ -559,7 +576,7 @@ export default function SessionCheckInModal({
         payoutBlocks = false
       }
       if (payoutBlocks) {
-        toast.info('No link — payout PAID', 'Original books closed. Plain Extra.')
+        toast.info(t('checkIn.noLinkPayout'), t('checkIn.booksClosed'))
         return
       }
 
@@ -583,11 +600,11 @@ export default function SessionCheckInModal({
               student_id: guestStudentId,
             })
           } catch (err2: any) {
-            toast.error('Link failed', `Swap row not created (${err2?.response?.status ?? 'error'}). Guest stays as Extra — press Retry.`)
+            toast.error(t('checkIn.linkFailedTitle'), t('checkIn.swapRowNotCreated', { status: err2?.response?.status ?? 'error' }))
             return
           }
         } else {
-          toast.error('Link failed', `Swap row not created (${err?.response?.status ?? 'error'}). Guest stays as Extra — press Retry.`)
+          toast.error(t('checkIn.linkFailedTitle'), t('checkIn.swapRowNotCreated', { status: err?.response?.status ?? 'error' }))
           return
         }
       }
@@ -613,10 +630,10 @@ export default function SessionCheckInModal({
       ))
       setSwapTick((t) => t + 1)
 
-      toast.success(`Linked to ${pick.label}`, '1 credit total — swap billed, original held. [Undo]', {
+      toast.success(t('checkIn.linkedTitle', { label: pick.label }), t('checkIn.linkedBody'), {
         duration: 8000,
         actions: [{
-          label: 'Undo',
+          label: t('checkIn.undo'),
           onClick: () => {
             removeLinkBySwap(guestStudentId, session.id)
             setRoster((prev) => prev.map((r) =>
@@ -625,14 +642,14 @@ export default function SessionCheckInModal({
                 : r,
             ))
             setSwapTick((t) => t + 1)
-            toast.info('Link undone', 'Swap row bills as Extra.')
+            toast.info(t('checkIn.linkUndoneTitle'), t('checkIn.linkUndoneBody'))
           },
         }],
       })
     } finally {
       setLinkBusy(null)
     }
-  }, [session, roster, linkBusy, staffName])
+  }, [session, roster, linkBusy, staffName, t])
 
   // ── Submit check-ins ──
   const handleSubmit = useCallback(async () => {
@@ -677,7 +694,10 @@ export default function SessionCheckInModal({
       if (freeDone) {
         // FREE: no debt, no consumption — teacher pays.
         setStep('done')
-        toast.success('FREE check-in recorded', `${roster.length} rows · 0 Da revenue · 0 cut · no credits moved.`)
+        toast.success(
+          t('checkIn.freeRecordedTitle'),
+          t('checkIn.freeRecordedBody', { count: roster.length }),
+        )
       } else {
       try {
         const subRes = await api.get('/billing/subscriptions', { params: { group_id: session.class_id, status: 'ACTIVE' } })
@@ -706,15 +726,15 @@ export default function SessionCheckInModal({
         setDebtTick((t) => t + 1)
         setStep('done')
         toast.success(
-          'Check-in recorded',
+          t('checkIn.recordedTitle'),
           fresh > 0
-            ? `${roster.length} processed · ${fresh} unpaid debt (no subscription)`
-            : `${roster.length} students processed`,
+            ? t('checkIn.recordedWithDebt', { count: roster.length, debt: fresh })
+            : t('checkIn.recordedPlain', { count: roster.length }),
         )
       } catch {
         // Debt scan unreadable — check-ins already landed; surface, don't hide.
         setStep('done')
-        toast.warning('Check-in recorded, debt scan failed', 'Unpaid rows Not set — reopen to retry the debt scan.')
+        toast.warning(t('checkIn.debtScanFailedTitle'), t('checkIn.debtScanFailedBody'))
       }
       }
       setTimeout(() => {
@@ -722,11 +742,11 @@ export default function SessionCheckInModal({
         onClose()
       }, 1200)
     } catch {
-      toast.error('Check-in failed', 'Please check the PIN and try again')
+      toast.error(t('checkIn.failedTitle'), t('checkIn.failedBody'))
     } finally {
       setIsSubmitting(false)
     }
-  }, [session, roster, statuses, pin, onSuccess, onClose])
+  }, [session, roster, statuses, pin, onSuccess, onClose, t])
 
   // ── Stats ──
   const presentCount = Object.values(statuses).filter(s => s.status === 'PRESENT').length
@@ -763,7 +783,7 @@ export default function SessionCheckInModal({
                 className="text-base font-bold text-[var(--text)]"
                 style={{ fontFamily: 'var(--font-heading)' }}
               >
-                Door Check-In
+                {t('checkIn.title')}
               </h2>
               <p className="text-xs text-[var(--muted)]">
                 {session.class_name} · {session.subject}
@@ -772,6 +792,7 @@ export default function SessionCheckInModal({
           </div>
           <button
             onClick={onClose}
+            aria-label={t('common:action.close')}
             className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--glass)] hover:text-[var(--text)] transition-colors"
           >
             <X size={16} />
@@ -789,9 +810,9 @@ export default function SessionCheckInModal({
               >
                 <CheckCircle2 size={28} style={{ color: 'var(--emerald)' }} />
               </div>
-              <p className="text-sm font-semibold text-[var(--text)]">Check-In Complete</p>
+              <p className="text-sm font-semibold text-[var(--text)]">{t('checkIn.complete')}</p>
               <p className="text-xs text-[var(--muted)]">
-                {presentCount} present · {absentCount} absent
+                {t('checkIn.presentAbsent', { present: presentCount, absent: absentCount })}
               </p>
             </div>
           ) : step === 'roster' ? (
@@ -799,19 +820,19 @@ export default function SessionCheckInModal({
               {/* ── T5 credit strip + T6 FREE banner ── */}
               {isFree && (
                 <p className="text-[11px] font-semibold text-[var(--emerald)] bg-[var(--emerald-soft)]/40 rounded-xl px-3 py-2 mb-3">
-                  🎁 FREE session — teacher pays · revenue 0 · cut 0 · no credits moved
-                  {autoPresent ? ' · auto-present (Toggle 6 ON)' : ' · tracking for records (Toggle 6 OFF)'}
+                  {t('checkIn.freeBanner')}
+                  {autoPresent ? t('checkIn.freeBannerAuto') : t('checkIn.freeBannerTracked')}
                 </p>
               )}
               <div className="flex items-center gap-2 flex-wrap mb-3">
                 <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-[var(--input-bg)] border border-[var(--glass-border)] text-[var(--text)]">
-                  N = {groupN ?? 'Not set'}
+                  N = {groupN ?? t('checkIn.notSet')}
                 </span>
                 <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-[var(--input-bg)] border border-[var(--glass-border)] text-[var(--text)]">
-                  {isFree ? '0 Da (FREE)' : groupPrice != null ? formatDa(groupPrice) : 'Price Not set'}
+                  {isFree ? t('checkIn.priceFree') : groupPrice != null ? formatDa(groupPrice) : t('checkIn.priceNotSet')}
                 </span>
                 <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-[var(--input-bg)] border border-[var(--glass-border)] text-[var(--muted)]">
-                  {isFree ? 'credits frozen' : <>ABSENT {getAbsenceConsumesCredit() ? 'consumes 1' : 'free'} (Toggle 1)</>}
+                  {isFree ? t('checkIn.creditsFrozen') : t(getAbsenceConsumesCredit() ? 'checkIn.absentConsumes' : 'checkIn.absentFree')}
                 </span>
                 {creditError && (
                   <button
@@ -820,27 +841,27 @@ export default function SessionCheckInModal({
                     className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-[var(--gold-soft)] text-[var(--gold)] hover:brightness-95 transition-all"
                     title={creditError}
                   >
-                    Retry
+                    {t('checkIn.retry')}
                   </button>
                 )}
               </div>
               {/* ── Summary bar ── */}
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-xs font-medium text-[var(--muted)]">
-                  {roster.length} student{roster.length !== 1 ? 's' : ''}
+                  {t('checkIn.studentCount', { count: roster.length })}
                 </span>
                 <div className="flex-1" />
                 <span className="text-xs" style={{ color: 'var(--emerald)' }}>
-                  {presentCount} present
+                  {t('checkIn.presentCount', { count: presentCount })}
                 </span>
                 {absentCount > 0 && (
                   <span className="text-xs" style={{ color: 'var(--red)' }}>
-                    {absentCount} absent
+                    {t('checkIn.absentCount', { count: absentCount })}
                   </span>
                 )}
                 {swapCount > 0 && (
                   <span className="text-xs" style={{ color: 'var(--gold)' }}>
-                    {swapCount} swap{swapCount !== 1 ? 's' : ''}
+                    {t('checkIn.swapCount', { count: swapCount })}
                   </span>
                 )}
               </div>
@@ -848,7 +869,7 @@ export default function SessionCheckInModal({
               {/* ── T7 VOIDED banner: rows frozen, restore shown ── */}
               {!isLoading && !rosterError && isVoided && (
                 <p className="text-[11px] font-semibold text-[var(--red)] bg-[var(--red-soft)]/40 rounded-xl px-3 py-2 mb-3">
-                  ⛔ VOIDED (LIVE_VOID) — rows frozen, no payout. Restore applied to THIS session only.
+                  {t('checkIn.voidedBanner')}
                 </p>
               )}
 
@@ -860,19 +881,19 @@ export default function SessionCheckInModal({
               ) : rosterError ? (
                 <div className="flex flex-col items-center gap-3 py-10 text-center">
                   <p className="text-sm font-semibold text-[var(--red)]">{rosterError}</p>
-                  <p className="text-xs text-[var(--muted)]">Roster was not loaded. Nothing was silently cleared.</p>
+                  <p className="text-xs text-[var(--muted)]">{t('checkIn.nothingCleared')}</p>
                   <button
                     type="button"
                     onClick={() => void loadRoster()}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] hover:opacity-90 active:scale-[0.98] transition-all"
                   >
                     <RefreshCw size={13} />
-                    Retry
+                    {t('checkIn.retry')}
                   </button>
                 </div>
               ) : roster.length === 0 ? (
                 <div className="flex flex-col items-center gap-3 py-10 text-center">
-                  <p className="text-sm text-[var(--muted)]">No students enrolled yet</p>
+                  <p className="text-sm text-[var(--muted)]">{t('checkIn.noneEnrolled')}</p>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -880,7 +901,7 @@ export default function SessionCheckInModal({
                       className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)] hover:text-[var(--text)] transition-colors"
                     >
                       <RefreshCw size={13} />
-                      Retry
+                      {t('checkIn.retry')}
                     </button>
                     <button
                       type="button"
@@ -889,7 +910,7 @@ export default function SessionCheckInModal({
                       className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40"
                     >
                       <UserPlus size={13} />
-                      {isSeeding ? 'Adding…' : 'Add Students'}
+                      {isSeeding ? t('checkIn.adding') : t('checkIn.addStudents')}
                     </button>
                   </div>
                 </div>
@@ -963,15 +984,17 @@ export default function SessionCheckInModal({
                                 <>
                                   {snap ? (
                                     <span className="text-[10px] text-[var(--muted)]">
-                                      {snap.remaining ?? 'Not set'} cr left
+                                      {snap.remaining != null
+                                        ? t('checkIn.creditsLeft', { count: snap.remaining })
+                                        : t('checkIn.creditsLeftUnknown')}
                                     </span>
                                   ) : student.credits_remaining != null ? (
                                     <span className="text-[10px] text-[var(--muted)]">
-                                      {student.credits_remaining} cr left
+                                      {t('checkIn.creditsLeft', { count: student.credits_remaining })}
                                     </span>
                                   ) : (
-                                    <span className="text-[10px] text-[var(--muted)]" title="No active subscription">
-                                      Not set
+                                    <span className="text-[10px] text-[var(--muted)]" title={t('checkIn.noActiveSubscription')}>
+                                      {t('checkIn.notSet')}
                                     </span>
                                   )}
                                   {debt > 0 && (
@@ -979,20 +1002,20 @@ export default function SessionCheckInModal({
                                       className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-[var(--red-soft)] text-[var(--red)]"
                                       title={getUnpaidDebt(student.student_id, session.class_id).map((d) => `${d.sessionDate} ${d.kind}`).join(' · ')}
                                     >
-                                      unpaid {debt}
+                                      {t('checkIn.unpaidBadge', { count: debt })}
                                     </span>
                                   )}
                                   {isVoided && getVoidRestoredCredits(session.id, student.student_id) > 0 && (
                                     <span
                                       className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-[var(--emerald-soft)] text-[var(--emerald)]"
-                                      title="T7 void restore — THIS session's credit only"
+                                      title={t('checkIn.voidRestoreTitle')}
                                     >
-                                      +1 restored · VOIDED
+                                      {t('checkIn.restoredBadge')}
                                     </span>
                                   )}
                                   {isVoided && getVoidRestoredCredits(session.id, student.student_id) === 0 && (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-[var(--glass)] text-[var(--muted)] border border-[var(--glass-border)]">
-                                      VOIDED
+                                      {t('checkIn.voidedBadge')}
                                     </span>
                                   )}
                                 </>
@@ -1001,18 +1024,18 @@ export default function SessionCheckInModal({
                             {isSwap && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/10 text-sky-500">
                                 <Zap size={9} />
-                                Swap
+                                {t('checkIn.swapBadge')}
                               </span>
                             )}
                             {isViaSwap && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/15 text-sky-600">
                                 <Zap size={9} />
-                                via-swap
+                                {t('checkIn.viaSwapBadge')}
                               </span>
                             )}
                             {isSuppressed && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/15 text-sky-600">
-                                suppressed · 1 credit total
+                                {t('checkIn.suppressedBadge')}
                               </span>
                             )}
                           </div>
@@ -1030,7 +1053,7 @@ export default function SessionCheckInModal({
                                 ? 'bg-sky-500/15 text-sky-500'
                                 : 'text-[var(--muted)] hover:bg-[var(--glass)]',
                             )}
-                            title={isViaSwap ? 'Via-swap rows are swap-locked' : 'Group swap'}
+                            title={isViaSwap ? t('checkIn.viaSwapLocked') : t('checkIn.groupSwapTitle')}
                           >
                             <ArrowRightLeft size={14} />
                           </button>
@@ -1040,9 +1063,9 @@ export default function SessionCheckInModal({
                             <button
                               onClick={() => handleGuestRemove(student.student_id)}
                               className="px-2 py-1.5 rounded-lg text-[11px] font-medium text-[var(--muted)] hover:text-[var(--red)] hover:bg-[var(--red-soft)]/40 transition-colors"
-                              title="Remove guest row"
+                              title={t('checkIn.removeGuestTitle')}
                             >
-                              Remove
+                              {t('checkIn.remove')}
                             </button>
                           )}
 
@@ -1052,10 +1075,10 @@ export default function SessionCheckInModal({
                               onClick={() => void handleGuestAutoLink(student.student_id)}
                               disabled={linkBusy === student.student_id}
                               className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-sky-500/10 text-sky-600 border border-sky-500/20 hover:bg-sky-500/20 transition-colors disabled:opacity-40"
-                              title="Auto-link to oldest ABSENT same teacher ≤7d"
+                              title={t('checkIn.autoLinkTitle')}
                             >
                               <Zap size={11} />
-                              {linkBusy === student.student_id ? 'Linking…' : 'Auto-link'}
+                              {linkBusy === student.student_id ? t('checkIn.linking') : t('checkIn.autoLink')}
                             </button>
                           )}
 
@@ -1073,10 +1096,10 @@ export default function SessionCheckInModal({
                                 ? 'bg-[var(--emerald)] text-white'
                                 : 'bg-[var(--red-soft)] text-[var(--red)] border border-[var(--red)]/20',
                             )}
-                            title={isViaSwap ? `Present via swap (${origLink?.swapLabel ?? ''}) — flip the swap side instead` : undefined}
+                            title={isViaSwap ? t('checkIn.presentViaSwapTitle', { label: origLink?.swapLabel ?? '' }) : undefined}
                           >
                             {isPresent ? <X size={12} /> : <Check size={12} />}
-                            {isViaSwap ? 'via-swap' : isPresent ? '− Absent' : '+ Present'}
+                            {isViaSwap ? t('checkIn.viaSwapBadge') : isPresent ? t('checkIn.absentButton') : t('checkIn.presentButton')}
                           </button>
                         </div>
                       </div>
@@ -1090,15 +1113,15 @@ export default function SessionCheckInModal({
                 <div ref={guestBoxRef} className="relative mt-4">
                   <div className="flex items-center gap-2">
                     <div className="relative flex-1">
-                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                      <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
                       <input
                         type="text"
                         value={guestQuery}
                         onChange={(e) => void handleGuestSearch(e.target.value)}
                         onFocus={() => { if (guestResults.length > 0) setShowGuestResults(true) }}
-                        placeholder="Search any student…"
+                        placeholder={t('checkIn.searchStudent')}
                         className={cn(
-                          'w-full pl-9 pr-3 py-2.5 rounded-xl text-sm',
+                          'w-full ps-9 pe-3 py-2.5 rounded-xl text-sm',
                           'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                           'text-[var(--text)] outline-none',
                           'focus:ring-2 focus:ring-[var(--gold)]/30',
@@ -1108,30 +1131,30 @@ export default function SessionCheckInModal({
                     </div>
                     <span className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-sky-500/10 text-sky-500 border border-sky-500/20 shrink-0">
                       <UserPlus size={13} />
-                      Guest
+                      {t('checkIn.guest')}
                     </span>
                   </div>
                   {guestSearching && (
-                    <p className="text-[11px] text-[var(--muted)] mt-1.5">Searching…</p>
+                    <p className="text-[11px] text-[var(--muted)] mt-1.5">{t('checkIn.searching')}</p>
                   )}
                   {showGuestResults && (
-                    <div className="absolute bottom-full mb-2 left-0 right-0 rounded-xl border border-[var(--glass-border)] bg-[var(--card-bg)] shadow-2xl overflow-hidden z-10">
+                    <div className="absolute bottom-full mb-2 start-0 end-0 rounded-xl border border-[var(--glass-border)] bg-[var(--card-bg)] shadow-2xl overflow-hidden z-10">
                       {guestResults.length === 0 ? (
-                        <p className="text-xs text-[var(--muted)] text-center py-3">No matches</p>
+                        <p className="text-xs text-[var(--muted)] text-center py-3">{t('checkIn.noMatches')}</p>
                       ) : (
                         guestResults.map(s => (
                           <button
                             key={s.id}
                             type="button"
                             onClick={() => handleGuestAdd(s)}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--glass)] transition-colors"
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-start hover:bg-[var(--glass)] transition-colors"
                           >
                             <span className="flex-1 min-w-0 text-xs font-medium text-[var(--text)] truncate">
                               {s.full_name || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim()}
                             </span>
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-500 shrink-0">
                               <Zap size={10} />
-                              Swap
+                              {t('checkIn.swapBadge')}
                             </span>
                           </button>
                         ))
@@ -1150,16 +1173,16 @@ export default function SessionCheckInModal({
             <div className="flex items-center gap-3">
               {/* PIN input */}
               <div className="relative flex-1">
-                <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                <Lock size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
                 <input
                   type="password"
                   inputMode="numeric"
                   maxLength={4}
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="PIN"
+                  placeholder={t('checkIn.pinPlaceholder')}
                   className={cn(
-                    'w-full pl-9 pr-3 py-2.5 rounded-xl text-sm text-center tracking-[0.3em]',
+                    'w-full ps-9 pe-3 py-2.5 rounded-xl text-sm text-center tracking-[0.3em]',
                     'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                     'text-[var(--text)] outline-none',
                     'focus:ring-2 focus:ring-[var(--gold)]/30',
@@ -1185,12 +1208,12 @@ export default function SessionCheckInModal({
                 ) : (
                   <Check size={16} />
                 )}
-                Submit
+                {t('checkIn.submit')}
               </button>
             </div>
             {pin.length > 0 && pin.length < 4 && (
               <p className="text-[10px] text-[var(--muted)] mt-1.5 text-center">
-                Enter 4-digit PIN to confirm
+                {t('checkIn.pinHint')}
               </p>
             )}
           </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../stores/authStore'
 import { toast } from '../../stores/uiStore'
 import { Button } from '../../components/ui/Button'
@@ -9,6 +10,7 @@ import { Eye, EyeOff, Mail, Lock, Building2 } from 'lucide-react'
 type AuthMode = 'login' | 'signup'
 
 export default function AuthScreen() {
+  const { t } = useTranslation('auth')
   const navigate = useNavigate()
   const { login, signup, isLoading: loading } = useAuthStore()
   const [mode, setMode] = useState<AuthMode>('login')
@@ -29,13 +31,13 @@ export default function AuthScreen() {
 
   const validateSignup = (): boolean => {
     const errors: Record<string, string> = {}
-    if (!signupAcademy.trim()) errors.academy = 'Academy name is required'
-    if (!signupEmail.trim()) errors.email = 'Email is required'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail)) errors.email = 'Invalid email'
-    if (!signupPassword) errors.password = 'Password is required'
-    else if (signupPassword.length < 8) errors.password = 'Min 8 characters'
-    if (signupPassword !== signupConfirm) errors.confirm = 'Passwords do not match'
-    if (!signupPin || signupPin.length !== 4) errors.pin = 'PIN must be 4 digits'
+    if (!signupAcademy.trim()) errors.academy = t('authScreen.validation.academyRequired')
+    if (!signupEmail.trim()) errors.email = t('authScreen.validation.emailRequired')
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail)) errors.email = t('authScreen.validation.emailInvalid')
+    if (!signupPassword) errors.password = t('authScreen.validation.passwordRequired')
+    else if (signupPassword.length < 8) errors.password = t('authScreen.validation.passwordTooShort')
+    if (signupPassword !== signupConfirm) errors.confirm = t('authScreen.validation.passwordMismatch')
+    if (!signupPin || signupPin.length !== 4) errors.pin = t('authScreen.validation.pinLength')
     setSignupErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -45,10 +47,12 @@ export default function AuthScreen() {
     setLocalLoading(true)
     try {
       await login(loginEmail, loginPassword)
-      toast.success('Welcome back!')
+      toast.success(t('authScreen.toast.welcomeBack'))
       navigate('/profile-picker')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed'
+      // A server-sent message is already in the academy's own words — only the
+      // fallback, when the request dies before it produced one, is ours.
+      const message = err instanceof Error ? err.message : t('authScreen.toast.loginFailed')
       toast.error(message)
     } finally {
       setLocalLoading(false)
@@ -61,10 +65,10 @@ export default function AuthScreen() {
     setLocalLoading(true)
     try {
       await signup(signupAcademy, signupEmail, signupPassword, signupPin)
-      toast.success('Account created! Welcome to Vinta School OS.')
+      toast.success(t('authScreen.toast.signupSuccess'))
       navigate('/profile-picker')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Signup failed'
+      const message = err instanceof Error ? err.message : t('authScreen.toast.signupFailed')
       toast.error(message)
     } finally {
       setLocalLoading(false)
@@ -76,8 +80,8 @@ export default function AuthScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
       {/* Background gradient orbs */}
-      <div className="absolute top-[-200px] left-[-100px] w-[500px] h-[500px] rounded-full opacity-10" style={{ background: 'radial-gradient(circle, var(--gold), transparent)' }} />
-      <div className="absolute bottom-[-200px] right-[-100px] w-[500px] h-[500px] rounded-full opacity-10" style={{ background: 'radial-gradient(circle, var(--emerald), transparent)' }} />
+      <div className="absolute top-[-200px] start-[-100px] w-[500px] h-[500px] rounded-full opacity-10" style={{ background: 'radial-gradient(circle, var(--gold), transparent)' }} />
+      <div className="absolute bottom-[-200px] end-[-100px] w-[500px] h-[500px] rounded-full opacity-10" style={{ background: 'radial-gradient(circle, var(--emerald), transparent)' }} />
 
       <div className="relative w-full max-w-[420px]">
         {/* Brand */}
@@ -95,7 +99,7 @@ export default function AuthScreen() {
             Vinta School OS
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-            {mode === 'login' ? 'Sign in to your academy' : 'Create your academy account'}
+            {mode === 'login' ? t('authScreen.subtitle.login') : t('authScreen.subtitle.signup')}
           </p>
         </div>
 
@@ -113,7 +117,7 @@ export default function AuthScreen() {
                   boxShadow: '0 4px 12px rgba(179,135,42,.3)'
                 } : { color: 'var(--muted)' }}
               >
-                {m === 'login' ? 'Sign In' : 'Sign Up'}
+                {m === 'login' ? t('authScreen.tab.login') : t('authScreen.tab.signup')}
               </button>
             ))}
           </div>
@@ -124,9 +128,9 @@ export default function AuthScreen() {
           {mode === 'login' ? (
             <form onSubmit={handleLogin} className="space-y-4">
               <Input
-                label="Email"
+                label={t('authScreen.login.email')}
                 type="email"
-                placeholder="you@school.dz"
+                placeholder={t('authScreen.login.emailPlaceholder')}
                 value={loginEmail}
                 onChange={e => setLoginEmail(e.target.value)}
                 leftIcon={<Mail size={16} />}
@@ -134,7 +138,7 @@ export default function AuthScreen() {
               />
               <div className="relative">
                 <Input
-                  label="Password"
+                  label={t('authScreen.login.password')}
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={loginPassword}
@@ -149,14 +153,14 @@ export default function AuthScreen() {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isLoading ? t('authScreen.login.submitting') : t('authScreen.login.submit')}
               </Button>
             </form>
           ) : (
             <form onSubmit={handleSignup} className="space-y-4">
               <Input
-                label="Academy Name"
-                placeholder="My Academy"
+                label={t('authScreen.signup.academyName')}
+                placeholder={t('authScreen.signup.academyPlaceholder')}
                 value={signupAcademy}
                 onChange={e => setSignupAcademy(e.target.value)}
                 leftIcon={<Building2 size={16} />}
@@ -164,9 +168,9 @@ export default function AuthScreen() {
                 required
               />
               <Input
-                label="Email"
+                label={t('authScreen.signup.email')}
                 type="email"
-                placeholder="admin@academy.dz"
+                placeholder={t('authScreen.signup.emailPlaceholder')}
                 value={signupEmail}
                 onChange={e => setSignupEmail(e.target.value)}
                 leftIcon={<Mail size={16} />}
@@ -174,9 +178,9 @@ export default function AuthScreen() {
                 required
               />
               <Input
-                label="Password"
+                label={t('authScreen.signup.password')}
                 type="password"
-                placeholder="Min 8 characters"
+                placeholder={t('authScreen.signup.passwordPlaceholder')}
                 value={signupPassword}
                 onChange={e => setSignupPassword(e.target.value)}
                 leftIcon={<Lock size={16} />}
@@ -184,7 +188,7 @@ export default function AuthScreen() {
                 required
               />
               <Input
-                label="Confirm Password"
+                label={t('authScreen.signup.confirmPassword')}
                 type="password"
                 placeholder="••••••••"
                 value={signupConfirm}
@@ -194,7 +198,7 @@ export default function AuthScreen() {
                 required
               />
               <Input
-                label="4-Digit PIN"
+                label={t('authScreen.signup.pin')}
                 type="password"
                 placeholder="••••"
                 maxLength={4}
@@ -206,7 +210,7 @@ export default function AuthScreen() {
                 required
               />
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Creating account...' : 'Create Account'}
+                {isLoading ? t('authScreen.signup.submitting') : t('authScreen.signup.submit')}
               </Button>
             </form>
           )}

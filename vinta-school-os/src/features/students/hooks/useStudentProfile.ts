@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import api from '../../../lib/api'
 import type { Student } from '../../../types/student'
 
@@ -29,6 +30,7 @@ export function useStudentProfile(
   /** Summary row from the list, used as the pre-fetch value. */
   seed?: Student | null,
 ): UseStudentProfileResult {
+  const { t } = useTranslation('students')
   const [profile, setProfile] = useState<Student | null>(seed ?? null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,11 +51,16 @@ export function useStudentProfile(
       if (current !== requestId.current) return
       // Leave any seeded summary on screen — a failed detail fetch is not a
       // reason to blank a student who demonstrably exists in the list.
-      setError('Could not load the full profile.')
+      //
+      // Note: `StudentDrawer` currently reads only `profile` and `loading` from
+      // this hook and never destructures `error`, so this sentence is not on
+      // screen anywhere today. It is translated rather than left in English so
+      // that wiring it up later does not uncover a stray English string.
+      setError(t('drawer.profileError'))
     } finally {
       if (current === requestId.current) setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (!studentId) {

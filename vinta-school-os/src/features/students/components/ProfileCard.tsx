@@ -2,8 +2,8 @@
  * Vinta School OS — Profile card primitive
  *
  * The shared chrome for every block in the rebuilt Student Profile drawer: a
- * titled glass panel with an optional tinted icon and an optional right-aligned
- * action (a Retry button, an in-flight spinner).
+ * titled glass panel with an optional tinted icon and an optional action pinned
+ * to the trailing edge (a Retry button, an in-flight spinner).
  *
  * The two helpers live here on purpose, so that every leaf card phrases its
  * honest states identically:
@@ -17,6 +17,7 @@
  * `--radius-md`), so both light and dark theme render correctly.
  */
 
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../../lib/cn'
 
 export interface ProfileCardProps {
@@ -53,7 +54,7 @@ export function ProfileCard({ title, icon, action, children, className }: Profil
         >
           {title}
         </h4>
-        {action ? <div className="ml-auto flex items-center shrink-0">{action}</div> : null}
+        {action ? <div className="ms-auto flex items-center shrink-0">{action}</div> : null}
       </div>
       {children}
     </section>
@@ -72,12 +73,19 @@ export function EmptyLine({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** Small header spinner, for a request that is genuinely in flight. */
-export function InlineSpinner({ label = 'Loading' }: { label?: string }) {
+/**
+ * Small header spinner, for a request that is genuinely in flight.
+ *
+ * The label is a screen-reader sentence, not decoration, so it is translated
+ * too — `aria-label="Loading"` would be the one English string left in an
+ * Arabic drawer. Callers that know what is loading pass their own label.
+ */
+export function InlineSpinner({ label }: { label?: string }) {
+  const { t } = useTranslation('students')
   return (
     <span
       role="status"
-      aria-label={label}
+      aria-label={label ?? t('card.loading')}
       className="inline-block w-3.5 h-3.5 rounded-full animate-spin"
       style={{ border: '2px solid var(--gold)', borderTopColor: 'transparent' }}
     />

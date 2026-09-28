@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '../../lib/cn'
@@ -22,6 +23,7 @@ export interface DrawerProps {
 
 export const Drawer = forwardRef<HTMLDivElement, DrawerProps>(
   ({ open, onClose, title, children, width = 400 }, ref) => {
+    const { t, i18n } = useTranslation('common')
     const panelRef = useRef<HTMLDivElement>(null)
 
     /* Forward ref merge */
@@ -89,11 +91,20 @@ export const Drawer = forwardRef<HTMLDivElement, DrawerProps>(
             'relative h-full',
             'w-full max-w-[90vw]',
             'bg-[var(--glass)] backdrop-blur-[22px] backdrop-saturate-[180%]',
-            'border-l border-[var(--glass-border)]',
+            'border-s border-[var(--glass-border)]',
             'shadow-2xl',
             'text-[var(--text)]',
             'flex flex-col',
-            'animate-slide-in-right',
+            /*
+              `justify-end` on the backdrop already puts the panel against the
+              trailing edge in both directions, so the panel itself mirrors for
+              free — but the slide does not. The two keyframes are hand-written
+              CSS, not Tailwind utilities, so no `rtl:` variant can reach them
+              (`rtl:animate-slide-in-left` would generate nothing). The
+              direction is read here instead, and the panel slides in from
+              whichever edge it is actually anchored to.
+            */
+            i18n.dir() === 'rtl' ? 'animate-slide-in-left' : 'animate-slide-in-right',
           )}
           style={{ maxWidth: width }}
         >
@@ -106,12 +117,12 @@ export const Drawer = forwardRef<HTMLDivElement, DrawerProps>(
               type="button"
               onClick={onClose}
               className={cn(
-                'ml-auto shrink-0 p-1.5 rounded-lg',
+                'ms-auto shrink-0 p-1.5 rounded-lg',
                 'hover:bg-[var(--glass)] text-[var(--muted)]',
                 'transition-colors duration-150',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]',
               )}
-              aria-label="Close"
+              aria-label={t('action.close')}
             >
               <X size={16} />
             </button>

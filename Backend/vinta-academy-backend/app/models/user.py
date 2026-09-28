@@ -52,6 +52,19 @@ class User(db.Model):
     academy = relationship("Academy", back_populates="users")
     activity_logs = relationship("ActivityLog", back_populates="user", lazy="dynamic")
 
+    # --- Identity ---
+
+    @staticmethod
+    def normalize_email(email: str | None) -> str:
+        """Canonical form of an email address, for storage and for lookup.
+
+        Login resolves an owner by email alone — the request carries no
+        academy id — so the address that was written and the address that is
+        searched for have to agree exactly. Normalising both ends here is
+        what makes that true.
+        """
+        return (email or "").strip().lower()
+
     # --- PIN Methods ---
 
     @staticmethod

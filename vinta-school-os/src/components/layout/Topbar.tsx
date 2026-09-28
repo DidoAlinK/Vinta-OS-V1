@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../stores/authStore'
 import { useUIStore } from '../../stores/uiStore'
 import { getInitials } from '../../lib/formatters'
@@ -6,18 +7,24 @@ import { NotificationBell } from './NotificationBell'
 import { GlobalSearch } from './GlobalSearch'
 
 export function Topbar() {
+  const { t } = useTranslation('nav')
   const user = useAuthStore(s => s.user)
   const setMobileSidebarOpen = useUIStore(s => s.setMobileSidebarOpen)
 
   return (
     <header
       className="sticky top-0 z-40 flex items-center gap-3 px-4 h-[60px] glass"
-      style={{ borderRadius: 'var(--radius-lg)', margin: '8px 8px 8px 0' }}
+      /* Logical margins: the 8px inset all round with none on the leading edge,
+         which is the side the sidebar is anchored to — left in English, right
+         in Arabic. Written physically it would sit 8px off in one direction. */
+      style={{ borderRadius: 'var(--radius-lg)', marginBlock: 8, marginInlineStart: 0, marginInlineEnd: 8 }}
     >
-      {/* Mobile hamburger */}
+      {/* Mobile hamburger. Icon-only, so the label is the only thing a screen
+          reader gets — and it is the one control that opens the navigation. */}
       <button
         className="lg:hidden p-2 rounded-lg"
         onClick={() => setMobileSidebarOpen(true)}
+        aria-label={t('openMenu')}
         style={{ color: 'var(--text)' }}
       >
         <Menu size={20} />
@@ -53,7 +60,7 @@ export function Topbar() {
           {getInitials(user?.name || '')}
         </div>
         <span className="text-[12px] font-medium hidden sm:inline" style={{ color: 'var(--text)' }}>
-          {user?.name || 'User'}
+          {user?.name || t('topbar.userFallback')}
         </span>
       </button>
     </header>

@@ -1,0 +1,53 @@
+{
+  "dashboard": "Dashboard",
+  "students": "Students",
+  "teachers": "Teachers",
+  "classes": "Classrooms",
+  "calendar": "Calendar",
+  "billing": "Billing",
+  "settings": "Settings",
+  "switchProfile": "Switch Profile",
+  "logout": "Logout",
+  "openMenu": "Open menu",
+  "closeMenu": "Close menu",
+  "search": {
+    "placeholder": "Search students, teachers, classes…",
+    "results": "Search results",
+    "searching": "Searching…",
+    "empty": "Nothing matches “{{query}}”",
+    "hint": "↑↓ to move · Enter to open",
+    "noPhone": "No phone on file",
+    "noSubject": "No subject set",
+    "enrolled_one": "{{count}} enrolled",
+    "enrolled_other": "{{count}} enrolled",
+    "status": {
+      "paid": "Paid",
+      "due": "Due",
+      "overdue": "Overdue",
+      "unpaid": "Unpaid",
+      "noPlan": "No plan"
+    }
+  },
+  "notification": {
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "close": "Close notifications",
+    "empty": "Nothing to report",
+    "unreadTitle_one": "{{count}} unread",
+    "unreadTitle_other": "{{count}} unread",
+    "unreadAria_one": "Notifications, {{count}} unread",
+    "unreadAria_other": "Notifications, {{count}} unread",
+    "time": {
+      "justNow": "just now",
+      "minutes_one": "{{count}}m ago",
+      "minutes_other": "{{count}}m ago",
+      "hours_one": "{{count}}h ago",
+      "hours_other": "{{count}}h ago",
+      "days_one": "{{count}}d ago",
+      "days_other": "{{count}}d ago"
+    }
+  },
+  "topbar": {
+    "userFallback": "User"
+  }
+}

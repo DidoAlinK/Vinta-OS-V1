@@ -16,11 +16,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X, Repeat, Clock3, RefreshCw } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { toast } from '../../stores/uiStore'
-import { toLocalISO } from '../../lib/sessionTime'
+import { addDays, toLocalISO } from '../../lib/sessionTime'
+import { getDayName } from '../../lib/formatters'
 import type { Session } from '../../types/class'
 import {
   createScheduleDef,
@@ -104,11 +106,43 @@ function errMsg(err: any, fallback: string): string {
   return fallback
 }
 
+/**
+ * A known Sunday (2024-01-07), used only to turn a weekday *number* into a
+ * weekday *name*. `DAY_OPTIONS` carries English labels; the locale can name
+ * all seven days itself, so nothing here holds a table of them. The ordering
+ * the backend schedules on is untouched — only the label is localised.
+ */
+const WEEK_REFERENCE_SUNDAY = new Date(2024, 0, 7)
+
+/** Temporary-session reasons, which arrive as enums from `TEMP_REASONS`. */
+const REASON_KEYS: Record<string, string> = {
+  Makeup: 'scheduling.reasonMakeup',
+  Trial: 'scheduling.reasonTrial',
+  Extra: 'scheduling.reasonExtra',
+  Reschedule: 'scheduling.reasonReschedule',
+}
+
+/** Which half of a clash `findConflicts` is reporting. */
+const CONFLICT_KIND_KEYS: Record<string, string> = {
+  room: 'conflict.room',
+  teacher: 'conflict.teacher',
+}
+
+/* "room + teacher" for the banner, each half named in the active language.
+   Kinds are deduplicated: three clashing sessions of the same kind are still
+   one kind of clash. Takes `t` as an argument rather than closing over it — a
+   module-scope `t()` would freeze at import time. */
+const conflictKinds = (t: (key: string) => string, conflicts: { kind: string }[]): string =>
+  [...new Set(conflicts.map((c) => c.kind))]
+    .map((kind) => (CONFLICT_KIND_KEYS[kind] ? t(CONFLICT_KIND_KEYS[kind]) : kind))
+    .join(' + ')
+
 // ============================================
 // Component
 // ============================================
 
 export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCreated }: SchedulingModalProps) {
+  const { t } = useTranslation('calendar')
   const [mode, setMode] = useState<Mode>('choose')
 
   // Lookups
@@ -184,11 +218,14 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
       setGroups([])
       setTeachers([])
       setRooms([])
-      const msg = 'Lookups Not set (groups/teachers/rooms).'
+      const msg = t('scheduling.lookupsNotSet')
       setLookupError(msg)
-      toast.error('Scheduling unavailable', `${msg} Press Retry.`)
+      toast.error(
+        t('scheduling.unavailableTitle'),
+        t('scheduling.unavailableBody', { message: msg }),
+      )
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (!isOpen) return
@@ -200,11 +237,14 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
   const wTeacher = useMemo(() => {
     const g = groups.find((x) => x.id === wGroup)
     if (g?.teacher_id) {
-      const t = teachers.find((x) => x.id === g.teacher_id)
-      return { id: g.teacher_id, name: t?.name ?? g.teacher_name ?? 'Not set' }
+      const found = teachers.find((x) => x.id === g.teacher_id)
+      return {
+        id: g.teacher_id,
+        name: found?.name ?? g.teacher_name ?? t('scheduling.notSet'),
+      }
     }
-    return { id: '', name: 'Not set' }
-  }, [groups, teachers, wGroup])
+    return { id: '', name: t('scheduling.notSet') }
+  }, [groups, teachers, wGroup, t])
 
   const wOccurrences = useMemo(
     () => weeklyOccurrences({ dayOfWeek: wDay, startsFrom: wFrom, endKind: wEndKind, endN: wEndN, endDate: wEndDate }, 8),
@@ -236,15 +276,19 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
 
   // ── Weekly submit ──
   const handleWeekly = useCallback(async () => {
-    if (!wGroup) { setWError('Pick a group.'); return }
-    if (!wTeacher.id) { setWError('Group teacher Not set — assign a teacher in Classes first.'); return }
-    if (!wFrom) { setWError('Starts from is required.'); return }
-    if (wEnd <= wStart) { setWError('End time must be after start time.'); return }
-    if (wEndKind === 'after_n' && (wEndN < 1 || wEndN > 52)) { setWError('After N sessions: 1–52.'); return }
-    if (wEndKind === 'on_date' && !wEndDate) { setWError('Pick an end date.'); return }
+    if (!wGroup) { setWError(t('scheduling.errPickGroup')); return }
+    if (!wTeacher.id) { setWError(t('scheduling.errNoGroupTeacher')); return }
+    if (!wFrom) { setWError(t('scheduling.errStartsFrom')); return }
+    if (wEnd <= wStart) { setWError(t('scheduling.errEndAfterStart')); return }
+    if (wEndKind === 'after_n' && (wEndN < 1 || wEndN > 52)) { setWError(t('scheduling.errAfterN')); return }
+    if (wEndKind === 'on_date' && !wEndDate) { setWError(t('scheduling.errPickEndDate')); return }
     if (wConflicts.length > 0) {
-      const kinds = [...new Set(wConflicts.map((c) => c.kind))].join(' + ')
-      setWError(`Blocked: ${kinds} overlap on ${wOccurrences[0]}. Pick another room/time.`)
+      setWError(
+        t('scheduling.errBlockedOn', {
+          kinds: conflictKinds(t, wConflicts),
+          date: wOccurrences[0],
+        }),
+      )
       return
     }
     setWError(null)
@@ -271,28 +315,35 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
         endDate: wEndKind === 'on_date' ? wEndDate : undefined,
         backendScheduleId: data?.id ?? null,
       })
-      toast.success('Weekly series created', `🔁 ${wOccurrences.length} sessions rolling (8-week window).`)
+      toast.success(
+        t('scheduling.toastWeeklyTitle'),
+        t('scheduling.toastWeeklyBody', { count: wOccurrences.length }),
+      )
       onCreated?.()
       handleClose()
     } catch (err: any) {
-      const msg = errMsg(err, 'Could not create series. Press Retry.')
+      const msg = errMsg(err, t('scheduling.errCreateSeries'))
       setWError(msg)
-      toast.error('Weekly failed', msg)
+      toast.error(t('scheduling.toastWeeklyFailed'), msg)
     } finally {
       setWSaving(false)
     }
-  }, [wGroup, wTeacher.id, wFrom, wStart, wEnd, wEndKind, wEndN, wEndDate, wConflicts, wOccurrences, wDay, wRoom, groups, onCreated, handleClose])
+  }, [wGroup, wTeacher.id, wFrom, wStart, wEnd, wEndKind, wEndN, wEndDate, wConflicts, wOccurrences, wDay, wRoom, groups, onCreated, handleClose, t])
 
   // ── Temporary submit: exactly 1 session, never a series ──
   const handleTemporary = useCallback(async () => {
     const group = tGroup ? groups.find((x) => x.id === tGroup) : null
     const teacherId = tTeacher || group?.teacher_id || ''
-    if (!teacherId) { setTError('Pick a teacher (or a group with a teacher).'); return }
-    if (!tDate) { setTError('Date is required.'); return }
-    if (tEnd <= tStart) { setTError('End time must be after start time.'); return }
+    if (!teacherId) { setTError(t('scheduling.errPickTeacher')); return }
+    if (!tDate) { setTError(t('scheduling.errDateRequired')); return }
+    if (tEnd <= tStart) { setTError(t('scheduling.errEndAfterStart')); return }
     if (tConflicts.length > 0) {
-      const kinds = [...new Set(tConflicts.map((c) => c.kind))].join(' + ')
-      setTError(`Blocked: ${kinds} overlap on ${tDate}. Pick another room/time.`)
+      setTError(
+        t('scheduling.errBlockedOn', {
+          kinds: conflictKinds(t, tConflicts),
+          date: tDate,
+        }),
+      )
       return
     }
     setTError(null)
@@ -308,17 +359,22 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
         subject: group?.subject,
       })
       if (data?.id) createTempRecord(data.id, tReason, group?.id ?? null)
-      toast.success('Temporary session created', `🕐 ${tReason} — exactly 1 session, no series.`)
+      toast.success(
+        t('scheduling.toastTemporaryTitle'),
+        t('scheduling.toastTemporaryBody', {
+          reason: t(REASON_KEYS[tReason] ?? 'scheduling.reasonExtra'),
+        }),
+      )
       onCreated?.()
       handleClose()
     } catch (err: any) {
-      const msg = errMsg(err, 'Could not create session. Press Retry.')
+      const msg = errMsg(err, t('scheduling.errCreateSession'))
       setTError(msg)
-      toast.error('Temporary failed', msg)
+      toast.error(t('scheduling.toastTemporaryFailed'), msg)
     } finally {
       setTSaving(false)
     }
-  }, [tGroup, groups, tTeacher, tDate, tStart, tEnd, tRoom, tReason, tConflicts, onCreated, handleClose])
+  }, [tGroup, groups, tTeacher, tDate, tStart, tEnd, tRoom, tReason, tConflicts, onCreated, handleClose, t])
 
   if (!isOpen) return null
 
@@ -338,12 +394,12 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--glass-border)] shrink-0">
           <h2 className="text-base font-bold text-[var(--text)]" style={{ fontFamily: 'var(--font-heading)' }}>
-            + New Class
+            {t('scheduling.title')}
           </h2>
           <button
             onClick={handleClose}
             className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--glass)] hover:text-[var(--text)] transition-colors"
-            aria-label="Close"
+            aria-label={t('common:action.close')}
           >
             <X size={16} />
           </button>
@@ -359,7 +415,7 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] hover:opacity-90 transition-all"
               >
                 <RefreshCw size={13} />
-                Retry
+                {t('scheduling.retry')}
               </button>
             </div>
           )}
@@ -374,8 +430,8 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
                 <span className="flex items-center justify-center w-10 h-10 rounded-xl" style={{ background: 'var(--emerald-soft)', color: 'var(--emerald)' }}>
                   <Repeat size={18} />
                 </span>
-                <span className="text-sm font-bold text-[var(--text)]">🔁 Weekly</span>
-                <span className="text-[11px] text-[var(--muted)] text-center">Recurring series · rolling 8 weeks</span>
+                <span className="text-sm font-bold text-[var(--text)]">{t('scheduling.chooseWeekly')}</span>
+                <span className="text-[11px] text-[var(--muted)] text-center">{t('scheduling.chooseWeeklyHint')}</span>
               </button>
               <button
                 type="button"
@@ -385,8 +441,8 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
                 <span className="flex items-center justify-center w-10 h-10 rounded-xl" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
                   <Clock3 size={18} />
                 </span>
-                <span className="text-sm font-bold text-[var(--text)]">🕐 Temporary</span>
-                <span className="text-[11px] text-[var(--muted)] text-center">One session · makeup / trial / extra</span>
+                <span className="text-sm font-bold text-[var(--text)]">{t('scheduling.chooseTemporary')}</span>
+                <span className="text-[11px] text-[var(--muted)] text-center">{t('scheduling.chooseTemporaryHint')}</span>
               </button>
             </div>
           )}
@@ -394,12 +450,12 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
           {mode === 'weekly' && (
             <div className="space-y-3">
               <div>
-                <label className={labelCls}>Group</label>
+                <label className={labelCls}>{t('scheduling.group')}</label>
                 <Select
                   value={wGroup}
                   onChange={setWGroup}
                   options={[
-                    { value: '', label: 'Select group…' },
+                    { value: '', label: t('scheduling.selectGroup') },
                     ...groups.map((g) => ({ value: g.id, label: `${g.name}${g.subject ? ` (${g.subject})` : ''}` })),
                   ]}
                   disabled={wSaving}
@@ -407,37 +463,40 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
                 />
               </div>
               <div>
-                <label className={labelCls}>Teacher (auto)</label>
+                <label className={labelCls}>{t('scheduling.teacherAuto')}</label>
                 <input value={wTeacher.name} disabled className={inputCls} />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={labelCls}>Day</label>
+                  <label className={labelCls}>{t('scheduling.day')}</label>
                   <Select
                     value={String(wDay)}
                     onChange={(v) => setWDay(Number(v))}
-                    options={DAY_OPTIONS.map((d) => ({ value: String(d.value), label: d.label }))}
+                    options={DAY_OPTIONS.map((d) => ({
+                      value: String(d.value),
+                      label: getDayName(addDays(WEEK_REFERENCE_SUNDAY, d.value), false),
+                    }))}
                     disabled={wSaving}
                     className={cn(inputCls, 'h-auto')}
                   />
                 </div>
                 <div>
-                  <label className={labelCls}>Start</label>
+                  <label className={labelCls}>{t('scheduling.start')}</label>
                   <TimePicker value={wStart} onChange={setWStart} disabled={wSaving} className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>End</label>
+                  <label className={labelCls}>{t('scheduling.end')}</label>
                   <TimePicker value={wEnd} onChange={setWEnd} disabled={wSaving} className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Room</label>
+                  <label className={labelCls}>{t('scheduling.room')}</label>
                   <Select
                     value={wRoom}
                     onChange={setWRoom}
                     options={[
-                      { value: '', label: '— No room —' },
+                      { value: '', label: t('scheduling.noRoom') },
                       ...rooms.map((r) => ({ value: r.id, label: r.name })),
                     ]}
                     disabled={wSaving}
@@ -445,12 +504,12 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
                   />
                 </div>
                 <div>
-                  <label className={labelCls}>Starts from</label>
+                  <label className={labelCls}>{t('scheduling.startsFrom')}</label>
                   <DayPicker value={wFrom} onChange={setWFrom} disabled={wSaving} className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className={labelCls}>Ends</label>
+                <label className={labelCls}>{t('scheduling.ends')}</label>
                 <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)] mb-2">
                   {(['never', 'after_n', 'on_date'] as const).map((k) => (
                     <button
@@ -464,7 +523,7 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
                           : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
                       )}
                     >
-                      {k === 'never' ? 'Never' : k === 'after_n' ? 'After N' : 'On date'}
+                      {k === 'never' ? t('scheduling.never') : k === 'after_n' ? t('scheduling.afterN') : t('scheduling.onDate')}
                     </button>
                   ))}
                 </div>
@@ -476,20 +535,29 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
                 )}
               </div>
               <p className="text-[11px] text-[var(--muted)]">
-                🔁 {wOccurrences.length} occurrence{wOccurrences.length === 1 ? '' : 's'} in the 8-week window
-                {wOccurrences.length > 0 ? ` (first ${wOccurrences[0]})` : ''}.
+                {t('scheduling.occurrences', {
+                  count: wOccurrences.length,
+                  first:
+                    wOccurrences.length > 0
+                      ? t('scheduling.firstOccurrence', { date: wOccurrences[0] })
+                      : '',
+                })}
               </p>
               {wConflicts.length > 0 && (
                 <p className="text-xs font-semibold text-[var(--red)] bg-[var(--red-soft)]/40 rounded-xl px-3 py-2">
-                  Blocked: {[...new Set(wConflicts.map((c) => c.kind))].join(' + ')} overlap on {wOccurrences[0]}. Submit disabled.
+                  {t('scheduling.blockedSubmit', {
+                    kinds: conflictKinds(t, wConflicts),
+                    date: wOccurrences[0],
+                  })}
                 </p>
               )}
               {wError && <p className="text-xs text-[var(--red)]">{wError}</p>}
               <button onClick={() => void handleWeekly()} disabled={wSaving || wConflicts.length > 0} className={primaryBtnCls}>
-                {wSaving ? 'Creating…' : 'Create weekly series'}
+                {wSaving ? t('scheduling.creating') : t('scheduling.createWeekly')}
               </button>
+              {/* Back in the reading direction: the arrow flips, the word does not. */}
               <button onClick={() => setMode('choose')} disabled={wSaving} className="w-full py-2 text-xs font-medium text-[var(--muted)] hover:text-[var(--text)] transition-colors">
-                ← Back
+                <span className="inline-block rtl:rotate-180">←</span> {t('scheduling.back')}
               </button>
             </div>
           )}
@@ -497,12 +565,26 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
           {mode === 'temporary' && (
             <div className="space-y-3">
               <div>
-                <label className={labelCls}>Link to Group (optional, billing only)</label>
+                <label className={labelCls}>{t('scheduling.linkToGroup')}</label>
                 <Select
                   value={tGroup}
-                  onChange={(v) => { setTGroup(v); setTError(null) }}
+                  onChange={(v) => {
+                    const group = groups.find((g) => g.id === v)
+                    setTGroup(v)
+                    // A group is taught by one teacher, so linking the session
+                    // to a group picks that teacher up with it. Clearing the
+                    // group leaves the teacher alone — "no group" is a
+                    // statement about billing, not about who teaches.
+                    //
+                    // This is also what keeps the clash check honest: it reads
+                    // `tTeacher` alone, so a teacher inherited from the group
+                    // but left out of this field was a double-booking nothing
+                    // on screen would have caught.
+                    if (group?.teacher_id) setTTeacher(group.teacher_id)
+                    setTError(null)
+                  }}
                   options={[
-                    { value: '', label: '— No group —' },
+                    { value: '', label: t('scheduling.noGroup') },
                     ...groups.map((g) => ({ value: g.id, label: `${g.name}${g.subject ? ` (${g.subject})` : ''}` })),
                   ]}
                   disabled={tSaving}
@@ -511,49 +593,52 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Teacher</label>
+                  <label className={labelCls}>{t('scheduling.teacher')}</label>
                   <Select
                     value={tTeacher}
                     onChange={setTTeacher}
                     options={[
-                      { value: '', label: 'Select…' },
-                      ...teachers.map((t) => ({ value: t.id, label: t.name })),
+                      { value: '', label: t('scheduling.select') },
+                      ...teachers.map((teacher) => ({ value: teacher.id, label: teacher.name })),
                     ]}
                     disabled={tSaving}
                     className={cn(inputCls, 'h-auto')}
                   />
                 </div>
                 <div>
-                  <label className={labelCls}>Reason</label>
+                  <label className={labelCls}>{t('scheduling.reason')}</label>
                   <Select
                     value={tReason}
                     onChange={(v) => setTReason(v as TempReason)}
-                    options={TEMP_REASONS.map((r) => ({ value: r, label: r }))}
+                    options={TEMP_REASONS.map((r) => ({
+                      value: r,
+                      label: t(REASON_KEYS[r] ?? 'scheduling.reasonExtra'),
+                    }))}
                     disabled={tSaving}
                     className={cn(inputCls, 'h-auto')}
                   />
                 </div>
               </div>
               <div>
-                <label className={labelCls}>Date</label>
+                <label className={labelCls}>{t('scheduling.date')}</label>
                 <DayPicker value={tDate} onChange={setTDate} disabled={tSaving} className={inputCls} />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={labelCls}>Start</label>
+                  <label className={labelCls}>{t('scheduling.start')}</label>
                   <TimePicker value={tStart} onChange={setTStart} disabled={tSaving} className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>End</label>
+                  <label className={labelCls}>{t('scheduling.end')}</label>
                   <TimePicker value={tEnd} onChange={setTEnd} disabled={tSaving} className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Room</label>
+                  <label className={labelCls}>{t('scheduling.room')}</label>
                   <Select
                     value={tRoom}
                     onChange={setTRoom}
                     options={[
-                      { value: '', label: '—' },
+                      { value: '', label: t('common:dash') },
                       ...rooms.map((r) => ({ value: r.id, label: r.name })),
                     ]}
                     disabled={tSaving}
@@ -561,18 +646,22 @@ export function SchedulingModal({ isOpen, onClose, sessions, prefillDate, onCrea
                   />
                 </div>
               </div>
-              <p className="text-[11px] text-[var(--muted)]">🕐 Creates exactly 1 session — never a series.</p>
+              <p className="text-[11px] text-[var(--muted)]">{t('scheduling.temporaryHint')}</p>
               {tConflicts.length > 0 && (
                 <p className="text-xs font-semibold text-[var(--red)] bg-[var(--red-soft)]/40 rounded-xl px-3 py-2">
-                  Blocked: {[...new Set(tConflicts.map((c) => c.kind))].join(' + ')} overlap on {tDate}. Submit disabled.
+                  {t('scheduling.blockedSubmit', {
+                    kinds: conflictKinds(t, tConflicts),
+                    date: tDate,
+                  })}
                 </p>
               )}
               {tError && <p className="text-xs text-[var(--red)]">{tError}</p>}
               <button onClick={() => void handleTemporary()} disabled={tSaving || tConflicts.length > 0} className={primaryBtnCls}>
-                {tSaving ? 'Creating…' : 'Create 1 session'}
+                {tSaving ? t('scheduling.creating') : t('scheduling.createTemporary')}
               </button>
+              {/* Back in the reading direction: the arrow flips, the word does not. */}
               <button onClick={() => setMode('choose')} disabled={tSaving} className="w-full py-2 text-xs font-medium text-[var(--muted)] hover:text-[var(--text)] transition-colors">
-                ← Back
+                <span className="inline-block rtl:rotate-180">←</span> {t('scheduling.back')}
               </button>
             </div>
           )}

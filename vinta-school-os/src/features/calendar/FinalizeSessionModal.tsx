@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   X,
   CheckCircle2,
@@ -38,6 +39,7 @@ export default function FinalizeSessionModal({
   session,
   onSuccess,
 }: FinalizeSessionModalProps) {
+  const { t } = useTranslation('calendar')
   const [isDone, setIsDone] = useState<boolean | null>(null)
   const [pin, setPin] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -63,21 +65,21 @@ export default function FinalizeSessionModal({
       })
       setIsSuccess(true)
       toast.success(
-        isDone ? 'Session finalized' : 'Session kept open',
+        isDone ? t('finalize.toastFinalizedTitle') : t('finalize.toastKeptOpenTitle'),
         isDone
-          ? 'Teacher payout has been computed'
-          : 'Session remains in progress',
+          ? t('finalize.toastFinalizedBody')
+          : t('finalize.toastKeptOpenBody'),
       )
       setTimeout(() => {
         onSuccess?.()
         handleClose()
       }, 1200)
     } catch {
-      toast.error('Failed to finalize', 'Please check the PIN and try again')
+      toast.error(t('finalize.toastFailedTitle'), t('finalize.toastFailedBody'))
     } finally {
       setIsSubmitting(false)
     }
-  }, [session, isDone, pin, onSuccess, handleClose])
+  }, [session, isDone, pin, onSuccess, handleClose, t])
 
   if (!isOpen || !session) return null
 
@@ -111,12 +113,13 @@ export default function FinalizeSessionModal({
               className="text-base font-bold text-[var(--text)]"
               style={{ fontFamily: 'var(--font-heading)' }}
             >
-              {isSuccess ? 'Done!' : 'Is the class done?'}
+              {isSuccess ? t('finalize.titleDone') : t('finalize.titleQuestion')}
             </h2>
           </div>
           <button
             onClick={handleClose}
             className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-[var(--glass)] transition-colors"
+            aria-label={t('common:action.close')}
           >
             <X size={16} />
           </button>
@@ -128,8 +131,8 @@ export default function FinalizeSessionModal({
             <div className="text-center py-4">
               <p className="text-sm text-[var(--muted)]">
                 {isDone
-                  ? 'Teacher payout has been computed.'
-                  : 'Session remains in progress.'}
+                  ? t('finalize.payoutComputed')
+                  : t('finalize.inProgress')}
               </p>
             </div>
           ) : (
@@ -153,7 +156,7 @@ export default function FinalizeSessionModal({
                   )}
                 >
                   <CheckCircle2 size={16} />
-                  Yes, class is done
+                  {t('finalize.yes')}
                 </button>
                 <button
                   onClick={() => setIsDone(false)}
@@ -166,7 +169,7 @@ export default function FinalizeSessionModal({
                   )}
                 >
                   <XCircle size={16} />
-                  No, keep it going
+                  {t('finalize.no')}
                 </button>
               </div>
 
@@ -174,16 +177,16 @@ export default function FinalizeSessionModal({
               {isDone !== null && (
                 <div className="space-y-3 animate-fade-in">
                   <div className="relative">
-                    <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                    <Lock size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
                     <input
                       type="password"
                       inputMode="numeric"
                       maxLength={4}
                       value={pin}
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                      placeholder="Enter 4-digit PIN"
+                      placeholder={t('finalize.pinPlaceholder')}
                       className={cn(
-                        'w-full pl-9 pr-3 py-2.5 rounded-xl text-sm text-center tracking-[0.3em]',
+                        'w-full ps-9 pe-3 py-2.5 rounded-xl text-sm text-center tracking-[0.3em]',
                         'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                         'text-[var(--text)] outline-none',
                         'focus:ring-2 focus:ring-[var(--gold)]/30',
@@ -206,9 +209,9 @@ export default function FinalizeSessionModal({
                     {isSubmitting ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
                     ) : isDone ? (
-                      'Finalize & Compute Payout'
+                      t('finalize.finalize')
                     ) : (
-                      'Keep Session Open'
+                      t('finalize.keepOpen')
                     )}
                   </button>
                 </div>

@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   ChevronLeft,
   Pencil,
@@ -23,12 +24,13 @@ import {
   SUBJECT_COLORS,
 } from '../../lib/constants'
 import {
+  formatHour12,
   formatTime,
   getInitials,
 } from '../../lib/formatters'
 import { getTeacherEmail } from '../../lib/teacherEmails'
+import { teacherSubjectOf } from '../../lib/teacherSubject'
 import { formatDa, formatDuration } from '../../lib/formatters'
-import { classStateOf } from '../../lib/classState'
 import { DayPicker } from '../../components/ui/DayPicker'
 import { Select } from '../../components/ui/Select'
 import { TimePicker } from '../../components/ui/TimePicker'
@@ -51,7 +53,17 @@ export interface ClassDetailProps {
 // Constants
 // ============================================
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+/**
+ * Weekday headings, indexed the way `Date#getDay()` is (0 = Sunday).
+ *
+ * Keys rather than words: a module-level `t()` would run once, at import, in
+ * whichever language happened to be loaded. The grid and the schedule summary
+ * below resolve them at render, so a language switch relabels the columns.
+ */
+const DAY_KEYS = [
+  'day.sun', 'day.mon', 'day.tue', 'day.wed', 'day.thu', 'day.fri', 'day.sat',
+]
+
 const WEEKDAY_INDICES = [1, 2, 3, 4, 5] // Mon-Fri for the schedule grid
 
 const COLOR_PRESETS = [
@@ -71,6 +83,21 @@ const SUBJECT_OPTIONS = ['Math', 'French', 'English', 'Science', 'History', 'PE'
 // Types
 // ============================================
 
+/**
+ * This group's billing badge for one student, held as a reading rather than as
+ * a sentence. The fetch decides *which* badge it is; the words are chosen at
+ * render, so switching language repaints a drawer that is already open instead
+ * of leaving the badge in the language it was loaded in.
+ */
+type BillingBadge =
+  | { kind: 'debt'; n: number }
+  | { kind: 'credits'; n: number }
+  | { kind: 'paid' }
+  | { kind: 'depleted' }
+  | { kind: 'overdue' }
+  /** A status the server sent that has no label of ours — shown as sent. */
+  | { kind: 'status'; value: string }
+
 interface EnrolledStudent {
   id: string
   full_name: string
@@ -80,8 +107,22 @@ interface EnrolledStudent {
   status: string
   enrollment_id?: string
   // T9: per-group billing badge (this group's subscription, not just `active`)
-  billing_label?: string
+  billing?: BillingBadge
   billing_tone?: 'ok' | 'warn' | 'bad' | 'muted'
+}
+
+/**
+ * Enrollment statuses arrive as lowercase enums. The ones this app knows read
+ * as words; anything else is passed through exactly as the server sent it
+ * rather than guessed at.
+ */
+const ENROLLMENT_STATUS_KEYS: Record<string, string> = {
+  active: 'status.active',
+  withdrawn: 'status.withdrawn',
+  expired: 'status.expired',
+  overdue: 'status.overdue',
+  transferred: 'status.transferred',
+  not_enrolled: 'status.notEnrolled',
 }
 
 // ============================================
@@ -118,13 +159,27 @@ function nextDateForDow(dow: number): string {
 }
 
 /**
+ * Which reading the card is showing, as data rather than as a finished
+ * sentence. A label frozen into state when the fetch landed would still be in
+ * whatever language was active at that moment — the counts are what the server
+ * told us, and the words are chosen at render.
+ */
+type BillingReading =
+  | { kind: 'notSet' }
+  | { kind: 'noSubs' }
+  | { kind: 'overdue'; n: number }
+  | { kind: 'depleted'; n: number }
+  | { kind: 'paidLow'; n: number }
+  | { kind: 'paid'; n: number }
+
+/**
  * T9 billing per THIS group: Paid / DEPLETED / OVERDUE / debt N.
  * Reads /classes/:id/subscriptions (ACTIVE) + debt ledger. Replaces the
  * old "N slots" card that always showed 0.
  */
 function ClassBillingStat({ cls }: { cls: Class }) {
-  const [label, setLabel] = useState('Not set')
-  const [tone, setTone] = useState<'ok' | 'warn' | 'bad' | 'muted'>('muted')
+  const { t } = useTranslation('classes')
+  const [reading, setReading] = useState<BillingReading>({ kind: 'notSet' })
 
   useEffect(() => {
     let cancelled = false
@@ -143,36 +198,43 @@ function ClassBillingStat({ cls }: { cls: Class }) {
         const expired = subs.filter((s) => s.status === 'EXPIRED' || s.status === 'OVERDUE').length
         void getUnpaidDebtCount
         if (subs.length === 0) {
-          setLabel('No subs yet')
-          setTone('muted')
+          setReading({ kind: 'noSubs' })
         } else if (expired > 0) {
-          setLabel(`OVERDUE ×${expired}`)
-          setTone('bad')
+          setReading({ kind: 'overdue', n: expired })
         } else if (depleted > 0) {
-          setLabel(`DEPLETED ×${depleted}`)
-          setTone('bad')
+          setReading({ kind: 'depleted', n: depleted })
         } else {
           const low = active.filter((s) => (s.remaining_credits ?? 99) <= 1).length
-          setLabel(low > 0 ? `Paid · low ×${low}` : `Paid ×${active.length}`)
-          setTone(low > 0 ? 'warn' : 'ok')
+          setReading(low > 0 ? { kind: 'paidLow', n: low } : { kind: 'paid', n: active.length })
         }
       } catch {
-        if (!cancelled) {
-          setLabel('Not set')
-          setTone('muted')
-        }
+        if (!cancelled) setReading({ kind: 'notSet' })
       }
     }
     void fetchBilling()
     return () => { cancelled = true }
   }, [cls.id])
 
+  const tone =
+    reading.kind === 'paid' ? 'ok'
+      : reading.kind === 'paidLow' ? 'warn'
+        : reading.kind === 'overdue' || reading.kind === 'depleted' ? 'bad'
+          : 'muted'
+
+  const label =
+    reading.kind === 'noSubs' ? t('detail.billing.noSubs')
+      : reading.kind === 'overdue' ? t('detail.billing.overdueCount', { n: reading.n })
+        : reading.kind === 'depleted' ? t('detail.billing.depletedCount', { n: reading.n })
+          : reading.kind === 'paidLow' ? t('detail.billing.paidLow', { n: reading.n })
+            : reading.kind === 'paid' ? t('detail.billing.paidCount', { n: reading.n })
+              : t('detail.notSet')
+
   const color = tone === 'ok' ? 'var(--emerald)' : tone === 'warn' ? 'var(--gold)' : tone === 'bad' ? 'var(--red)' : 'var(--muted)'
   return (
     <div className="glass rounded-xl p-3">
       <div className="flex items-center gap-2 mb-1">
         <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
-          Billing
+          {t('detail.stats.billing')}
         </span>
       </div>
       <p className="text-sm font-medium truncate" style={{ color }}>
@@ -180,8 +242,11 @@ function ClassBillingStat({ cls }: { cls: Class }) {
       </p>
       <p className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
         {cls.billing_model === 'CREDIT_BASED'
-          ? `N=${cls.credits_per_cycle ?? 'Not set'} · ${cls.price_da != null ? formatDa(cls.price_da) : 'Price Not set'}`
-          : 'TIME_BASED · Coming Soon'}
+          ? t('detail.billing.creditLine', {
+              n: cls.credits_per_cycle ?? t('detail.notSet'),
+              price: cls.price_da != null ? formatDa(cls.price_da) : t('detail.billing.priceNotSet'),
+            })
+          : t('detail.billing.timeBasedSoon')}
       </p>
     </div>
   )
@@ -190,11 +255,17 @@ function ClassBillingStat({ cls }: { cls: Class }) {
 /**
  * T9 0-slots fix: fetch real session slots from /sessions|schedules so the
  * header shows "Mon/Wed/Fri 09:00-10:30 + count" instead of 0.
+ *
+ * The slots are kept as rows and the sentence is built during render. It used
+ * to be assembled inside the fetch and stored as a string, which meant the
+ * weekday names and the "3 slots" tail were fixed in the language that was
+ * active when the response landed.
  */
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+type SlotRow = { dow: number; start: string; end: string }
 
 function ScheduleSlotsBlock({ cls }: { cls: Class }) {
-  const [text, setText] = useState<string | null>(null)
+  const { t } = useTranslation('classes')
+  const [rows, setRows] = useState<SlotRow[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -207,12 +278,9 @@ function ScheduleSlotsBlock({ cls }: { cls: Class }) {
       start: s.start_time.slice(0, 5),
       end: s.end_time.slice(0, 5),
     }))
-    const renderRows = (rows: Array<{ dow: number; start: string; end: string }>) => {
-      if (cancelled || rows.length === 0) return false
-      const days = [...new Set(rows.map((r) => DAY_SHORT[r.dow] ?? ''))].filter(Boolean)
-      const starts = rows.map((r) => r.start).sort()
-      const ends = rows.map((r) => r.end).sort()
-      setText(`${days.join('/')} ${starts[0] ?? ''}-${ends[ends.length - 1] ?? ''} · ${rows.length} slot${rows.length === 1 ? '' : 's'}`)
+    const renderRows = (found: SlotRow[]) => {
+      if (cancelled || found.length === 0) return false
+      setRows(found)
       return true
     }
     if (fromEmbedded.length > 0) {
@@ -242,7 +310,7 @@ function ScheduleSlotsBlock({ cls }: { cls: Class }) {
             })))
             return
           }
-          if (!cancelled) setText(null)
+          if (!cancelled) setRows(null)
         })
       })
       .catch(() => {
@@ -257,17 +325,27 @@ function ScheduleSlotsBlock({ cls }: { cls: Class }) {
                 end: (s.end_time || '').slice(0, 5),
               })))
             } else if (!cancelled) {
-              setText(null)
+              setRows(null)
             }
           })
-          .catch(() => { if (!cancelled) setText(null) })
+          .catch(() => { if (!cancelled) setRows(null) })
       })
     return () => { cancelled = true }
   }, [cls])
 
+  let summary: string | null = null
+  if (rows && rows.length > 0) {
+    const days = [...new Set(rows.map((r) => r.dow))]
+      .filter((d) => d >= 0 && d < DAY_KEYS.length)
+      .map((d) => t(DAY_KEYS[d]))
+    const starts = rows.map((r) => r.start).sort()
+    const ends = rows.map((r) => r.end).sort()
+    summary = `${days.join('/')} ${starts[0] ?? ''}-${ends[ends.length - 1] ?? ''} · ${t('detail.slots', { count: rows.length })}`
+  }
+
   return (
     <p className="text-xs text-[var(--muted)] mt-1">
-      {text ?? 'Schedule Not set'}
+      {summary ?? t('detail.scheduleNotSet')}
     </p>
   )
 }
@@ -294,6 +372,7 @@ function getScheduleBounds(
 // ============================================
 
 export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated }: ClassDetailProps) {
+  const { t } = useTranslation('classes')
   // ── Edit state ──
   const [isEditing, setIsEditing] = useState(false)
   /** The delete button arms this; only an accepted PIN reaches handleDelete. */
@@ -321,7 +400,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
   const [saving, setSaving] = useState(false)
 
   // ── Teachers ──
-  const [teachers, setTeachers] = useState<Array<{ id: string; name: string; email?: string; phone?: string }>>([])
+  const [teachers, setTeachers] = useState<Array<{ id: string; name: string; email?: string; phone?: string; subject?: string }>>([])
 
   // ── Enrolled students ──
   const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudent[]>([])
@@ -417,17 +496,50 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
 
   const color = cls ? resolveColor(cls) : '#75726a'
 
+  /** An enrollment status in words, or exactly as the server sent it. */
+  const statusLabel = useCallback(
+    (value: string) => {
+      const key = ENROLLMENT_STATUS_KEYS[(value ?? '').toLowerCase()]
+      return key ? t(key) : value
+    },
+    [t],
+  )
+
+  /** The badge's words, read at render rather than stored with the row. */
+  const badgeLabel = useCallback(
+    (student: EnrolledStudent): string => {
+      const badge = student.billing
+      if (!badge) return statusLabel(student.status)
+      switch (badge.kind) {
+        case 'debt':
+          return t('detail.billing.debt', { n: badge.n })
+        case 'credits':
+          return t('detail.billing.credits', { n: badge.n })
+        case 'paid':
+          return t('detail.billing.paid')
+        case 'depleted':
+          return t('detail.billing.depleted')
+        case 'overdue':
+          return t('detail.billing.overdue')
+        case 'status':
+          return statusLabel(badge.value)
+      }
+    },
+    [t, statusLabel],
+  )
+
   // ── Fetch teachers (T9: overlay registry emails) ──
   useEffect(() => {
     if (!isOpen) return
     api.get('/teachers')
       .then(({ data }) => {
         const list = data.teachers ?? data ?? []
-        setTeachers(list.map((t: any) => ({
-          id: t.id,
-          name: t.full_name || t.name || `${t.first_name} ${t.last_name}`,
-          email: t.email ?? getTeacherEmail(t.id) ?? undefined,
-          phone: t.phone,
+        setTeachers(list.map((tc: any) => ({
+          id: tc.id,
+          name: tc.full_name || tc.name || `${tc.first_name} ${tc.last_name}`,
+          email: tc.email ?? getTeacherEmail(tc.id) ?? undefined,
+          phone: tc.phone,
+          subject: teacherSubjectOf(tc),
         })))
       })
       .catch(() => {})
@@ -454,19 +566,31 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
         const sub = byStudent.get(r.id)
         const debt = getUnpaidDebtCount(r.id, cls.id)
         if (debt > 0) {
-          return { ...r, billing_label: `debt ${debt}`, billing_tone: 'bad' as const }
+          return { ...r, billing: { kind: 'debt', n: debt } as const, billing_tone: 'bad' as const }
         }
         if (!sub) {
-          return { ...r, billing_label: r.status === 'active' ? 'Paid' : r.status, billing_tone: 'muted' as const }
+          return {
+            ...r,
+            billing: r.status === 'active' ? ({ kind: 'paid' } as const) : ({ kind: 'status', value: r.status } as const),
+            billing_tone: 'muted' as const,
+          }
         }
         const st = (sub.status ?? '').toUpperCase()
-        if (st === 'DEPLETED') return { ...r, billing_label: 'DEPLETED', billing_tone: 'bad' as const }
-        if (st === 'EXPIRED' || st === 'OVERDUE') return { ...r, billing_label: 'OVERDUE', billing_tone: 'bad' as const }
+        if (st === 'DEPLETED') return { ...r, billing: { kind: 'depleted' } as const, billing_tone: 'bad' as const }
+        if (st === 'EXPIRED' || st === 'OVERDUE') return { ...r, billing: { kind: 'overdue' } as const, billing_tone: 'bad' as const }
         if (st === 'ACTIVE') {
           const left = sub.remaining_credits
-          return { ...r, billing_label: left != null ? `${left} cr` : 'Paid', billing_tone: left != null && left <= 1 ? 'warn' as const : 'ok' as const }
+          return {
+            ...r,
+            billing: left != null ? ({ kind: 'credits', n: left } as const) : ({ kind: 'paid' } as const),
+            billing_tone: left != null && left <= 1 ? 'warn' as const : 'ok' as const,
+          }
         }
-        return { ...r, billing_label: sub.status ?? r.status, billing_tone: 'muted' as const }
+        return {
+          ...r,
+          billing: { kind: 'status', value: sub.status ?? r.status } as const,
+          billing_tone: 'muted' as const,
+        }
       }))
     } catch {
       setEnrolledStudents([])
@@ -544,6 +668,22 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
     }
   }, [cls, schedules, seedEditTimes])
 
+  /**
+   * Reassigning the group to another teacher also moves its subject: a teacher
+   * teaches one subject, so the two fields describe the same fact.
+   *
+   * Only a subject the picker actually offers is applied — `Select` matches its
+   * options strictly, so a subject outside the list would render the field
+   * blank while the save carried the value.
+   */
+  const handleEditTeacherChange = useCallback((id: string) => {
+    setEditTeacherId(id)
+    const picked = teachers.find((t) => t.id === id)
+    if (picked?.subject && (SUBJECT_OPTIONS as readonly string[]).includes(picked.subject)) {
+      setEditSubject(picked.subject)
+    }
+  }, [teachers])
+
   const handleSaveEdit = useCallback(async () => {
     if (!cls || !editName.trim()) return
     // Check the times before the PUT, not after: the group save and the slot
@@ -552,15 +692,15 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
     const wantsWeeklySlot = editClassType === 'weekly'
     if (wantsWeeklySlot && (editStartTime || editEndTime)) {
       if (!editStartTime || !editEndTime) {
-        toast.error('Check the times', 'A slot needs both a Start At and an End At.')
+        toast.error(t('detail.errors.checkTimes'), t('detail.errors.needBothTimes'))
         return
       }
       if (editEndTime <= editStartTime) {
-        toast.error('Check the times', 'End At must be after Start At.')
+        toast.error(t('detail.errors.checkTimes'), t('detail.errors.endAfterStart'))
         return
       }
       if (!editDay) {
-        toast.error('Pick the day', 'Pick the weekday this group meets.')
+        toast.error(t('detail.errors.pickDay'), t('detail.errors.pickDayBody'))
         return
       }
     }
@@ -622,8 +762,8 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
               // a teacher to Group B first" is actionable where "the time was
               // not saved" is not.
               toast.error(
-                'Time not saved',
-                res?.data?.error ?? 'The group was saved, but its time was not.',
+                t('detail.errors.timeNotSaved'),
+                res?.data?.error ?? t('detail.errors.timeNotSavedBody'),
               )
             } else {
               await reloadSchedules()
@@ -632,15 +772,15 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
         }
       }
 
-      toast.success('Class updated', 'Changes have been saved.')
+      toast.success(t('detail.toast.updated'), t('detail.toast.updatedBody'))
       setIsEditing(false)
       onUpdated?.()
     } catch {
-      toast.error('Update failed', 'Could not save changes.')
+      toast.error(t('detail.toast.updateFailed'), t('detail.toast.updateFailedBody'))
     } finally {
       setSaving(false)
     }
-  }, [cls, schedules, reloadSchedules, editName, editSubject, editColor, editCapacity, editTeacherId, editNotes, editPriceDa, editBillingModel, editCreditsPerCycle, editGroupName, editAcademicLevel, editClassType, editDay, editStartTime, editEndTime, onUpdated])
+  }, [cls, schedules, reloadSchedules, editName, editSubject, editColor, editCapacity, editTeacherId, editNotes, editPriceDa, editBillingModel, editCreditsPerCycle, editGroupName, editAcademicLevel, editClassType, editDay, editStartTime, editEndTime, onUpdated, t])
 
   /**
    * Delete, behind a PIN.
@@ -660,18 +800,19 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
     } catch (err: any) {
       const msg =
         err?.response?.data?.error ??
-        'The group was not deleted. Press Retry.'
-      toast.error('Delete failed', msg)
+        t('detail.toast.deleteFailedBody')
+      toast.error(t('detail.toast.deleteFailed'), msg)
       throw new Error(msg)
     }
     onDelete?.(cls.id)
     onClose()
-  }, [cls, onDelete, onClose])
+  }, [cls, onDelete, onClose, t])
 
   // ── Bulk enrollment handlers ──
 
   // T9 Add Students: fetch all, filter out enrolledIds FRONTEND, searchable +
   // checkbox + "X available", Confirm → POST enroll each → refetch, N/15 live.
+  /** A key of this namespace, not a sentence — the banner is read at render. */
   const [bulkError, setBulkError] = useState<string | null>(null)
   const [bulkTotal, setBulkTotal] = useState<number | null>(null)
 
@@ -690,17 +831,17 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
         .filter((s: any) => s?.id && !enrolledIds.has(s.id))
         .map((s: any) => ({
           id: s.id,
-          full_name: s.full_name || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || 'Not set',
+          full_name: s.full_name || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || t('detail.notSet'),
           phone: s.phone,
         }))
       setAllStudents(avail)
     } catch {
       setAllStudents([])
       setBulkTotal(null)
-      setBulkError('Student list Not set.')
-      toast.error('Add Students failed', 'Student list Not set. Press Retry.')
+      setBulkError('detail.bulk.listFailed')
+      toast.error(t('detail.bulk.listFailedTitle'), t('detail.bulk.listFailedBody'))
     }
-  }, [enrolledStudents])
+  }, [enrolledStudents, t])
 
   const toggleStudentSelection = useCallback((id: string) => {
     setSelectedStudentIds(prev =>
@@ -733,19 +874,22 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
           }
         }
       }
-      toast.success('Students enrolled', `${enrolled} student(s) added to ${cls.name}.`)
+      toast.success(
+        t('detail.bulk.enrolled'),
+        t('detail.bulk.enrolledBody', { count: enrolled, name: cls.name }),
+      )
       if (skipped > 0) {
-        toast.error('Some skipped', `${skipped} student(s) could not be enrolled.`)
+        toast.error(t('detail.bulk.skipped'), t('detail.bulk.skippedBody', { count: skipped }))
       }
       setShowBulkEnroll(false)
       await fetchEnrolledStudents()
       onUpdated?.()
     } catch {
-      toast.error('Enrollment failed', 'Could not enroll students. Press Retry.')
+      toast.error(t('detail.bulk.failed'), t('detail.bulk.failedBody'))
     } finally {
       setEnrolling(false)
     }
-  }, [cls, selectedStudentIds, fetchEnrolledStudents, onUpdated])
+  }, [cls, selectedStudentIds, fetchEnrolledStudents, onUpdated, t])
 
   const filteredStudents = useMemo(() => {
     if (!studentSearch) return allStudents
@@ -770,9 +914,11 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
       {/* Panel */}
       <div
         className={cn(
-          'relative ml-auto w-full max-w-2xl h-full overflow-y-auto',
-          'bg-[var(--bg)] border-l border-[var(--glass-border)]',
-          'animate-slide-in-right',
+          'relative ms-auto w-full max-w-2xl h-full overflow-y-auto',
+          'bg-[var(--bg)] border-s border-[var(--glass-border)]',
+          // The panel is pinned to the inline end, so in Arabic it arrives
+          // from the left. Both keyframes already exist in globals.css.
+          'animate-slide-in-right rtl:animate-slide-in-left',
         )}
       >
         <div className="p-6">
@@ -786,8 +932,10 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 'transition-colors duration-150',
               )}
             >
-              <ChevronLeft size={16} />
-              Back
+              {/* Back points at the start of the line, which is the other way
+                  round once the panel is on the right-hand side in Arabic. */}
+              <ChevronLeft size={16} className="rtl:rotate-180" />
+              {t('common:action.back')}
             </button>
 
             <div className="flex items-center gap-2">
@@ -802,7 +950,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     )}
                   >
                     <Pencil size={14} />
-                    Edit
+                    {t('common:action.edit')}
                   </button>
                   <button
                     onClick={() => setConfirmDelete(true)}
@@ -813,7 +961,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     )}
                   >
                     <Trash2 size={14} />
-                    Delete
+                    {t('common:action.delete')}
                   </button>
                 </>
               ) : (
@@ -827,7 +975,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     )}
                   >
                     <X size={14} />
-                    Cancel
+                    {t('common:action.cancel')}
                   </button>
                   <button
                     onClick={handleSaveEdit}
@@ -838,7 +986,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                       'transition-opacity duration-150 disabled:opacity-50',
                     )}
                   >
-                    {saving ? 'Saving...' : 'Save'}
+                    {saving ? t('detail.saving') : t('common:action.save')}
                   </button>
                 </>
               )}
@@ -859,11 +1007,11 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
                   )}
                   style={{ fontFamily: 'var(--font-heading)' }}
-                  placeholder="Class name"
+                  placeholder={t('detail.form.namePlaceholder')}
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Subject</label>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.subject')}</label>
                     <Select
                       value={editSubject}
                       onChange={setEditSubject}
@@ -877,13 +1025,13 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Teacher</label>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.teacher')}</label>
                     <Select
                       value={editTeacherId}
-                      onChange={setEditTeacherId}
+                      onChange={handleEditTeacherChange}
                       options={[
-                        { value: '', label: 'None' },
-                        ...teachers.map(t => ({ value: t.id, label: t.name })),
+                        { value: '', label: t('detail.form.teacherNone') },
+                        ...teachers.map(tc => ({ value: tc.id, label: tc.name })),
                       ]}
                       className={cn(
                         'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
@@ -896,7 +1044,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Capacity</label>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.capacity')}</label>
                     <input
                       type="number"
                       value={editCapacity}
@@ -910,7 +1058,8 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Price (DA)</label>
+                    {/* `DA` stays `DA` — a currency code, not a word. */}
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.price')}</label>
                     <input
                       type="number"
                       value={editPriceDa || ''}
@@ -927,7 +1076,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Group Name</label>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.groupName')}</label>
                     <input
                       type="text"
                       value={editGroupName}
@@ -941,12 +1090,12 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Academic Level</label>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.academicLevel')}</label>
                     <input
                       type="text"
                       value={editAcademicLevel}
                       onChange={(e) => setEditAcademicLevel(e.target.value)}
-                      placeholder="e.g. CM2"
+                      placeholder={t('detail.form.academicLevelPlaceholder')}
                       className={cn(
                         'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
                         'bg-[var(--input-bg)] border border-[var(--glass-border)]',
@@ -956,21 +1105,21 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Class Type</label>
+                  <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.classType')}</label>
                   <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)]">
-                    {(['weekly', 'temporary'] as const).map(t => (
+                    {(['weekly', 'temporary'] as const).map(ct => (
                       <button
-                        key={t}
+                        key={ct}
                         type="button"
-                        onClick={() => setEditClassType(t)}
+                        onClick={() => setEditClassType(ct)}
                         className={cn(
                           'flex-1 py-2 text-xs font-semibold transition-all duration-150',
-                          editClassType === t
+                          editClassType === ct
                             ? 'bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] text-white'
                             : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
                         )}
                       >
-                        {t === 'weekly' ? 'Weekly' : 'Temporary'}
+                        {ct === 'weekly' ? t('detail.form.weekly') : t('detail.form.temporary')}
                       </button>
                     ))}
                   </div>
@@ -982,11 +1131,11 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     group and produced no sessions at all. */}
                 {editClassType === 'weekly' ? (
                   <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Meets On</label>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.meetsOn')}</label>
                     <DayPicker
                       value={editDay}
                       onChange={setEditDay}
-                      placeholder="Pick the weekly day…"
+                      placeholder={t('detail.form.dayPlaceholder')}
                       /* Carries this form's own field geometry. Without it the
                          picker falls back to its `md` default (`rounded-xl`)
                          and sits above two `rounded-lg` time fields — and above
@@ -1000,7 +1149,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     />
                     <div className="grid grid-cols-2 gap-3 mt-2">
                       <div>
-                        <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Start At</label>
+                        <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.startAt')}</label>
                         <TimePicker
                           value={editStartTime}
                           onChange={setEditStartTime}
@@ -1012,7 +1161,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-[var(--muted)] mb-1 block">End At</label>
+                        <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.endAt')}</label>
                         <TimePicker
                           value={editEndTime}
                           onChange={setEditEndTime}
@@ -1026,21 +1175,22 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     </div>
                     <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
                       {editStartTime && editEndTime && editEndTime > editStartTime
-                        ? `A ${formatDuration(editStartTime, editEndTime)} session, repeating weekly.`
-                        : 'Saving a new time adds a slot and generates its sessions.'}
+                        ? t('detail.form.sessionRepeats', {
+                            duration: formatDuration(editStartTime, editEndTime),
+                          })
+                        : t('detail.form.slotHint')}
                     </p>
                   </div>
                 ) : (
                   <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Time</label>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.time')}</label>
                     <p className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                      A temporary group has no weekly time — its date and hours live on the
-                      one-off session itself, and are edited from that session.
+                      {t('detail.form.temporaryHint')}
                     </p>
                   </div>
                 )}
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Billing Model</label>
+                  <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.billingModel')}</label>
                   <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)]">
                     {(['CREDIT_BASED', 'TIME_BASED'] as const).map(m => (
                       <button
@@ -1054,14 +1204,14 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                             : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
                         )}
                       >
-                        {m === 'CREDIT_BASED' ? 'Credit-Based' : 'Time-Based'}
+                        {m === 'CREDIT_BASED' ? t('detail.form.creditBased') : t('detail.form.timeBased')}
                       </button>
                     ))}
                   </div>
                 </div>
                 {editBillingModel === 'CREDIT_BASED' && (
                   <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Credits per Cycle (N · 1–20)</label>
+                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.creditsPerCycle')}</label>
                     <input
                       type="number"
                       value={editCreditsPerCycle}
@@ -1081,12 +1231,12 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                   </div>
                 )}
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Notes</label>
+                  <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.notes')}</label>
                   <textarea
                     value={editNotes}
                     onChange={(e) => setEditNotes(e.target.value)}
                     rows={2}
-                    placeholder="Optional notes..."
+                    placeholder={t('detail.form.notesPlaceholder')}
                     className={cn(
                       'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)] resize-none',
                       'bg-[var(--input-bg)] border border-[var(--glass-border)]',
@@ -1096,7 +1246,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 </div>
                 {/* Color */}
                 <div>
-                  <label className="text-xs font-medium text-[var(--muted)] mb-1.5 block">Color</label>
+                  <label className="text-xs font-medium text-[var(--muted)] mb-1.5 block">{t('detail.form.color')}</label>
                   <div className="flex gap-2">
                     {COLOR_PRESETS.map((preset) => (
                       <button
@@ -1116,6 +1266,12 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
               </div>
             ) : (
               <>
+                {/* No state badge here, and no `Full` one any more. The state
+                    is a fact about today's teaching — whether a class is
+                    running and who is in it — and this panel is handed the
+                    group's own payload, which carries no `status_color`: a
+                    badge computed here could only guess. The grid's cards, which
+                    do get the server's answer, are where the state is shown. */}
                 <div className="flex items-center gap-3 mb-2">
                   <h1
                     className="text-2xl font-bold text-[var(--text)]"
@@ -1123,12 +1279,6 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                   >
                     {cls.name}
                   </h1>
-
-                  {classStateOf(cls) === 'full' && (
-                    <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-[var(--red-soft)] text-[var(--red)]">
-                      Full
-                    </span>
-                  )}
                 </div>
 
                 <div className="flex items-center gap-2 mb-1">
@@ -1145,8 +1295,10 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                   >
                     {cls.subject}
                   </span>
+                  {/* The letter is the school's own `group_name`; only the word
+                      in front of it is ours. */}
                   {cls.group_name && (
-                    <span className="text-xs text-[var(--muted)]">Group {cls.group_name}</span>
+                    <span className="text-xs text-[var(--muted)]">{t('detail.groupName', { name: cls.group_name })}</span>
                   )}
                   {cls.academic_level && (
                     <span className="text-xs text-[var(--muted)]">{cls.academic_level}</span>
@@ -1160,7 +1312,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                           : 'bg-[var(--gold-soft)] text-[var(--gold)]',
                       )}
                     >
-                      {cls.class_type === 'weekly' ? 'Weekly' : 'One-Time'}
+                      {cls.class_type === 'weekly' ? t('detail.form.weekly') : t('detail.oneTime')}
                     </span>
                   )}
                 </div>
@@ -1172,9 +1324,11 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 {cls.dedicated_time && (
                   <p
                     className="text-xs text-[var(--muted)] mt-1"
-                    title="A note stored on this group. It does not create sessions — see Weekly Schedule."
+                    title={t('detail.dedicatedNoteTitle')}
                   >
-                    Note: {cls.dedicated_time}
+                    {/* The stored prose is the school's own text, so it stays
+                        whole behind the label rather than inside the sentence. */}
+                    {t('detail.dedicatedNote', { text: cls.dedicated_time })}
                   </p>
                 )}
                 {cls.notes && (
@@ -1191,23 +1345,23 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
               <div className="flex items-center gap-2 mb-1">
                 <GraduationCap size={14} className="text-[var(--muted)]" />
                 <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">
-                  Teacher
+                  {t('detail.stats.teacher')}
                 </span>
               </div>
               {(() => {
-                const t = cls.teacher_id ? teachers.find((x) => x.id === cls.teacher_id) : undefined
-                const email = t?.email ?? (cls.teacher_id ? getTeacherEmail(cls.teacher_id) : null) ?? null
-                const phone = t?.phone ?? null
+                const tc = cls.teacher_id ? teachers.find((x) => x.id === cls.teacher_id) : undefined
+                const email = tc?.email ?? (cls.teacher_id ? getTeacherEmail(cls.teacher_id) : null) ?? null
+                const phone = tc?.phone ?? null
                 return (
                   <>
                     <p className="text-sm font-medium text-[var(--text)] truncate">
-                      {cls.teacher_name || 'Unassigned'}
+                      {cls.teacher_name || t('detail.unassigned')}
                     </p>
                     <p className="text-[11px] text-[var(--muted)] truncate mt-0.5" title={email ?? undefined}>
-                      {email ?? 'Not set'}
+                      {email ?? t('detail.notSet')}
                     </p>
                     <p className="text-[11px] text-[var(--muted)] truncate">
-                      {phone ?? 'Not set'}
+                      {phone ?? t('detail.notSet')}
                     </p>
                   </>
                 )
@@ -1219,7 +1373,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
               <div className="flex items-center gap-2 mb-1">
                 <Users size={14} className="text-[var(--muted)]" />
                 <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">
-                  Capacity
+                  {t('detail.stats.capacity')}
                 </span>
               </div>
               <p className="text-sm font-medium text-[var(--text)]">
@@ -1239,21 +1393,23 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 className="text-sm font-bold text-[var(--text)] mb-3"
                 style={{ fontFamily: 'var(--font-heading)' }}
               >
-                Weekly Schedule
+                {t('detail.weeklySchedule')}
               </h2>
 
               <div className="glass rounded-xl overflow-hidden">
-                {/* Schedule mini-grid */}
+                {/* Schedule mini-grid. The gutter is on the inline start and the
+                    day columns open on the inline end, so the grid runs the way
+                    the language does. */}
                 <div className="flex">
                   {/* Time gutter */}
-                  <div className="w-12 shrink-0 border-r border-[var(--divider)]">
+                  <div className="w-12 shrink-0 border-e border-[var(--divider)]">
                     {hours.map((hour) => (
                       <div
                         key={hour}
-                        className="text-[9px] text-[var(--muted)] text-right pr-2 pt-0.5"
+                        className="text-[9px] text-[var(--muted)] text-end pe-2 pt-0.5"
                         style={{ height: 32 }}
                       >
-                        {hour > 12 ? `${hour - 12}PM` : hour === 12 ? '12PM' : `${hour}AM`}
+                        {formatHour12(hour)}
                       </div>
                     ))}
                   </div>
@@ -1262,12 +1418,12 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                   {WEEKDAY_INDICES.map((dayIdx) => (
                     <div
                       key={dayIdx}
-                      className="flex-1 border-l border-[var(--divider)]"
+                      className="flex-1 border-s border-[var(--divider)]"
                     >
                       {/* Day header */}
                       <div className="text-center py-1 border-b border-[var(--divider)]">
                         <span className="text-[9px] font-semibold text-[var(--muted)] uppercase">
-                          {DAY_LABELS[dayIdx]}
+                          {t(DAY_KEYS[dayIdx])}
                         </span>
                       </div>
 
@@ -1298,7 +1454,9 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                                 top,
                                 height: Math.max(height, 12),
                                 backgroundColor: `${color}25`,
-                                borderLeft: `2px solid ${color}`,
+                                // Inline-start, so the block's leading edge
+                                // stays the leading edge in Arabic.
+                                borderInlineStart: `2px solid ${color}`,
                               }}
                             >
                               <span
@@ -1325,11 +1483,11 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 className="text-sm font-bold text-[var(--text)]"
                 style={{ fontFamily: 'var(--font-heading)' }}
               >
-                Enrolled Students
+                {t('detail.enrolled.title')}
               </h2>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--muted)]">
-                  {cls.enrolled_count} of {cls.capacity}
+                  {t('detail.enrolled.countOf', { enrolled: cls.enrolled_count, capacity: cls.capacity })}
                 </span>
                 <button
                   onClick={openBulkEnroll}
@@ -1341,19 +1499,19 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                   )}
                 >
                   <UserPlus size={13} />
-                  Add Students
+                  {t('detail.enrolled.addStudents')}
                 </button>
               </div>
             </div>
 
             {loadingStudents ? (
               <div className="glass rounded-xl p-6 text-center">
-                <p className="text-sm text-[var(--muted)]">Loading students...</p>
+                <p className="text-sm text-[var(--muted)]">{t('detail.enrolled.loading')}</p>
               </div>
             ) : enrolledStudents.length === 0 ? (
               <div className="glass rounded-xl p-6 text-center">
                 <p className="text-sm text-[var(--muted)]">
-                  No students enrolled yet.
+                  {t('detail.enrolled.empty')}
                 </p>
                 <button
                   onClick={openBulkEnroll}
@@ -1365,7 +1523,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                   )}
                 >
                   <UserPlus size={13} />
-                  Add Students
+                  {t('detail.enrolled.addStudents')}
                 </button>
               </div>
             ) : (
@@ -1389,6 +1547,10 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                         <p className="text-[10px] text-[var(--muted)]">{student.phone}</p>
                       )}
                     </div>
+                    {/* The badge speaks for the billing side; the tooltip
+                        names the enrollment itself, which is a different
+                        question and used to be the only thing either showed
+                        because it printed the raw enum. */}
                     <span
                       className={cn(
                         'text-[10px] font-medium px-2 py-0.5 rounded-full',
@@ -1400,9 +1562,9 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                               ? 'bg-[var(--gold-soft)] text-[var(--gold)]'
                               : 'bg-[var(--glass)] text-[var(--muted)] border border-[var(--glass-border)]',
                       )}
-                      title={`Enrollment: ${student.status}`}
+                      title={t('detail.enrolled.statusTitle', { status: statusLabel(student.status) })}
                     >
-                      {student.billing_label ?? student.status}
+                      {badgeLabel(student)}
                     </span>
                   </div>
                 ))}
@@ -1429,15 +1591,20 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
             {/* Header */}
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-base font-bold text-[var(--text)]" style={{ fontFamily: 'var(--font-heading)' }}>
-                Add Students to {cls.name}
+                {t('detail.bulk.title', { name: cls.name })}
               </h3>
               <button onClick={() => setShowBulkEnroll(false)} className="p-1 rounded-lg text-[var(--muted)] hover:bg-[var(--glass)]">
                 <X size={14} />
               </button>
             </div>
-            {/* T9: "X available" (unenrolled only) */}
+            {/* T9: "X available" (unenrolled only). The group's own name is the
+                only user data here, and it stays a token. */}
             <p className="text-[11px] text-[var(--muted)] mb-3">
-              {bulkError ?? `${allStudents.length} available${bulkTotal != null ? ` of ${bulkTotal}` : ''} · enrolled never appear`}
+              {bulkError
+                ? t(bulkError)
+                : bulkTotal != null
+                  ? t('detail.bulk.availableOf', { available: allStudents.length, total: bulkTotal })
+                  : t('detail.bulk.available', { available: allStudents.length })}
             </p>
             {bulkError && (
               <button
@@ -1445,20 +1612,20 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 onClick={() => openBulkEnroll()}
                 className="mb-3 text-[11px] font-semibold text-[var(--gold)] hover:underline"
               >
-                {bulkError} Retry
+                {t(bulkError)} {t('common:action.retry')}
               </button>
             )}
 
             {/* Search */}
             <div className="relative mb-3">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
               <input
                 type="text"
                 value={studentSearch}
                 onChange={(e) => setStudentSearch(e.target.value)}
-                placeholder="Search students..."
+                placeholder={t('detail.bulk.searchPlaceholder')}
                 className={cn(
-                  'w-full pl-9 pr-3 py-2 rounded-xl text-sm text-[var(--text)]',
+                  'w-full ps-9 pe-3 py-2 rounded-xl text-sm text-[var(--text)]',
                   'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                   'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
                 )}
@@ -1469,7 +1636,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
             <div className="max-h-60 overflow-y-auto space-y-1 mb-4">
               {filteredStudents.length === 0 ? (
                 <p className="text-sm text-[var(--muted)] text-center py-4">
-                  No students available to enroll
+                  {t('detail.bulk.empty')}
                 </p>
               ) : (
                 filteredStudents.map((student) => {
@@ -1480,7 +1647,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                       type="button"
                       onClick={() => toggleStudentSelection(student.id)}
                       className={cn(
-                        'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-all duration-150',
+                        'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-start transition-all duration-150',
                         isSelected
                           ? 'bg-[var(--emerald-soft)] border border-[var(--emerald)]/30'
                           : 'bg-[var(--input-bg)] border border-[var(--glass-border)] hover:border-[var(--emerald)]/20',
@@ -1512,7 +1679,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                 onClick={() => setShowBulkEnroll(false)}
                 className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)]"
               >
-                Cancel
+                {t('common:action.cancel')}
               </button>
               <button
                 onClick={handleBulkEnroll}
@@ -1524,7 +1691,9 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                   'transition-all duration-150',
                 )}
               >
-                {enrolling ? 'Enrolling...' : `Add ${selectedStudentIds.length} Student${selectedStudentIds.length !== 1 ? 's' : ''}`}
+                {enrolling
+                  ? t('detail.bulk.enrolling')
+                  : t('detail.bulk.add', { count: selectedStudentIds.length })}
               </button>
             </div>
           </div>
@@ -1536,14 +1705,17 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
       <PinConfirmDialog
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
-        title="Delete this group?"
-        confirmLabel="Delete group"
+        title={t('detail.delete.title')}
+        confirmLabel={t('detail.delete.confirm')}
+        // The group's name is the subject of the sentence in every language, so
+        // it stays outside the translated tail rather than inside a string that
+        // would have to be re-ordered for Arabic. The letter in brackets is the
+        // school's own `group_name`, carried whole by its own key.
         message={
           <>
             <strong className="font-semibold">{cls.name}</strong>
-            {cls.group_name ? ` (Group ${cls.group_name})` : ''} and its schedule will be
-            removed. Enrolled students keep their records — they are simply no longer in
-            this group.
+            {cls.group_name ? t('detail.delete.groupTag', { name: cls.group_name }) : ''}{' '}
+            {t('detail.delete.body')}
           </>
         }
         onConfirm={handleDelete}

@@ -49,14 +49,9 @@ def create_app(config_name="development"):
 
     api.init_app(app)
 
-    # Enable SQLite foreign key enforcement (required for ON DELETE CASCADE)
-    @app.before_request
-    def _ensure_sqlite_fk():
-        from sqlalchemy import text
-        engine = db.engine
-        if "sqlite" in str(engine.url):
-            with engine.connect() as conn:
-                conn.execute(text("PRAGMA foreign_keys=ON"))
+    # SQLite foreign key enforcement is switched on per connection, in
+    # app/extensions.py. It cannot be done here: a before_request hook sets the
+    # pragma on one pooled connection while the request may run on another.
 
     # JWT token blocklist callback (C-05)
     from app.utils.token_blacklist import is_token_blacklisted

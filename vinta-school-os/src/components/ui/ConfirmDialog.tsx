@@ -1,4 +1,5 @@
-import { forwardRef, useCallback, type ReactNode } from 'react'
+import { forwardRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '../../lib/cn'
@@ -17,7 +18,7 @@ export interface ConfirmDialogProps {
   title: string
   /** Body message / warning text */
   message: string
-  /** Label for the confirm button (default: "Confirm") */
+  /** Label for the confirm button (default: common:action.confirm) */
   confirmLabel?: string
   /** danger = red confirm button, warning = amber/gold confirm button (default: danger) */
   variant?: 'danger' | 'warning'
@@ -33,11 +34,13 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
       onConfirm,
       title,
       message,
-      confirmLabel = 'Confirm',
+      confirmLabel,
       variant = 'danger',
     },
     ref,
   ) => {
+    const { t } = useTranslation('common')
+
     /* Click outside to close */
     const handleBackdropClick = useCallback(
       (e: React.MouseEvent) => {
@@ -120,7 +123,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
                 'transition-colors duration-150',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]',
               )}
-              aria-label="Cancel"
+              aria-label={t('action.cancel')}
             >
               <X className="w-4 h-4" />
             </button>
@@ -133,14 +136,14 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
               size="sm"
               onClick={onClose}
             >
-              Cancel
+              {t('action.cancel')}
             </Button>
             <Button
               variant={variant === 'danger' ? 'danger' : 'primary'}
               size="sm"
               onClick={handleConfirm}
             >
-              {confirmLabel}
+              {confirmLabel ?? t('action.confirm')}
             </Button>
           </div>
         </div>

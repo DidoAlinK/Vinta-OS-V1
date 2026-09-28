@@ -1,0 +1,328 @@
+{
+  "day": {
+    "sun": "Sun",
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat"
+  },
+  "status": {
+    "active": "Active",
+    "withdrawn": "Withdrawn",
+    "expired": "Expired",
+    "overdue": "Overdue",
+    "transferred": "Transferred",
+    "notEnrolled": "Not enrolled in a group"
+  },
+  "grid": {
+    "status": {
+      "scheduled": "Scheduled",
+      "active": "Active",
+      "empty": "Empty"
+    },
+    "emptyTitle": "No classes yet",
+    "emptyBody": "Create your first class to start managing students and schedules.",
+    "enrolled": "{{enrolled}}/{{capacity}} enrolled"
+  },
+  "form": {
+    "billingModel": "Billing Model",
+    "creditBased": "Credit-Based",
+    "timeBased": "Time-Based",
+    "price": "Price (DA)",
+    "creditsPerCycle": "Credits / Cycle (N · 1–20)",
+    "cycleWeekLimit": "Cycle Week Limit",
+    "optional": "Optional",
+    "allowRollover": "Allow Rollover",
+    "allowMakeups": "Allow Makeups",
+    "accessDuration": "Access Duration (weeks)"
+  },
+  "quickCreate": {
+    "title": "New class",
+    "selected": "Created and selected here",
+    "namePlaceholder": "e.g. Math — CM2",
+    "subject": "Subject",
+    "teacher": "Teacher",
+    "teacherNone": "— None —",
+    "searchSubjects": "Search subjects…",
+    "searchTeachers": "Search teachers…",
+    "capacity": "Capacity",
+    "colour": "Colour",
+    "billing": "Billing",
+    "creating": "Creating…",
+    "submit": "Create class",
+    "error": {
+      "name": "A class needs a name.",
+      "create": "Could not create the class. Please try again."
+    },
+    "toast": {
+      "created": "Class created",
+      "createdBody": "{{name}} is ready — it is selected below."
+    }
+  },
+  "addGroup": {
+    "title": "Add Course Group",
+    "submit": "Add Course Group",
+    "name": "Group Name",
+    "namePlaceholder": "e.g. Math — CM2",
+    "subject": "Subject",
+    "teacher": "Teacher",
+    "teacherNone": "— None —",
+    "unnamedTeacher": "Unnamed teacher",
+    "capacity": "Capacity",
+    "classType": "Class Type",
+    "classTypeWeekly": "Weekly",
+    "classTypeTemporary": "Temporary",
+    "meetingDay": "Meeting Day",
+    "sessionDate": "Session Date",
+    "dayPlaceholder": "Pick the weekly day…",
+    "repeatsEvery": "Repeats every {{day}}",
+    "dayHint": "The weekday anchors the weekly series.",
+    "datePlaceholder": "Pick the one-off date…",
+    "oneOffHint": "One session only — never spawns a series.",
+    "startAt": "Start At",
+    "endAt": "End At",
+    "durationSession": "A {{duration}} session.",
+    "timeHint": "The class runs from Start At to End At.",
+    "color": "Color",
+    "notes": "Notes",
+    "notesPlaceholder": "Optional notes…",
+    "level": "Academic Level",
+    "levelPlaceholder": "e.g. CM2",
+    "groupName": "Group Name",
+    "maxGroups": "Max Groups Included",
+    "enforceAttendance": "Enforce Attendance",
+    "attendanceThreshold": "Attendance Threshold:",
+    "section": {
+      "basic": "Basic Info",
+      "academic": "Academic",
+      "billing": "Billing",
+      "attendance": "Attendance"
+    },
+    "billing": {
+      "model": "Billing Model",
+      "creditBased": "Credit-Based",
+      "timeBased": "Time-Based",
+      "price": "Price (DA)",
+      "creditsPerCycle": "Credits / Cycle (N · 1–20)",
+      "cycleWeekLimit": "Cycle Week Limit",
+      "optional": "Optional",
+      "allowRollover": "Allow Rollover",
+      "allowMakeups": "Allow Makeups",
+      "accessDuration": "Access Duration (weeks)"
+    },
+    "error": {
+      "name": "Give the group a name.",
+      "times": "Set when the class starts and ends.",
+      "timeOrder": "End At must be after Start At.",
+      "day": "Pick the day this group meets each week.",
+      "teacher": "Pick a teacher — a weekly group needs one before its sessions can be created.",
+      "date": "Pick the date for this one-off session."
+    }
+  },
+  "addRoom": {
+    "title": "Add Classroom",
+    "submit": "Add Classroom",
+    "name": "Room Name",
+    "namePlaceholder": "e.g. Hall A",
+    "capacity": "Capacity"
+  },
+  "rooms": {
+    "loading": "Loading rooms…",
+    "emptyTitle": "No physical rooms yet",
+    "emptyBody": "Add a classroom to get started",
+    "capacity": "Cap. {{capacity}}",
+    "deleteConfirm": "Delete room",
+    "deleteTitle": "Delete this room?",
+    "deleteBody": "will be removed from the list of physical rooms. Sessions already placed in it keep their history."
+  },
+  "page": {
+    "title": "Classrooms",
+    "subtitle": "Manage course groups and physical rooms",
+    "addCourseGroup": "Add Course Group",
+    "addRoom": "Add Room",
+    "tab": {
+      "courses": "Course Groups",
+      "rooms": "Physical Rooms"
+    },
+    "stats": {
+      "scheduled": "Scheduled",
+      "active": "Active",
+      "empty": "Empty"
+    },
+    "toast": {
+      "notCreated": "Group not created",
+      "createFallback": "Could not create the group. Please try again.",
+      "created": "Group created",
+      "createdWithSessions_one": "{{name}} added, with {{count}} session on the calendar.",
+      "createdWithSessions_other": "{{name}} added, with {{count}} sessions on the calendar.",
+      "createdNoSessions": "{{name}} added. No sessions were generated — check the times.",
+      "createdOneOff": "{{name}} added, with its one-off session.",
+      "createdTimesExist": "{{name}} added. Its times were already set.",
+      "sessionsFailedTitle": "Sessions not generated",
+      "sessionsFailedFallback": "The group was created but its sessions were not. Set the times from the group panel.",
+      "deleteFailed": "Delete failed",
+      "roomDeleteFailed": "The room was not deleted. Press Retry.",
+      "roomDeleted": "Room deleted",
+      "roomDeletedBody": "\"{{name}}\" has been removed."
+    }
+  },
+  "cardMenu": {
+    "menuLabel": "Group menu",
+    "menuLoading": "Loading this group’s sessions…",
+    "freeLabel": "The next class of this group is free — no credit spent, no revenue",
+    "freeChip": "FREE",
+    "openGroup": "Open the group",
+    "light": {
+      "overdue": "A class of this group is past its end time and still open",
+      "running": "A class of this group is in progress"
+    },
+    "noSession": {
+      "failedTitle": "Could not read the schedule",
+      "title": "No upcoming session",
+      "failedBody": "The server did not answer, so this group has no menu to offer. Reload to try again.",
+      "body": "Start Class, End Class and the free-session flag all act on one session, and this group has none scheduled from today on."
+    },
+    "toast": {
+      "alreadyRunning": "Class already running",
+      "started": "Class started",
+      "registerOpened_one": "Register opened — {{count}} student marked absent until they arrive.",
+      "registerOpened_other": "Register opened — {{count}} students marked absent until they arrive.",
+      "inProgress": "{{name}} is now in progress.",
+      "startFailed": "Could not start the class",
+      "startRefused": "The server refused the request.",
+      "extended": "Class extended",
+      "extendedBody": "{{name}} now ends at {{time}}",
+      "extendFailed": "Could not extend",
+      "extendFailedBody": "The end time was not changed. Please try again."
+    },
+    "endClass": {
+      "title": "End class",
+      "submit": "End Class",
+      "ending": "Ending…",
+      "thisClass": "This class",
+      "pin": "Staff PIN",
+      "body": "Closing the register marks the class conducted. Anyone still marked absent is charged for the missed session, under this academy's Billing Rules.",
+      "alreadyFinished": "Class already finished",
+      "finished": "Class finished",
+      "absentCharged": "{{absent}} absent — {{charged}} charged for the missed session.",
+      "allPresent": "Everyone was present. No credits moved.",
+      "error": "Could not end the class."
+    }
+  },
+  "detail": {
+    "notSet": "Not set",
+    "unassigned": "Unassigned",
+    "saving": "Saving…",
+    "oneTime": "One-Time",
+    "groupName": "Group {{name}}",
+    "weeklySchedule": "Weekly Schedule",
+    "scheduleNotSet": "Schedule Not set",
+    "slots_one": "{{count}} slot",
+    "slots_other": "{{count}} slots",
+    "dedicatedNoteTitle": "A note stored on this group. It does not create sessions — see Weekly Schedule.",
+    "dedicatedNote": "Note: {{text}}",
+    "stats": {
+      "teacher": "Teacher",
+      "capacity": "Capacity",
+      "billing": "Billing"
+    },
+    "billing": {
+      "noSubs": "No subs yet",
+      "overdueCount": "OVERDUE ×{{n}}",
+      "depletedCount": "DEPLETED ×{{n}}",
+      "paidLow": "Paid · low ×{{n}}",
+      "paidCount": "Paid ×{{n}}",
+      "creditLine": "N={{n}} · {{price}}",
+      "priceNotSet": "Price Not set",
+      "timeBasedSoon": "Time-based · Coming Soon",
+      "debt": "debt {{n}}",
+      "credits": "{{n}} cr",
+      "paid": "Paid",
+      "depleted": "DEPLETED",
+      "overdue": "OVERDUE"
+    },
+    "enrolled": {
+      "title": "Enrolled Students",
+      "countOf": "{{enrolled}} of {{capacity}}",
+      "addStudents": "Add Students",
+      "loading": "Loading students…",
+      "empty": "No students enrolled yet.",
+      "statusTitle": "Enrollment: {{status}}"
+    },
+    "form": {
+      "namePlaceholder": "Class name",
+      "subject": "Subject",
+      "teacher": "Teacher",
+      "teacherNone": "None",
+      "capacity": "Capacity",
+      "price": "Price (DA)",
+      "groupName": "Group Name",
+      "academicLevel": "Academic Level",
+      "academicLevelPlaceholder": "e.g. CM2",
+      "classType": "Class Type",
+      "weekly": "Weekly",
+      "temporary": "Temporary",
+      "meetsOn": "Meets On",
+      "dayPlaceholder": "Pick the weekly day…",
+      "startAt": "Start At",
+      "endAt": "End At",
+      "sessionRepeats": "A {{duration}} session, repeating weekly.",
+      "slotHint": "Saving a new time adds a slot and generates its sessions.",
+      "time": "Time",
+      "temporaryHint": "A temporary group has no weekly time — its date and hours live on the one-off session itself, and are edited from that session.",
+      "billingModel": "Billing Model",
+      "creditBased": "Credit-Based",
+      "timeBased": "Time-Based",
+      "creditsPerCycle": "Credits per Cycle (N · 1–20)",
+      "notes": "Notes",
+      "notesPlaceholder": "Optional notes…",
+      "color": "Color"
+    },
+    "errors": {
+      "checkTimes": "Check the times",
+      "needBothTimes": "A slot needs both a Start At and an End At.",
+      "endAfterStart": "End At must be after Start At.",
+      "pickDay": "Pick the day",
+      "pickDayBody": "Pick the weekday this group meets.",
+      "timeNotSaved": "Time not saved",
+      "timeNotSavedBody": "The group was saved, but its time was not."
+    },
+    "toast": {
+      "updated": "Class updated",
+      "updatedBody": "Changes have been saved.",
+      "updateFailed": "Update failed",
+      "updateFailedBody": "Could not save changes.",
+      "deleteFailed": "Delete failed",
+      "deleteFailedBody": "The group was not deleted. Press Retry."
+    },
+    "bulk": {
+      "title": "Add Students to {{name}}",
+      "listFailed": "Student list Not set.",
+      "listFailedTitle": "Add Students failed",
+      "listFailedBody": "Student list Not set. Press Retry.",
+      "available": "{{available}} available · enrolled never appear",
+      "availableOf": "{{available}} available of {{total}} · enrolled never appear",
+      "searchPlaceholder": "Search students…",
+      "empty": "No students available to enroll",
+      "enrolling": "Enrolling…",
+      "add_one": "Add {{count}} Student",
+      "add_other": "Add {{count}} Students",
+      "enrolled": "Students enrolled",
+      "enrolledBody_one": "{{count}} student added to {{name}}.",
+      "enrolledBody_other": "{{count}} students added to {{name}}.",
+      "skipped": "Some skipped",
+      "skippedBody_one": "{{count}} student could not be enrolled.",
+      "skippedBody_other": "{{count}} students could not be enrolled.",
+      "failed": "Enrollment failed",
+      "failedBody": "Could not enroll students. Press Retry."
+    },
+    "delete": {
+      "title": "Delete this group?",
+      "confirm": "Delete group",
+      "groupTag": " (Group {{name}})",
+      "body": "and its schedule will be removed. Enrolled students keep their records — they are simply no longer in this group."
+    }
+  }
+}

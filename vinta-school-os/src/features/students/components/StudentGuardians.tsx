@@ -10,6 +10,7 @@
  * guardian. With neither present, the card says so in one muted sentence.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Phone, User, Users } from 'lucide-react'
 import { cn } from '../../../lib/cn'
 import { formatPhone } from '../../../lib/formatters'
@@ -39,6 +40,7 @@ function safePhone(raw: string | null | undefined): string | null {
 }
 
 export function StudentGuardians({ guardians, parentPhone }: StudentGuardiansProps) {
+  const { t } = useTranslation('students')
   const listed = Array.isArray(guardians) ? guardians : []
 
   const rows: GuardianRow[] = listed
@@ -56,7 +58,8 @@ export function StudentGuardians({ guardians, parentPhone }: StudentGuardiansPro
     if (fallback) {
       rows.push({
         key: 'parent-phone',
-        name: 'Parent / Guardian',
+        // A role, not a person's name — so it is translated like any label.
+        name: t('guardians.parentFallback'),
         relationship: null,
         phone: fallback,
         isEmergency: false,
@@ -65,9 +68,9 @@ export function StudentGuardians({ guardians, parentPhone }: StudentGuardiansPro
   }
 
   return (
-    <ProfileCard title="Guardians" icon={<Users size={13} />}>
+    <ProfileCard title={t('guardians.title')} icon={<Users size={13} />}>
       {rows.length === 0 ? (
-        <EmptyLine>No guardians on record.</EmptyLine>
+        <EmptyLine>{t('guardians.empty')}</EmptyLine>
       ) : (
         <ul className="space-y-2 list-none m-0 p-0">
           {rows.map((row) => {
@@ -107,9 +110,9 @@ export function StudentGuardians({ guardians, parentPhone }: StudentGuardiansPro
                           'bg-red-soft',
                           'text-red',
                         )}
-                        title="Emergency contact"
+                        title={t('guardians.emergencyContact')}
                       >
-                        Emergency
+                        {t('guardians.emergency')}
                       </span>
                     ) : null}
                   </div>
@@ -128,8 +131,8 @@ export function StudentGuardians({ guardians, parentPhone }: StudentGuardiansPro
                 {phone ? (
                   <a
                     href={`tel:${phone}`}
-                    aria-label={`Call ${row.name}`}
-                    title={`Call ${row.name}`}
+                    aria-label={t('guardians.call', { name: row.name })}
+                    title={t('guardians.call', { name: row.name })}
                     className="p-1.5 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[var(--glass)]"
                     style={{ color: 'var(--emerald)' }}
                   >

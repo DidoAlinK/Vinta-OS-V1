@@ -22,7 +22,7 @@ def create_academy(name: str, email: str, password: str) -> dict:
     academy = Academy(
         id=str(uuid.uuid4()),
         name=name,
-        email=email,
+        email=User.normalize_email(email),
         weekend_day=5,  # Friday for Algeria
         current_term="2026 — Fall term",
     )
@@ -84,7 +84,9 @@ def create_owner_profile(
         id=str(uuid.uuid4()),
         academy_id=academy_id,
         name=name,
-        email=email,
+        # Stored normalised: this is the address `authenticate_owner` will be
+        # searched with on every later login, and the two must match exactly.
+        email=User.normalize_email(email),
         role="owner",
         pin_hash=User.hash_pin(pin),
         password_hash=User.hash_password(password),

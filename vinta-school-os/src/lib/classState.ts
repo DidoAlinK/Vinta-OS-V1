@@ -1,43 +1,65 @@
 /**
- * Vinta School OS — A group's enrollment state
+ * Vinta School OS — What a group's card says is happening
  *
- * `GET /classes` decides this for every group and sends it as `status_color`
- * (red / amber / green / grey), derived from the active enrollment count with one
- * guard worth repeating: a capacity of 0 means "nobody has set a capacity", not
- * "no seats left". The screens are where that is easy to get wrong — `enrolled >=
- * capacity` reads a group with no capacity as permanently full, and an unguarded
- * `enrolled / capacity` prints `NaN%`.
+ * `GET /classes` decides this for every group and sends it as `status_color`:
  *
- * So the server's answer is the answer, and the fallback mirrors it exactly for
- * any payload that predates the field. Nothing here invents a state the server
- * would not have chosen — which is why the fallback can never return
- * `unscheduled`: whether a group meets is in the database, not in the payload,
- * and guessing it from a missing field would put "No schedule" on every card the
- * moment one request came back thin.
+ *   amber  Scheduled   students enrolled and a time on the books; the class
+ *                      has not started
+ *   green  Active      the class is running and somebody is in the room
+ *   red    Empty       the class is running with nobody in it, or the group
+ *                      has students and no time at all — it can never run as
+ *                      it stands
+ *   grey   Empty       nobody enrolled, nothing to teach
+ *
+ * Two colours share the word "Empty" deliberately: the word is about the room
+ * (there is nobody in it), and the colour is about whether the desk should
+ * care (red = somebody is supposed to be in there).
+ *
+ * "Full" was a state here and is gone. A room at capacity is not a state of
+ * the day's teaching — it outranked everything else, so a full group running
+ * with everybody present was painted the same red as a full group that never
+ * meets, and the colour said nothing. The count is still on the card, in the
+ * enrollment bar, which is where a number belongs.
+ *
+ * The server's answer is the answer. The fallback below mirrors it for any
+ * payload that predates a field, using only facts that payload actually
+ * carries — an absent fact is never read as one, or a thin response would put
+ * the same word on every card.
  */
 
 import type { Class } from '../types/class'
 
-export type ClassState = 'full' | 'active' | 'empty' | 'unscheduled'
+export type ClassState = 'scheduled' | 'active' | 'empty' | 'unattended'
 
-/** Full / active / empty / unscheduled, as the server sees it. */
+/** Scheduled / active / empty / unattended, as the server sees it. */
 export function classStateOf(cls: Class): ClassState {
   switch (cls.status_color) {
-    case 'red':
-      return 'full'
     case 'amber':
-      return 'unscheduled'
+      return 'scheduled'
     case 'green':
       return 'active'
     case 'grey':
       return 'empty'
+    case 'red':
+      return 'unattended'
   }
 
   // No status_color on this payload: derive it the way `list_classes` does.
-  const capacity = cls.capacity ?? 0
+  //
+  // `is_running` is the server's own fact about its own clock. Only `true` can
+  // make a card say Active; when the flag is missing we cannot know a class is
+  // on, so the worst we may say is "scheduled" — never "active".
   const enrolled = cls.enrolled_count ?? 0
-  if (capacity > 0 && enrolled >= capacity) return 'full'
-  return enrolled > 0 ? 'active' : 'empty'
+  if (cls.is_running === true) {
+    return (cls.students_present ?? 0) > 0 ? 'active' : 'unattended'
+  }
+  if (enrolled <= 0) return 'empty'
+
+  // Students, so the server's last branch turns on whether the group meets.
+  // Answer it only from a schedule list this payload really carried — `[]`
+  // means no time was ever set, `undefined` means nobody asked.
+  if (Array.isArray(cls.schedules) && cls.schedules.length === 0) return 'unattended'
+  return 'scheduled'
 }
 
 /**
@@ -45,7 +67,7 @@ export function classStateOf(cls: Class): ClassState {
  *
  * 0 when there is no capacity to divide by. `Math.min(NaN, 100)` is NaN, and a
  * width of `NaN%` is dropped by the browser — which leaves the bar at its full
- * width, so a group with no capacity looked like a full one.
+ * width, so a group with no capacity set looked like a packed room.
  */
 export function classFillPercent(cls: Class): number {
   const capacity = cls.capacity ?? 0

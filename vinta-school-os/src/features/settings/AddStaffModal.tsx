@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X, UserPlus } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { useAuthStore } from '../../stores/authStore'
@@ -23,6 +24,7 @@ export interface AddStaffModalProps {
 // ============================================
 
 export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModalProps) {
+  const { t } = useTranslation('settings')
   const createProfile = useAuthStore((s) => s.createProfile)
 
   const [name, setName] = useState('')
@@ -53,19 +55,19 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
     setError('')
 
     if (!name.trim()) {
-      setError('Name is required')
+      setError(t('addStaff.error.nameRequired'))
       return
     }
     if (pin.length !== 4) {
-      setError('PIN must be 4 digits')
+      setError(t('addStaff.error.pinLength'))
       return
     }
     if (pin !== confirmPin) {
-      setError('PINs do not match')
+      setError(t('addStaff.error.pinMismatch'))
       return
     }
     if (!ownerPin || ownerPin.length !== 4) {
-      setError('Owner PIN is required to create a staff profile')
+      setError(t('addStaff.error.ownerPinRequired'))
       return
     }
 
@@ -85,11 +87,11 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
       onClose()
     } catch (err: unknown) {
       const e = err as { message?: string; response?: { data?: { error?: string } } }
-      setError(e.response?.data?.error || e.message || 'Failed to create staff profile')
+      setError(e.response?.data?.error || e.message || t('addStaff.error.failed'))
     } finally {
       setIsSubmitting(false)
     }
-  }, [name, pin, confirmPin, phone, ownerPin, createProfile, resetForm, onAdded, onClose])
+  }, [t, name, pin, confirmPin, phone, ownerPin, createProfile, resetForm, onAdded, onClose])
 
   if (!isOpen) return null
 
@@ -116,11 +118,12 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
               className="text-lg font-bold text-[var(--text)]"
               style={{ fontFamily: 'var(--font-heading)' }}
             >
-              Add Staff Profile
+              {t('addStaff.title')}
             </h2>
           </div>
           <button
             onClick={handleClose}
+            aria-label={t('common:action.close')}
             className={cn(
               'p-1.5 rounded-lg text-[var(--muted)]',
               'hover:bg-[var(--glass)] hover:text-[var(--text)]',
@@ -141,18 +144,18 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
         {/* Form */}
         <div className="space-y-4">
           {/* Name */}
-          <Field label="Name" required>
+          <Field label={t('common:label.name')} required>
             <input
               type="text"
               value={name}
               onChange={(e) => { setName(e.target.value); setError('') }}
-              placeholder="Staff member name"
+              placeholder={t('addStaff.namePlaceholder')}
               className={inputCls}
             />
           </Field>
 
           {/* Phone */}
-          <Field label="Phone">
+          <Field label={t('common:label.phone')}>
             <input
               type="tel"
               value={phone}
@@ -163,7 +166,7 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
           </Field>
 
           {/* Role */}
-          <Field label="Role" required>
+          <Field label={t('addStaff.role')} required>
             <div className="flex gap-2">
               {(['staff', 'owner'] as const).map((r) => (
                 <button
@@ -179,7 +182,7 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
                       : 'bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)] hover:border-[var(--muted)]/30',
                   )}
                 >
-                  {r === 'owner' ? '👑 Owner' : '👤 Staff'}
+                  {r === 'owner' ? t('addStaff.roleOwner') : t('addStaff.roleStaff')}
                 </button>
               ))}
             </div>
@@ -187,7 +190,7 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
 
           {/* PIN */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="PIN" required>
+            <Field label={t('addStaff.pin')} required>
               <input
                 type="password"
                 value={pin}
@@ -197,7 +200,7 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
                 className={inputCls}
               />
             </Field>
-            <Field label="Confirm PIN" required>
+            <Field label={t('addStaff.confirmPin')} required>
               <input
                 type="password"
                 value={confirmPin}
@@ -210,12 +213,12 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
           </div>
 
           {/* Owner PIN */}
-          <Field label="Your Owner PIN" required>
+          <Field label={t('addStaff.ownerPin')} required>
             <input
               type="password"
               value={ownerPin}
               onChange={(e) => { setOwnerPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setError('') }}
-              placeholder="Enter your PIN to authorize"
+              placeholder={t('addStaff.ownerPinPlaceholder')}
               maxLength={4}
               className={inputCls}
             />
@@ -232,7 +235,7 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
               'hover:bg-[var(--glass)] transition-colors duration-150',
             )}
           >
-            Cancel
+            {t('common:action.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -245,7 +248,7 @@ export default function AddStaffModal({ isOpen, onClose, onAdded }: AddStaffModa
               'transition-all duration-150',
             )}
           >
-            {isSubmitting ? 'Adding…' : 'Add Staff'}
+            {isSubmitting ? t('addStaff.submitting') : t('addStaff.submit')}
           </button>
         </div>
       </div>

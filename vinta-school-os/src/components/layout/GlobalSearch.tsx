@@ -27,6 +27,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { BookOpen, GraduationCap, Search, Users } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
@@ -46,12 +48,20 @@ const GROUP_LIMIT = 6
 /** How long a whole-list fetch of teachers / groups is reused. */
 const CACHE_MS = 60_000
 
-const STUDENT_STATUS_LABEL: Record<Student['status'], string> = {
-  paid: 'Paid',
-  due: 'Due',
-  overdue: 'Overdue',
-  unpaid: 'Unpaid',
-  no_plan: 'No plan',
+/**
+ * The server's payment status enum mapped to its display key.
+ *
+ * Key names, not sentences: this map is built once at import, in whatever
+ * language happened to be loaded then, so a `t()` call here would freeze the
+ * first language it saw and never follow a switch. The lookup happens in the
+ * component, on every render.
+ */
+const STUDENT_STATUS_KEY: Record<Student['status'], string> = {
+  paid: 'search.status.paid',
+  due: 'search.status.due',
+  overdue: 'search.status.overdue',
+  unpaid: 'search.status.unpaid',
+  no_plan: 'search.status.noPlan',
 }
 
 // ============================================
@@ -70,40 +80,50 @@ const ROW_STYLE: Record<Row['kind'], { icon: typeof Users; chip: string }> = {
   class: { icon: BookOpen, chip: 'bg-[var(--emerald-soft)] text-[var(--emerald)]' },
 }
 
-const SECTION_ORDER: Array<{ kind: Row['kind']; label: string }> = [
-  { kind: 'student', label: 'Students' },
-  { kind: 'teacher', label: 'Teachers' },
-  { kind: 'class', label: 'Classrooms' },
+/**
+ * The three sections, in the order they render, by key rather than by label —
+ * same reason as `STUDENT_STATUS_KEY` above.
+ *
+ * `students` / `teachers` / `classes` are the sidebar's own entity words,
+ * reused rather than duplicated: "Students" in the search panel and "Students"
+ * in the navigation are the same list of people, and two keys would let them
+ * drift apart in French and Arabic, where the desk reads the two side by side.
+ */
+const SECTION_ORDER: Array<{ kind: Row['kind']; labelKey: 'students' | 'teachers' | 'classes' }> = [
+  { kind: 'student', labelKey: 'students' },
+  { kind: 'teacher', labelKey: 'teachers' },
+  { kind: 'class', labelKey: 'classes' },
 ]
 
-function studentRow(s: Student): Row {
-  const parts = [STUDENT_STATUS_LABEL[s.status], s.phone].filter(Boolean)
+function studentRow(s: Student, t: TFunction): Row {
+  const parts = [t(STUDENT_STATUS_KEY[s.status]), s.phone].filter(Boolean)
   return {
     kind: 'student',
     key: `student-${s.id}`,
     title: s.full_name,
-    subtitle: parts.join(' · ') || s.classes || 'No phone on file',
+    subtitle: parts.join(' · ') || s.classes || t('search.noPhone'),
     to: '/app/students',
     student: s,
   }
 }
 
-function teacherRow(t: Teacher): Row {
+function teacherRow(teacher: Teacher, t: TFunction): Row {
   return {
     kind: 'teacher',
-    key: `teacher-${t.id}`,
-    title: t.full_name,
-    subtitle: t.subject || 'No subject set',
+    key: `teacher-${teacher.id}`,
+    title: teacher.full_name,
+    subtitle: teacher.subject || t('search.noSubject'),
     to: '/app/teachers',
-    teacher: t,
+    teacher,
   }
 }
 
-function classRow(c: Class): Row {
+function classRow(c: Class, t: TFunction): Row {
+  const enrolled = c.enrolled_count ?? 0
   const size =
     typeof c.capacity === 'number' && c.capacity > 0
-      ? `${c.enrolled_count ?? 0}/${c.capacity}`
-      : `${c.enrolled_count ?? 0} enrolled`
+      ? `${enrolled}/${c.capacity}`
+      : t('search.enrolled', { count: enrolled })
   return {
     kind: 'class',
     key: `class-${c.id}`,
@@ -144,6 +164,7 @@ function classMatches(c: Class, needle: string): boolean {
 // ============================================
 
 export function GlobalSearch() {
+  const { t } = useTranslation('nav')
   const navigate = useNavigate()
   const setFocusTarget = useUIStore((s) => s.setFocusTarget)
 
@@ -213,9 +234,15 @@ export function GlobalSearch() {
         if (current !== requestId.current) return
 
         setRows([
-          ...students.slice(0, GROUP_LIMIT).map(studentRow),
-          ...teachers.filter((t) => teacherMatches(t, needle)).slice(0, GROUP_LIMIT).map(teacherRow),
-          ...classes.filter((c) => classMatches(c, needle)).slice(0, GROUP_LIMIT).map(classRow),
+          ...students.slice(0, GROUP_LIMIT).map((student) => studentRow(student, t)),
+          ...teachers
+            .filter((teacher) => teacherMatches(teacher, needle))
+            .slice(0, GROUP_LIMIT)
+            .map((teacher) => teacherRow(teacher, t)),
+          ...classes
+            .filter((c) => classMatches(c, needle))
+            .slice(0, GROUP_LIMIT)
+            .map((c) => classRow(c, t)),
         ])
         setAnswered(true)
         setIsSearching(false)
@@ -223,18 +250,18 @@ export function GlobalSearch() {
     }, DEBOUNCE_MS)
 
     return () => clearTimeout(handle)
-  }, [query, loadTeachers, loadClasses])
+  }, [query, loadTeachers, loadClasses, t])
 
   /* ── Sections, with each row carrying its index in the flat list ── */
   const sections = useMemo(() => {
     let index = 0
-    return SECTION_ORDER.map(({ kind, label }) => {
+    return SECTION_ORDER.map(({ kind, labelKey }) => {
       const items = rows
         .filter((r) => r.kind === kind)
         .map((row) => ({ row, index: index++ }))
-      return { kind, label, items }
+      return { kind, label: t(labelKey), items }
     }).filter((s) => s.items.length > 0)
-  }, [rows])
+  }, [rows, t])
 
   const flat = useMemo(() => sections.flatMap((s) => s.items.map((i) => i.row)), [sections])
 
@@ -327,7 +354,7 @@ export function GlobalSearch() {
           aria-activedescendant={
             showPanel && flat[active] ? `global-search-option-${active}` : undefined
           }
-          placeholder="Search students, teachers, classes…"
+          placeholder={t('search.placeholder')}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
@@ -345,9 +372,9 @@ export function GlobalSearch() {
         <div
           id="global-search-results"
           role="listbox"
-          aria-label="Search results"
+          aria-label={t('search.results')}
           className={cn(
-            'absolute left-0 top-full mt-2 z-50 w-[380px] max-w-[calc(100vw-2rem)]',
+            'absolute start-0 top-full mt-2 z-50 w-[380px] max-w-[calc(100vw-2rem)]',
             'rounded-[var(--radius-lg)] overflow-hidden',
             'border border-[var(--glass-border)]',
             'bg-[var(--card-bg)]',
@@ -356,12 +383,14 @@ export function GlobalSearch() {
         >
           <div className="max-h-[420px] overflow-y-auto">
             {isSearching && flat.length === 0 ? (
-              <p className="px-4 py-8 text-center text-xs text-[var(--muted)]">Searching…</p>
+              <p className="px-4 py-8 text-center text-xs text-[var(--muted)]">
+                {t('search.searching')}
+              </p>
             ) : showEmpty ? (
               <div className="px-4 py-8 text-center">
                 <Search className="w-4 h-4 mx-auto mb-2 text-[var(--muted)]" />
                 <p className="text-xs text-[var(--muted)]">
-                  Nothing matches “{query.trim()}”
+                  {t('search.empty', { query: query.trim() })}
                 </p>
               </div>
             ) : (
@@ -383,7 +412,7 @@ export function GlobalSearch() {
                         onMouseEnter={() => setActive(index)}
                         onClick={() => openRow(row)}
                         className={cn(
-                          'w-full text-left flex items-center gap-3 px-4 py-2.5',
+                          'w-full text-start flex items-center gap-3 px-4 py-2.5',
                           'transition-colors duration-100',
                           highlighted ? 'bg-[var(--glass-strong)]' : 'hover:bg-[var(--glass)]',
                         )}
@@ -414,7 +443,7 @@ export function GlobalSearch() {
 
           {flat.length > 0 && (
             <p className="px-4 py-2 text-[10px] text-[var(--muted)] border-t border-[var(--glass-border)]">
-              ↑↓ to move · Enter to open
+              {t('search.hint')}
             </p>
           )}
         </div>

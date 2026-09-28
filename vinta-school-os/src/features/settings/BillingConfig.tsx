@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import { Card, CardHeader, CardBody } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -19,7 +20,6 @@ import {
   type SwapLinkWindow,
 } from '../../lib/billingRules'
 import { Toggle } from '../../components/ui/Toggle'
-import { GROSS_PROFIT_LABEL } from '../../lib/constants'
 import { isGrossProfitEnabled, setGrossProfitEnabled } from '../../lib/grossProfit'
 import { Save, Plus, X, Trash2, Coins, Clock, Users, Lock, RefreshCw } from 'lucide-react'
 
@@ -32,42 +32,46 @@ import { Save, Plus, X, Trash2, Coins, Clock, Users, Lock, RefreshCw } from 'luc
  * the only thing that varies is the sentence. The old markup repeated the
  * switch three times and the three copies had already drifted — one said its
  * change applied "next Monday" while the server had no such notion.
+ *
+ * `labelKey` / `hintKey` rather than the sentences themselves: `field` is the
+ * column name the server reads, and the wording has to follow the interface
+ * language, which module scope knows nothing about.
  */
-const RULE_ROWS: Array<{ field: BillingRuleField; label: string; hint: string }> = [
+const RULE_ROWS: Array<{ field: BillingRuleField; labelKey: string; hintKey: string }> = [
   {
     field: 'absence_consumes_credit',
-    label: 'Charge for missed sessions?',
-    hint: 'ON: a student who did not turn up still spends a credit at End Class. OFF: only the students who came are charged, and an absence costs nothing.',
+    labelKey: 'billing.rules.absence.label',
+    hintKey: 'billing.rules.absence.hint',
   },
   {
     field: 'allow_makeups_default',
-    label: 'Allow makeups?',
-    hint: 'ON: an absence banks a makeup credit instead of burning the seat. This is the default for new groups, and each group can be set differently.',
+    labelKey: 'billing.rules.makeups.label',
+    hintKey: 'billing.rules.makeups.hint',
   },
   {
     field: 'count_gap_sessions',
-    label: 'Charge sessions missed while overdue?',
-    hint: 'ON: classes missed during a payment gap are charged against the next plan. OFF: a new payment always starts a clean cycle.',
+    labelKey: 'billing.rules.gapSessions.label',
+    hintKey: 'billing.rules.gapSessions.hint',
   },
   {
     field: 'restore_credits_on_cancellation',
-    label: 'Give a credit back when a class is cancelled?',
-    hint: 'ON: cancelling a class that already charged returns the credit. OFF: the academy keeps it.',
+    labelKey: 'billing.rules.restoreCredits.label',
+    hintKey: 'billing.rules.restoreCredits.hint',
   },
   {
     field: 'free_session_auto_present',
-    label: 'Free sessions fill their own register?',
-    hint: 'ON: a free session marks everyone present and skips tracking — there is no money on it, so the register earns nothing. OFF: you mark it yourself for the record. Billing is 0 either way.',
+    labelKey: 'billing.rules.freeSession.label',
+    hintKey: 'billing.rules.freeSession.hint',
   },
   {
     field: 'share_credits_across_groups',
-    label: 'Share credits across groups?',
-    hint: 'ON: one credit pool covers every group of the same subject. OFF: each group needs its own subscription.',
+    labelKey: 'billing.rules.shareCredits.label',
+    hintKey: 'billing.rules.shareCredits.hint',
   },
   {
     field: 'early_payment_on_extra_sessions',
-    label: 'Ask for renewal early?',
-    hint: 'ON: the desk is prompted as soon as extra sessions drain the credits, rather than waiting for the cycle to end.',
+    labelKey: 'billing.rules.earlyPayment.label',
+    hintKey: 'billing.rules.earlyPayment.hint',
   },
 ]
 
@@ -103,6 +107,24 @@ const DEFAULT_PRESETS: BillingPreset[] = [
   { id: 'default-6m', label: '6 Months', days: 180 },
 ]
 
+/**
+ * The three seeded presets carry a key rather than a translated label.
+ *
+ * They are persisted to localStorage on first load, so translating at seed
+ * time would freeze whichever language happened to be active that day and the
+ * chip would stay English after a switch to Arabic. The stored `label` stays
+ * as the fallback and as the row's own text for presets the desk creates,
+ * which are user copy and never translated.
+ */
+const BUILT_IN_PRESET_KEYS: Record<string, string> = {
+  'default-1m': 'billing.preset.oneMonth',
+  'default-3m': 'billing.preset.threeMonths',
+  'default-6m': 'billing.preset.sixMonths',
+}
+
+// Currency codes and symbols — the same three letters and the same glyph in
+// every language, so nothing here is translated. The code is what the server
+// stores; the symbol is what the desk recognises.
 const CURRENCY_OPTIONS = [
   { value: 'DZD', label: 'DZD (د.ج)' },
   { value: 'EUR', label: 'EUR (€)' },
@@ -110,6 +132,16 @@ const CURRENCY_OPTIONS = [
 ]
 
 const REMINDER_PRESETS = [1, 2, 3, 5, 7]
+
+/**
+ * The WhatsApp template's merge fields, fed to `t()` as *values* so the
+ * dictionary can show them and the rendered hint keeps them literal.
+ */
+const WHATSAPP_PLACEHOLDERS = {
+  name: '{{name}}',
+  amount: '{{amount}}',
+  date: '{{date}}',
+}
 
 /* ─── Helpers ─── */
 
@@ -135,6 +167,7 @@ function savePresets(presets: BillingPreset[]) {
 /* ─── Component ─── */
 
 export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
+  const { t } = useTranslation('settings')
   const [form, setForm] = useState({
     currency: settings.currency,
     default_plan_duration: settings.default_plan_duration,
@@ -159,6 +192,12 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
   // Academy gross-profit opt-in (frontend registry, OFF by default)
   const [grossAcademy, setGrossAcademy] = useState(() => isGrossProfitEnabled())
 
+  /** A preset's own label, or the dictionary's wording for a seeded one. */
+  const presetLabel = (preset: BillingPreset) => {
+    const key = BUILT_IN_PRESET_KEYS[preset.id]
+    return key ? t(key) : preset.label
+  }
+
   /* ── The Billing Rules, read from and written to the server ──
    *
    * These were localStorage preferences with a Monday version log, which
@@ -180,9 +219,9 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
       // 403 here means a staff login on an owner-only endpoint. Saying
       // "defaults" is honest; showing the defaults as if they were the
       // academy's own rules would not be.
-      setRulesError(serverMessage(err, 'Could not read the rules from the server.'))
+      setRulesError(serverMessage(err, t('billing.rules.loadFailed')))
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { void loadRules() }, [loadRules])
 
@@ -265,25 +304,26 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
    */
   const flipRule = useCallback(async (field: BillingRuleField) => {
     if (userRole !== 'owner') {
-      toast.error('Owner PIN only', 'Billing rules require the owner role.')
+      toast.error(t('billing.toast.ownerPinOnly'), t('billing.toast.ownerRoleRequired'))
       return
     }
     setSavingRule(field)
     try {
       await setBillingRule(field, !snapshotBillingRules()[field])
       setRules(snapshotBillingRules())
-      const label = RULE_ROWS.find((r) => r.field === field)?.label ?? field
-      toast.success('Rule updated', `${label} — applies from the next class, not retroactively.`)
+      const labelKey = RULE_ROWS.find((r) => r.field === field)?.labelKey
+      const label = labelKey ? t(labelKey) : field
+      toast.success(t('billing.toast.ruleUpdated'), t('billing.toast.ruleUpdatedBody', { label }))
     } catch (err) {
-      toast.error('Could not change the rule', serverMessage(err, 'The server refused the change.'))
+      toast.error(t('billing.toast.ruleChangeFailed'), serverMessage(err, t('billing.rules.changeRefused')))
     } finally {
       setSavingRule(null)
     }
-  }, [userRole])
+  }, [t, userRole])
 
   const requestFlip = (field: BillingRuleField) => {
     if (userRole !== 'owner') {
-      toast.error('Owner PIN only', 'Billing rules require the owner role.')
+      toast.error(t('billing.toast.ownerPinOnly'), t('billing.toast.ownerRoleRequired'))
       return
     }
     if (pinOk) {
@@ -306,9 +346,9 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
       const staff = await api.get('/settings/staff')
       const owner = (staff.data.staff ?? []).find((u: any) => u.role === 'owner')
       if (!owner) {
-        const msg = 'Owner profile Not set.'
+        const msg = t('billing.toast.ownerNotSet')
         setPinError(msg)
-        toast.error('PIN blocked', msg)
+        toast.error(t('billing.toast.pinBlocked'), msg)
         return
       }
       await api.post('/auth/verify-pin', { user_id: owner.id, pin: pin.trim() })
@@ -319,11 +359,11 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
         setPendingField(null)
       }
       setPin('')
-      toast.success('Owner verified', 'Billing rules unlocked for this session.')
+      toast.success(t('billing.toast.ownerVerified'), t('billing.toast.unlocked'))
     } catch (err: any) {
-      const msg = err?.response?.status === 401 ? 'Invalid PIN.' : 'Verification failed. Press Retry.'
+      const msg = err?.response?.status === 401 ? t('billing.toast.invalidPin') : t('billing.toast.verificationFailed')
       setPinError(msg)
-      toast.error('PIN blocked', msg)
+      toast.error(t('billing.toast.pinBlocked'), msg)
     } finally {
       setPinChecking(false)
     }
@@ -335,17 +375,16 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
           column on academy_settings that the money paths read live, so this
           card is a view onto that row and nothing else. */}
       <Card>
-        <CardHeader title="Billing Rules" />
+        <CardHeader title={t('billing.rules.title')} />
         <CardBody>
           {/* Academy gross-profit opt-in */}
           <div className="flex items-center justify-between gap-3 pb-4 mb-4 border-b border-[var(--glass-border)]">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-[var(--text)]">
-                {GROSS_PROFIT_LABEL}
+                {t('billing.grossProfit.label')}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
-                Off by default. When on, commission model shows per teacher and
-                gross/cut math renders across payouts and session finances.
+                {t('billing.grossProfit.hint')}
               </p>
             </div>
             <Toggle
@@ -357,11 +396,11 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
           {/* Every rule the server stores, written straight to it. Owner PIN only. */}
           <div className="flex items-center justify-between gap-2 mb-3">
             <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wider">
-              Academy rules · owner only
+              {t('billing.rules.ownerOnlyHeader')}
             </p>
             {pinOk ? (
               <span className="text-[10px] font-semibold text-[var(--emerald)] bg-[var(--emerald-soft)] px-2 py-0.5 rounded-full">
-                Owner verified
+                {t('billing.rules.ownerVerified')}
               </span>
             ) : (
               <button
@@ -370,7 +409,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--gold)] hover:underline"
               >
                 <Lock size={11} />
-                Verify owner PIN
+                {t('billing.rules.verifyOwnerPin')}
               </button>
             )}
           </div>
@@ -378,8 +417,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
           {rulesError && (
             <div className="flex items-start gap-2 rounded-xl bg-[var(--red-soft)]/30 px-3 py-2.5 mb-3">
               <p className="text-[11px] text-[var(--red)] leading-relaxed flex-1">
-                {rulesError} What you see below is the documented default, not necessarily this
-                academy's rule.
+                {rulesError} {t('billing.rules.defaultsNotice')}
               </p>
               <button
                 type="button"
@@ -387,7 +425,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--gold)] hover:underline shrink-0"
               >
                 <RefreshCw size={11} />
-                Retry
+                {t('common:action.retry')}
               </button>
             </div>
           )}
@@ -399,14 +437,14 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
               return (
                 <div key={row.field} className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[var(--text)]">{row.label}</p>
-                    <p className="text-xs text-[var(--muted)] mt-0.5 leading-relaxed">{row.hint}</p>
+                    <p className="text-sm font-semibold text-[var(--text)]">{t(row.labelKey)}</p>
+                    <p className="text-xs text-[var(--muted)] mt-0.5 leading-relaxed">{t(row.hintKey)}</p>
                     <p className="text-[11px] text-[var(--muted)] mt-1">
                       {busy
-                        ? 'Saving…'
+                        ? t('common:state.saving')
                         : rulesLoaded
-                          ? `Currently ${on ? 'ON' : 'OFF'} — stored on the server.`
-                          : `Showing the default (${on ? 'ON' : 'OFF'}) — not read from the server yet.`}
+                          ? t('billing.rules.stateServer', { state: on ? t('billing.rules.onUpper') : t('billing.rules.offUpper') })
+                          : t('billing.rules.stateDefault', { state: on ? t('billing.rules.onUpper') : t('billing.rules.offUpper') })}
                     </p>
                   </div>
                   <button
@@ -420,18 +458,24 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                         ? 'bg-[var(--emerald-soft)] border-[var(--emerald)]/30 text-[var(--emerald)]'
                         : 'bg-[var(--input-bg)] border-[var(--glass-border)] text-[var(--muted)]',
                     )}
-                    title={`${row.field} — stored on the server, owner PIN`}
+                    // The tooltip names the rule in the desk's own words. It used
+                    // to print `row.field`, which is the column name the server
+                    // reads (`absence_consumes_credit`) — correct for a log, not
+                    // for a label someone reads in Arabic.
+                    title={t('billing.rules.toggleTitle', { field: t(row.labelKey) })}
                   >
                     <span className={cn(
                       'w-8 h-4 rounded-full relative transition-colors duration-200',
                       on ? 'bg-[var(--emerald)]' : 'bg-[var(--muted)]/30',
                     )}>
+                      {/* The knob travels along the inline axis, so the track
+                          fills from the start edge in Arabic too. */}
                       <span className={cn(
                         'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200',
-                        on ? 'left-4.5' : 'left-0.5',
+                        on ? 'start-4.5' : 'start-0.5',
                       )} />
                     </span>
-                    {on ? 'On' : 'Off'}
+                    {on ? t('billing.rules.on') : t('billing.rules.off')}
                   </button>
                 </div>
               )
@@ -439,17 +483,14 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
           </div>
 
           <p className="text-[11px] text-[var(--muted)] mt-3 leading-relaxed">
-            A rule is read at the moment a class is finalised, so a change applies from the next
-            class and never rewrites one that has already been paid out.
+            {t('billing.rules.footnote')}
           </p>
 
           {/* Guest swap window — the server has no column for this one. */}
           <div className="mt-4 pt-4 border-t border-[var(--glass-border)]">
-            <p className="text-sm font-semibold text-[var(--text)]">Guest swap window?</p>
+            <p className="text-sm font-semibold text-[var(--text)]">{t('billing.swap.title')}</p>
             <p className="text-xs text-[var(--muted)] mt-0.5 leading-relaxed">
-              SAME_DAY: a guest links only to a session on the same calendar day. OPEN: a 7-day
-              rolling window. Saved in this browser — the server keeps no field for it, so it does
-              not follow the academy onto another machine.
+              {t('billing.swap.hint')}
             </p>
             <div className="flex rounded-xl overflow-hidden border border-[var(--glass-border)] mt-2">
               {(['SAME_DAY', 'OPEN'] as const).map((v) => (
@@ -464,7 +505,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                       : 'bg-[var(--input-bg)] text-[var(--muted)] hover:bg-[var(--glass)]',
                   )}
                 >
-                  {v === 'SAME_DAY' ? 'Same day' : 'Open 7d'}
+                  {v === 'SAME_DAY' ? t('billing.swap.sameDay') : t('billing.swap.open7d')}
                 </button>
               ))}
             </div>
@@ -478,8 +519,8 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
               onClick={(e) => { if (e.target === e.currentTarget) { setPinOpen(false); setPendingField(null) } }}
             >
               <div className="w-full max-w-xs mx-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--glass-border)] shadow-2xl p-5">
-                <p className="text-sm font-bold text-[var(--text)] mb-1">Owner PIN required</p>
-                <p className="text-[11px] text-[var(--muted)] mb-3">Billing rules change only with owner verification.</p>
+                <p className="text-sm font-bold text-[var(--text)] mb-1">{t('billing.pin.title')}</p>
+                <p className="text-[11px] text-[var(--muted)] mb-3">{t('billing.pin.hint')}</p>
                 <input
                   type="password"
                   inputMode="numeric"
@@ -496,7 +537,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                   disabled={pin.length !== 4 || pinChecking}
                   className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] hover:opacity-90 disabled:opacity-40 transition-all"
                 >
-                  {pinChecking ? 'Verifying…' : 'Verify'}
+                  {pinChecking ? t('billing.pin.verifying') : t('billing.pin.verify')}
                 </button>
               </div>
             </div>
@@ -506,11 +547,11 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
 
       {/* Currency */}
       <Card>
-        <CardHeader title="Currency" />
+        <CardHeader title={t('billing.currency.title')} />
         <CardBody>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[var(--text)] font-[family-name:var(--font-heading)]">
-              Default Currency
+              {t('billing.currency.label')}
             </label>
             <div className="flex gap-2 flex-wrap">
               {CURRENCY_OPTIONS.map((opt) => (
@@ -536,17 +577,17 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
 
       {/* Money Model Defaults */}
       <Card>
-        <CardHeader title="Money Model Defaults" />
+        <CardHeader title={t('billing.moneyModel.title')} />
         <CardBody>
           <p className="text-sm text-[var(--muted)] mb-4">
-            Default values applied to new Course Groups. You can override per-group.
+            {t('billing.moneyModel.hint')}
           </p>
           <div className="grid grid-cols-2 gap-4">
             {/* Credits per cycle */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-[var(--muted)] flex items-center gap-1.5">
                 <Coins size={12} />
-                Credits per Cycle
+                {t('billing.moneyModel.creditsPerCycle')}
               </label>
               <input
                 type="number"
@@ -555,14 +596,18 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                 min={1}
                 className={cn(inputCls)}
               />
-              <span className="text-[10px] text-[var(--muted)]">For CREDIT_BASED groups</span>
+              {/* CREDIT_BASED is the server's own word for the group type; the
+                  desk reads a label for it, not the enum. */}
+              <span className="text-[10px] text-[var(--muted)]">
+                {t('billing.moneyModel.forCreditBased', { type: t('billing.groupType.creditBased') })}
+              </span>
             </div>
 
             {/* Max groups included */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-[var(--muted)] flex items-center gap-1.5">
                 <Users size={12} />
-                Max Groups per Subscription
+                {t('billing.moneyModel.maxGroups')}
               </label>
               <input
                 type="number"
@@ -578,28 +623,30 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-[var(--muted)] flex items-center gap-1.5">
                 <Clock size={12} />
-                Access Duration (weeks)
+                {t('billing.moneyModel.accessDuration')}
               </label>
               <input
                 type="number"
                 value={form.default_access_weeks ?? ''}
                 onChange={(e) => handleChange('default_access_weeks', e.target.value ? Number(e.target.value) : null)}
                 min={1}
-                placeholder="Not set"
+                placeholder={t('billing.moneyModel.notSet')}
                 className={cn(inputCls)}
               />
-              <span className="text-[10px] text-[var(--muted)]">For TIME_BASED groups</span>
+              <span className="text-[10px] text-[var(--muted)]">
+                {t('billing.moneyModel.forTimeBased', { type: t('billing.groupType.timeBased') })}
+              </span>
             </div>
 
             {/* Allow Rollover */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-[var(--muted)]">Credit Rollover</label>
+              <label className="text-xs font-medium text-[var(--muted)]">{t('billing.moneyModel.creditRollover')}</label>
               <button
                 type="button"
                 onClick={() => handleChange('allow_rollover_default', !form.allow_rollover_default)}
                 className={cn(
                   'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium',
-                  'border transition-all duration-150 text-left',
+                  'border transition-all duration-150 text-start',
                   form.allow_rollover_default
                     ? 'bg-[var(--emerald-soft)] border-[var(--emerald)]/30 text-[var(--emerald)]'
                     : 'bg-[var(--input-bg)] border-[var(--glass-border)] text-[var(--muted)]',
@@ -611,22 +658,22 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                 )}>
                   <span className={cn(
                     'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200',
-                    form.allow_rollover_default ? 'left-4.5' : 'left-0.5',
+                    form.allow_rollover_default ? 'start-4.5' : 'start-0.5',
                   )} />
                 </span>
-                {form.allow_rollover_default ? 'On' : 'Off'}
+                {form.allow_rollover_default ? t('billing.rules.on') : t('billing.rules.off')}
               </button>
             </div>
 
             {/* Allow Makeups */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-[var(--muted)]">Makeup Sessions</label>
+              <label className="text-xs font-medium text-[var(--muted)]">{t('billing.moneyModel.makeupSessions')}</label>
               <button
                 type="button"
                 onClick={() => handleChange('allow_makeups_default', !form.allow_makeups_default)}
                 className={cn(
                   'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium',
-                  'border transition-all duration-150 text-left',
+                  'border transition-all duration-150 text-start',
                   form.allow_makeups_default
                     ? 'bg-[var(--emerald-soft)] border-[var(--emerald)]/30 text-[var(--emerald)]'
                     : 'bg-[var(--input-bg)] border-[var(--glass-border)] text-[var(--muted)]',
@@ -638,10 +685,10 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                 )}>
                   <span className={cn(
                     'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200',
-                    form.allow_makeups_default ? 'left-4.5' : 'left-0.5',
+                    form.allow_makeups_default ? 'start-4.5' : 'start-0.5',
                   )} />
                 </span>
-                {form.allow_makeups_default ? 'On' : 'Off'}
+                {form.allow_makeups_default ? t('billing.rules.on') : t('billing.rules.off')}
               </button>
             </div>
           </div>
@@ -650,10 +697,10 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
 
       {/* Plan Duration — Preset System */}
       <Card>
-        <CardHeader title="Plan Duration" />
+        <CardHeader title={t('billing.planDuration.title')} />
         <CardBody>
           <p className="text-sm text-[var(--muted)] mb-3">
-            Default billing cycle for new student enrollments.
+            {t('billing.planDuration.hint')}
           </p>
 
           {/* Preset grid */}
@@ -673,9 +720,9 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                 <button
                   type="button"
                   onClick={() => handleChange('default_plan_duration', preset.days)}
-                  className="flex-1 text-left"
+                  className="flex-1 text-start"
                 >
-                  {preset.label} <span className="opacity-50 text-xs">({preset.days}d)</span>
+                  {presetLabel(preset)} <span className="opacity-50 text-xs">{t('billing.preset.daysShort', { count: preset.days })}</span>
                 </button>
                 <button
                   type="button"
@@ -686,7 +733,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                     'hover:bg-[var(--red-soft)] text-[var(--muted)] hover:text-[var(--red)]',
                     'transition-all duration-150',
                   )}
-                  aria-label={`Remove ${preset.label}`}
+                  aria-label={t('billing.preset.remove', { label: presetLabel(preset) })}
                 >
                   <Trash2 size={12} />
                 </button>
@@ -707,8 +754,8 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                 'transition-all duration-200',
               )}
             >
-              <Plus size={14} className="inline mr-1" />
-              Create a Preset
+              <Plus size={14} className="inline me-1" />
+              {t('billing.planDuration.create')}
             </button>
           ) : (
             <div className="flex items-center gap-2">
@@ -716,7 +763,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                 type="text"
                 value={newPresetLabel}
                 onChange={(e) => setNewPresetLabel(e.target.value)}
-                placeholder="Label (e.g. 4 Months)"
+                placeholder={t('billing.planDuration.labelPlaceholder')}
                 className={cn(
                   'px-3 py-1.5 text-sm rounded-[var(--radius-xs)]',
                   'bg-[var(--input-bg)] border border-[var(--glass-border)]',
@@ -729,7 +776,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                 type="number"
                 value={newPresetDays}
                 onChange={(e) => setNewPresetDays(e.target.value)}
-                placeholder="Days"
+                placeholder={t('billing.planDuration.daysPlaceholder')}
                 min={1}
                 className={cn(
                   'px-3 py-1.5 text-sm rounded-[var(--radius-xs)]',
@@ -750,7 +797,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                   'transition-all duration-200',
                 )}
               >
-                Add
+                {t('common:action.add')}
               </button>
               <button
                 type="button"
@@ -770,10 +817,10 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
 
       {/* Reminder Days */}
       <Card>
-        <CardHeader title="Reminder Days" />
+        <CardHeader title={t('billing.reminders.title')} />
         <CardBody>
           <p className="text-sm text-[var(--muted)] mb-3">
-            Days before due date to send a payment reminder.
+            {t('billing.reminders.hint')}
           </p>
           <div className="flex gap-2 flex-wrap">
             {REMINDER_PRESETS.map((days) => (
@@ -789,7 +836,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                     : 'bg-[var(--input-bg)] border-[var(--glass-border)] text-[var(--muted)] hover:text-[var(--text)]',
                 )}
               >
-                {days} {days === 1 ? 'day' : 'days'}
+                {t('billing.reminders.days', { count: days })}
               </button>
             ))}
           </div>
@@ -798,11 +845,13 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
 
       {/* WhatsApp Template */}
       <Card>
-        <CardHeader title="WhatsApp Template" />
+        <CardHeader title={t('billing.whatsapp.title')} />
         <CardBody>
+          {/* The template's own placeholders are passed back in as values so
+              i18next hands them through untouched instead of interpolating
+              them away — they are WhatsApp's syntax, not ours. */}
           <p className="text-sm text-[var(--muted)] mb-3">
-            Custom message template for payment reminders sent via WhatsApp.
-            {'{{name}}'} = student name, {'{{amount}}'} = amount, {'{{date}}'} = due date.
+            {t('billing.whatsapp.hint', WHATSAPP_PLACEHOLDERS)}
           </p>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
@@ -820,7 +869,7 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
                   'transition-shadow duration-200',
                   'focus:outline-none focus:ring-2 focus:ring-[var(--gold-soft)] focus:border-[var(--gold)]',
                 )}
-                placeholder="Bonjour {{name}}, votre paiement de {{amount}} est dû le {{date}}. Merci de régulariser."
+                placeholder={t('billing.whatsapp.placeholder', WHATSAPP_PLACEHOLDERS)}
               />
             </div>
           </div>
@@ -835,11 +884,11 @@ export function BillingConfig({ settings, onUpdate }: BillingConfigProps) {
           variant="primary"
         >
           <Save className="w-4 h-4" />
-          Save Changes
+          {t('billing.action.save')}
         </Button>
         {saved && (
           <span className="text-sm text-[var(--emerald)] font-medium animate-fade-in">
-            Saved ✓
+            {t('billing.saved')}
           </span>
         )}
       </div>

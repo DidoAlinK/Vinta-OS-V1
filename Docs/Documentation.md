@@ -658,10 +658,17 @@ Class ──► Session (1:N)
 
 **Data flows:**
 1. **Grid view:** Query all Classes, compute enrolled count from Enrollment, compute status dot color.
-2. **Status dot logic:**
-   - Red: enrolled ≥ capacity
-   - Green: enrolled > 0 and < capacity
-   - Grey: enrolled = 0
+2. **Status dot logic** — what is happening in the group today, not how full it is:
+   - Amber / **Scheduled**: students enrolled and a weekly slot exists; the class has not started.
+   - Green / **Active**: a session of this group is `in_progress` (today) and at least one student is marked present.
+   - Red / **Empty**: a session is `in_progress` and nobody is present, or the group has students and no weekly slot at all (it can never run).
+   - Grey / **Empty**: nobody enrolled — nothing to teach.
+   - The word "Empty" is shared by the grey and red states; the dot carries which is which.
+   - Capacity is no longer a status. It was Red at `enrolled ≥ capacity`, which painted a
+     full group that was running with everyone present the same colour as one that never
+     meets. It is still shown as the enrollment bar on the card, and as `capacity` /
+     `enrolled_count` on the payload.
+   - "No schedule" is no longer its own state: that case (students, no slot) is the red Empty.
 3. **Open class detail:** Load Class + Teacher + Schedules + Enrollment count.
 4. **Block calendar:** Render Schedule entries as blocks on a Mon-Fri grid.
 5. **Add/edit schedule block:** Create or update Schedule record. Optionally link classroom.

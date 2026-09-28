@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../stores/authStore'
 import { getInitials } from '../../lib/formatters'
 import { cn } from '../../lib/cn'
@@ -12,6 +13,7 @@ interface PINModalProps {
 }
 
 export function PINModal({ profile, onClose, onVerified }: PINModalProps) {
+  const { t } = useTranslation('auth')
   const { verifyPin } = useAuthStore()
   const [pin, setPin] = useState<string[]>(['', '', '', ''])
   const [error, setError] = useState(false)
@@ -135,7 +137,8 @@ export function PINModal({ profile, onClose, onVerified }: PINModalProps) {
     >
       <button
         onClick={onClose}
-        className="absolute top-6 right-6 p-2 rounded-full transition-opacity hover:opacity-70"
+        aria-label={t('common:action.close')}
+        className="absolute top-6 end-6 p-2 rounded-full transition-opacity hover:opacity-70"
         style={{ color: 'var(--muted)' }}
       >
         <X size={20} />
@@ -156,7 +159,7 @@ export function PINModal({ profile, onClose, onVerified }: PINModalProps) {
 
         <div className="text-center">
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>{profile.name}</h2>
-          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Enter your 4-digit PIN</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{t('pinModal.prompt')}</p>
         </div>
 
         {/* PIN boxes */}
@@ -187,21 +190,21 @@ export function PINModal({ profile, onClose, onVerified }: PINModalProps) {
                   : '2px solid var(--glass-border)',
                 boxShadow: digit && !error ? '0 4px 16px rgba(179,135,42,.2)' : 'none',
               }}
-              aria-label={`PIN digit ${i + 1}`}
+              aria-label={t('pinModal.digitLabel', { index: i + 1 })}
             />
           ))}
         </div>
 
         {error && (
           <p className="text-xs font-medium" style={{ color: 'var(--red)' }}>
-            Incorrect PIN. Try again.
+            {t('pinModal.incorrect')}
           </p>
         )}
 
         {loading && (
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--gold)', borderTopColor: 'transparent' }} />
-            <span className="text-xs" style={{ color: 'var(--muted)' }}>Verifying...</span>
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>{t('pinModal.verifying')}</span>
           </div>
         )}
       </div>

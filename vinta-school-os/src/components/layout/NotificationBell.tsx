@@ -13,6 +13,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import {
   Bell,
   CreditCard,
@@ -23,6 +25,7 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
+import { isLanguage, localeTag } from '../../i18n'
 import api from '../../lib/api'
 import type { Notification } from '../../types/settings'
 
@@ -42,22 +45,30 @@ function styleFor(type: Notification['type']) {
   return TYPE_STYLE[type] ?? TYPE_STYLE.general
 }
 
-/* ─── Relative time ─── */
-
-function relativeTime(iso: string | null): string {
+/* ─── Relative time ───
+   `t` is passed in rather than read from a hook because this is called from
+   inside a `.map()` over the list, and the counters are plurals — Arabic has
+   six forms where English has two, so the number has to reach the dictionary
+   instead of being glued to an English suffix here. */
+function relativeTime(iso: string | null, t: TFunction, locale: string | undefined): string {
   if (!iso) return ''
   const diffMs = Date.now() - new Date(iso).getTime()
-  if (diffMs < 0) return 'just now'
+  if (diffMs < 0) return t('notification.time.justNow')
 
   const minutes = Math.floor(diffMs / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return t('notification.time.justNow')
+  if (minutes < 60) return t('notification.time.minutes', { count: minutes })
 
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('notification.time.hours', { count: hours })
 
   const days = Math.floor(hours / 24)
-  return days < 7 ? `${days}d ago` : new Date(iso).toLocaleDateString()
+  return days < 7
+    ? t('notification.time.days', { count: days })
+    // Past a week a count stops meaning anything, so it becomes a date — and
+    // it goes through `Intl` on the resolved locale rather than the runtime
+    // default, so the digits stay the Western ones the academies use.
+    : new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date(iso))
 }
 
 /* ─── Poll cadence ───
@@ -68,6 +79,8 @@ function relativeTime(iso: string | null): string {
 const POLL_MS = 60_000
 
 export function NotificationBell() {
+  const { t, i18n } = useTranslation('nav')
+  const locale = isLanguage(i18n.language) ? localeTag(i18n.language) : undefined
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notification[]>([])
   const [unread, setUnread] = useState(0)
@@ -175,9 +188,15 @@ export function NotificationBell() {
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={
-          hasUnread ? `Notifications, ${unread} unread` : 'Notifications'
+          hasUnread
+            ? t('notification.unreadAria', { count: unread })
+            : t('notification.title')
         }
-        title={hasUnread ? `${unread} unread` : 'Notifications'}
+        title={
+          hasUnread
+            ? t('notification.unreadTitle', { count: unread })
+            : t('notification.title')
+        }
         className={cn(
           'relative p-2 rounded-full transition-colors duration-150',
           'hover:bg-[var(--glass-strong)]',
@@ -189,7 +208,7 @@ export function NotificationBell() {
         {hasUnread && (
           <span
             className={cn(
-              'absolute top-0.5 right-0.5 min-w-[15px] h-[15px] px-1',
+              'absolute top-0.5 end-0.5 min-w-[15px] h-[15px] px-1',
               'rounded-full flex items-center justify-center',
               'text-[9px] font-bold leading-none text-white tabular-nums',
             )}
@@ -203,9 +222,9 @@ export function NotificationBell() {
       {open && (
         <div
           role="dialog"
-          aria-label="Notifications"
+          aria-label={t('notification.title')}
           className={cn(
-            'absolute right-0 top-full mt-2 z-50 w-[340px] max-w-[calc(100vw-2rem)]',
+            'absolute end-0 top-full mt-2 z-50 w-[340px] max-w-[calc(100vw-2rem)]',
             'rounded-[var(--radius-lg)] overflow-hidden',
             'border border-[var(--glass-border)]',
             'bg-[var(--card-bg)]',
@@ -218,7 +237,7 @@ export function NotificationBell() {
               className="text-sm font-semibold text-[var(--text)]"
               style={{ fontFamily: 'var(--font-heading)' }}
             >
-              Notifications
+              {t('notification.title')}
             </h3>
             <div className="flex items-center gap-1">
               {hasUnread && (
@@ -232,13 +251,13 @@ export function NotificationBell() {
                   )}
                 >
                   <CheckCheck size={12} />
-                  Mark all read
+                  {t('notification.markAllRead')}
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                aria-label="Close notifications"
+                aria-label={t('notification.close')}
                 className={cn(
                   'p-1 rounded-lg text-[var(--muted)] hover:text-[var(--text)]',
                   'hover:bg-[var(--glass-strong)] transition-colors duration-150',
@@ -252,11 +271,13 @@ export function NotificationBell() {
           {/* List */}
           <div className="max-h-[380px] overflow-y-auto">
             {isLoading && items.length === 0 ? (
-              <p className="px-4 py-8 text-center text-xs text-[var(--muted)]">Loading…</p>
+              <p className="px-4 py-8 text-center text-xs text-[var(--muted)]">
+                {t('common:state.loading')}
+              </p>
             ) : items.length === 0 ? (
               <div className="px-4 py-8 text-center">
                 <Bell className="w-4 h-4 mx-auto mb-2 text-[var(--muted)]" />
-                <p className="text-xs text-[var(--muted)]">Nothing to report</p>
+                <p className="text-xs text-[var(--muted)]">{t('notification.empty')}</p>
               </div>
             ) : (
               items.map(n => {
@@ -267,7 +288,7 @@ export function NotificationBell() {
                     type="button"
                     onClick={() => !n.is_read && void markRead(n.id)}
                     className={cn(
-                      'w-full text-left flex gap-3 px-4 py-3',
+                      'w-full text-start flex gap-3 px-4 py-3',
                       'border-b border-[var(--glass-border)] last:border-b-0',
                       'transition-colors duration-150',
                       n.is_read
@@ -308,7 +329,7 @@ export function NotificationBell() {
                         {n.message}
                       </p>
                       <p className="text-[10px] text-[var(--muted)]/70 mt-1">
-                        {relativeTime(n.created_at)}
+                        {relativeTime(n.created_at, t, locale)}
                       </p>
                     </div>
                   </button>

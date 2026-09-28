@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '../../lib/cn'
@@ -45,6 +46,7 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
     },
     ref,
   ) => {
+    const { t } = useTranslation('common')
     const panelRef = useRef<HTMLDivElement>(null)
     const mergedRef = useCallback(
       (node: HTMLDivElement | null) => {
@@ -141,7 +143,7 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
                   type="button"
                   onClick={onClose}
                   className={cn(
-                    'ml-auto shrink-0',
+                    'ms-auto shrink-0',
                     'flex items-center justify-center',
                     'w-8 h-8 rounded-full',
                     'bg-[var(--glass)] border border-[var(--glass-border)]',
@@ -150,7 +152,7 @@ export const Modal = forwardRef<HTMLDivElement, ModalProps>(
                     'transition-colors duration-150',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]',
                   )}
-                  aria-label="Close"
+                  aria-label={t('action.close')}
                 >
                   <X className="w-4 h-4" />
                 </button>

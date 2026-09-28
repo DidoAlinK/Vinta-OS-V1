@@ -392,7 +392,7 @@ export default function WeekView({
       {/* Day headers */}
       <div
         className="flex border-b border-[var(--divider)] shrink-0"
-        style={{ paddingLeft: sideGutter, position: 'relative', zIndex: 10 }}
+        style={{ paddingInlineStart: sideGutter, position: 'relative', zIndex: 10 }}
       >
         {weekDates.map((date, i) => {
           const isTodayCol = i === todayIndex
@@ -400,8 +400,8 @@ export default function WeekView({
             <div
               key={i}
               className={cn(
-                'flex-1 py-2.5 text-center border-l border-[var(--divider)]',
-                i === 0 && 'border-l-0',
+                'flex-1 py-2.5 text-center border-s border-[var(--divider)]',
+                i === 0 && 'border-s-0',
               )}
             >
               <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
@@ -438,18 +438,18 @@ export default function WeekView({
         >
           {/* ── Time gutter ──────────────────────── */}
           <div
-            className="absolute left-0 top-0 bottom-0"
+            className="absolute start-0 top-0 bottom-0"
             style={{ width: sideGutter }}
           >
             {CALENDAR_HOURS.map((hour) => (
               <div
                 key={hour}
-                className="absolute left-0 right-0 border-t border-[var(--divider)]"
+                className="absolute start-0 end-0 border-t border-[var(--divider)]"
                 style={{
                   top: (hour - CALENDAR_HOURS[0]) * HOUR_HEIGHT,
                 }}
               >
-                <span className="absolute -top-2.5 right-2 text-[10px] text-[var(--muted)] select-none">
+                <span className="absolute -top-2.5 end-2 text-[10px] text-[var(--muted)] select-none">
                   {formatHour12(hour)}
                 </span>
               </div>
@@ -460,8 +460,8 @@ export default function WeekView({
           <div
             className="absolute top-0 bottom-0"
             style={{
-              left: sideGutter,
-              right: 0,
+              insetInlineStart: sideGutter,
+              insetInlineEnd: 0,
             }}
           >
             {/* Column separators — positioned to match the flex-based header layout */}
@@ -470,9 +470,9 @@ export default function WeekView({
               return (
                 <div
                   key={i}
-                  className="absolute top-0 bottom-0 border-l border-[var(--divider)]"
+                  className="absolute top-0 bottom-0 border-s border-[var(--divider)]"
                   style={{
-                    left: `${separatorPct}%`,
+                    insetInlineStart: `${separatorPct}%`,
                   }}
                 />
               )
@@ -482,7 +482,7 @@ export default function WeekView({
             {CALENDAR_HOURS.map((hour) => (
               <div
                 key={hour}
-                className="absolute left-0 right-0 border-t border-[var(--divider)]"
+                className="absolute start-0 end-0 border-t border-[var(--divider)]"
                 style={{
                   top: (hour - CALENDAR_HOURS[0]) * HOUR_HEIGHT,
                 }}
@@ -494,12 +494,11 @@ export default function WeekView({
               <div
                 className="absolute z-30 pointer-events-none rounded-lg border-2 border-dashed border-[var(--gold)] bg-[var(--gold-soft)]"
                 style={{
-                  left: `${(dropIndicator.dayIndex / GRID_DAYS) * 100}%`,
+                  insetInlineStart: `${(dropIndicator.dayIndex / GRID_DAYS) * 100}%`,
                   width: `${(1 / GRID_DAYS) * 100}%`,
                   top: dropIndicator.top,
                   height: HOUR_HEIGHT,
-                  marginLeft: gap / 2,
-                  marginRight: gap / 2,
+                  marginInline: gap / 2,
                 }}
               />
             )}
@@ -513,7 +512,7 @@ export default function WeekView({
                   draggingId === cs.id && 'opacity-40',
                 )}
                 style={{
-                  left: cs.left,
+                  insetInlineStart: cs.left,
                   width: cs.width,
                 }}
                 draggable={draggingId !== cs.id}
@@ -533,11 +532,12 @@ export default function WeekView({
             {/* ── Now indicator ───────────────────── */}
             {showNowLine && (
               <div
-                className="absolute left-0 right-0 z-20 pointer-events-none"
+                className="absolute start-0 end-0 z-20 pointer-events-none"
                 style={{ top: nowTop }}
               >
-                <div className="absolute left-0 w-2.5 h-2.5 rounded-full bg-[var(--red)] -translate-x-1 -translate-y-1/2" />
-                <div className="absolute left-2.5 right-0 h-px bg-[var(--red)] opacity-60" />
+                {/* The dot straddles the leading edge, so its nudge flips with the axis. */}
+                <div className="absolute start-0 w-2.5 h-2.5 rounded-full bg-[var(--red)] -translate-x-1 rtl:translate-x-1 -translate-y-1/2" />
+                <div className="absolute start-2.5 end-0 h-px bg-[var(--red)] opacity-60" />
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import { Card, CardHeader, CardBody } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -19,48 +20,52 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-/* ─── Export items config ─── */
+/* ─── Export items config ───
+   Key names rather than sentences: the map is read at module scope, where the
+   active language is not yet the one the desk is looking at. */
 
 const EXPORT_ITEMS = [
-  { label: 'Students', endpoint: '/settings/export/students', file: 'students.csv' },
-  { label: 'Teachers', endpoint: '/settings/export/teachers', file: 'teachers.csv' },
-  { label: 'Classes', endpoint: '/settings/export/classes', file: 'classes.csv' },
-  { label: 'Billing Records', endpoint: '/settings/export/billing', file: 'billing.csv' },
-  { label: 'Activity Log', endpoint: '/settings/export/activity-log', file: 'activity-log.csv' },
+  { labelKey: 'export.items.students', endpoint: '/settings/export/students', file: 'students.csv' },
+  { labelKey: 'export.items.teachers', endpoint: '/settings/export/teachers', file: 'teachers.csv' },
+  { labelKey: 'export.items.classes', endpoint: '/settings/export/classes', file: 'classes.csv' },
+  { labelKey: 'export.items.billing', endpoint: '/settings/export/billing', file: 'billing.csv' },
+  { labelKey: 'export.items.activityLog', endpoint: '/settings/export/activity-log', file: 'activity-log.csv' },
 ] as const
 
 /* ─── Component ─── */
 
 export function DataExport() {
+  const { t } = useTranslation('settings')
   const [exporting, setExporting] = useState<string | null>(null)
 
-  const handleExport = useCallback(async (endpoint: string, filename: string, label: string) => {
-    setExporting(label)
+  const handleExport = useCallback(async (labelKey: string, endpoint: string, filename: string) => {
+    setExporting(labelKey)
+    const label = t(labelKey)
     try {
       const response = await api.get(endpoint, { responseType: 'blob' })
       const blob = response.data instanceof Blob ? response.data : new Blob([JSON.stringify(response.data)], { type: 'text/csv' })
       triggerDownload(blob, filename)
-      toast.success(`${label} exported successfully`)
+      toast.success(t('export.toast.success', { label }))
     } catch {
-      toast.error(`Failed to export ${label}`)
+      toast.error(t('export.toast.failed', { label }))
     } finally {
       setExporting(null)
     }
-  }, [])
+  }, [t])
 
   return (
     <div className="flex flex-col gap-5 max-w-xl">
       {/* Export options */}
       <Card>
-        <CardHeader title="Export Data" actions={<Download className="w-4 h-4 text-[var(--muted)]" />} />
+        <CardHeader title={t('export.title')} actions={<Download className="w-4 h-4 text-[var(--muted)]" />} />
         <CardBody>
           <p className="text-sm text-[var(--muted)] mb-4">
-            Download your academy data as CSV files for backup or analysis.
+            {t('export.description')}
           </p>
           <div className="flex flex-col gap-3">
             {EXPORT_ITEMS.map((item) => (
               <div
-                key={item.label}
+                key={item.labelKey}
                 className={cn(
                   'flex items-center justify-between px-4 py-3 rounded-[var(--radius-sm)]',
                   'bg-[var(--input-bg)] border border-[var(--glass-border)]',
@@ -68,16 +73,16 @@ export function DataExport() {
               >
                 <div className="flex items-center gap-2.5">
                   <FileText className="w-4 h-4 text-[var(--muted)]" />
-                  <span className="text-sm font-medium text-[var(--text)]">{item.label}</span>
+                  <span className="text-sm font-medium text-[var(--text)]">{t(item.labelKey)}</span>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  loading={exporting === item.label}
-                  onClick={() => handleExport(item.endpoint, item.file, item.label)}
+                  loading={exporting === item.labelKey}
+                  onClick={() => handleExport(item.labelKey, item.endpoint, item.file)}
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Export
+                  {t('export.action')}
                 </Button>
               </div>
             ))}

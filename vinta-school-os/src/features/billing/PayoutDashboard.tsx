@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { isGrossProfitEnabled } from '../../lib/grossProfit'
@@ -35,6 +36,14 @@ interface PayoutRecord {
   paid_at?: string
   paid_by_staff_id?: string
   created_at: string
+}
+
+/* API status → dictionary key. `status` arrives as either 'PENDING'/'PAID' or
+   'Pending'/'Paid' depending on the endpoint, so it is upper-cased before the
+   lookup, and an unmapped value resolves to a label rather than the raw enum. */
+const PAYOUT_STATUS_LABEL_KEYS: Record<string, string> = {
+  PENDING: 'payouts.status.pending',
+  PAID: 'payouts.status.paid',
 }
 
 /* ─── Summary card ─── */
@@ -86,6 +95,7 @@ function PinInput({
   onCancel: () => void
   loading: boolean
 }) {
+  const { t } = useTranslation('billing')
   const [pin, setPin] = useState<string[]>(['', '', '', ''])
   const [error, setError] = useState(false)
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -155,7 +165,7 @@ function PinInput({
 
   return (
     <div className="flex flex-col items-center gap-4 py-2">
-      <p className="text-sm text-[var(--muted)]">Enter 4-digit PIN to confirm</p>
+      <p className="text-sm text-[var(--muted)]">{t('payouts.pin.prompt')}</p>
       <div className={cn('flex gap-3', error && 'animate-shake')}>
         {pin.map((digit, i) => (
           <input
@@ -178,17 +188,17 @@ function PinInput({
                 : '2px solid var(--glass-border)',
               boxShadow: digit && !error ? '0 4px 16px rgba(179,135,42,.2)' : 'none',
             }}
-            aria-label={`PIN digit ${i + 1}`}
+            aria-label={t('payouts.pin.digit', { index: i + 1 })}
           />
         ))}
       </div>
       {error && (
-        <p className="text-xs font-medium text-[var(--red)]">Incorrect PIN. Try again.</p>
+        <p className="text-xs font-medium text-[var(--red)]">{t('payouts.pin.incorrect')}</p>
       )}
       {loading && (
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-[var(--muted)]">Processing…</span>
+          <span className="text-xs text-[var(--muted)]">{t('payouts.pin.processing')}</span>
         </div>
       )}
     </div>
@@ -198,6 +208,7 @@ function PinInput({
 /* ─── Main component ─── */
 
 export function PayoutDashboard({ className }: PayoutDashboardProps) {
+  const { t } = useTranslation('billing')
   const [records, setRecords] = useState<PayoutRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [pinModalOpen, setPinModalOpen] = useState(false)
@@ -293,7 +304,7 @@ export function PayoutDashboard({ className }: PayoutDashboardProps) {
       <div className={cn('flex items-center justify-center py-16', className)}>
         <div className="flex flex-col items-center gap-3 text-[var(--muted)]">
           <div className="w-6 h-6 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm">Loading payouts…</span>
+          <span className="text-sm">{t('payouts.loading')}</span>
         </div>
       </div>
     )
@@ -306,9 +317,9 @@ export function PayoutDashboard({ className }: PayoutDashboardProps) {
         <div className="w-16 h-16 rounded-full bg-[var(--input-bg)] flex items-center justify-center">
           <Inbox className="w-7 h-7 text-[var(--muted)]/40" />
         </div>
-        <p className="text-sm font-medium text-[var(--muted)]">No payout records</p>
+        <p className="text-sm font-medium text-[var(--muted)]">{t('payouts.empty.title')}</p>
         <p className="text-xs text-[var(--muted)]/60">
-          Teacher payout records will appear here.
+          {t('payouts.empty.body')}
         </p>
       </div>
     )
@@ -319,22 +330,22 @@ export function PayoutDashboard({ className }: PayoutDashboardProps) {
       {/* ── Summary cards (gross math only when opted in) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <SummaryCard
-          label="Total Pending"
-          value={grossOn ? formatCurrency(totalPending) : '—'}
+          label={t('payouts.summary.pending')}
+          value={grossOn ? formatCurrency(totalPending) : t('common:dash')}
           icon={Clock}
           color="var(--gold)"
           bgColor="var(--gold-soft)"
         />
         <SummaryCard
-          label="Total Paid"
-          value={grossOn ? formatCurrency(totalPaid) : '—'}
+          label={t('payouts.summary.paid')}
+          value={grossOn ? formatCurrency(totalPaid) : t('common:dash')}
           icon={CheckCircle2}
           color="var(--emerald)"
           bgColor="var(--emerald-soft)"
         />
         <SummaryCard
-          label="Total All"
-          value={grossOn ? formatCurrency(totalAll) : '—'}
+          label={t('payouts.summary.all')}
+          value={grossOn ? formatCurrency(totalAll) : t('common:dash')}
           icon={Wallet}
           color="var(--violet)"
           bgColor="var(--violet-soft)"
@@ -342,7 +353,7 @@ export function PayoutDashboard({ className }: PayoutDashboardProps) {
       </div>
       {!grossOn && (
         <p className="text-xs text-[var(--muted)]">
-          Gross-profit math is off — turn it on in Billing to see gross/cut figures.
+          {t('payouts.grossOff')}
         </p>
       )}
 
@@ -359,7 +370,7 @@ export function PayoutDashboard({ className }: PayoutDashboardProps) {
                 {teacherKey}
               </span>
               <span className="text-xs text-[var(--muted)] tabular-nums">
-                {teacherRecords.length} record{teacherRecords.length !== 1 ? 's' : ''}
+                {t('payouts.records', { count: teacherRecords.length })}
               </span>
             </div>
 
@@ -380,27 +391,27 @@ export function PayoutDashboard({ className }: PayoutDashboardProps) {
                       ? formatDateShort(rec.session_date)
                       : rec.created_at
                         ? formatDateShort(rec.created_at)
-                        : '—'}
+                        : t('common:dash')}
                   </span>
                 </div>
 
                 {/* Gross amount */}
                 <div className="flex flex-col min-w-0 shrink-0 w-24">
-                  <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">Gross</span>
-                  <span className="text-sm tabular-nums text-[var(--text)]">{grossOn ? formatCurrency(rec.gross_revenue_da) : '—'}</span>
+                  <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">{t('payouts.column.gross')}</span>
+                  <span className="text-sm tabular-nums text-[var(--text)]">{grossOn ? formatCurrency(rec.gross_revenue_da) : t('common:dash')}</span>
                 </div>
 
                 {/* Commission type */}
                 <div className="flex flex-col min-w-0 shrink-0 w-20">
-                  <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">Type</span>
-                  <span className="text-xs text-[var(--text)]/80">{grossOn ? (rec.commission_type ?? '—') : '—'}</span>
+                  <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">{t('payouts.column.type')}</span>
+                  <span className="text-xs text-[var(--text)]/80">{grossOn ? (rec.commission_type ?? t('common:dash')) : t('common:dash')}</span>
                 </div>
 
                 {/* Teacher cut */}
                 <div className="flex flex-col min-w-0 shrink-0 w-24">
-                  <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">Cut</span>
+                  <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">{t('payouts.column.cut')}</span>
                   <span className="text-sm font-semibold tabular-nums text-[var(--emerald)]">
-                    {grossOn ? formatCurrency(rec.teacher_cut_da) : '—'}
+                    {grossOn ? formatCurrency(rec.teacher_cut_da) : t('common:dash')}
                   </span>
                 </div>
 
@@ -412,7 +423,7 @@ export function PayoutDashboard({ className }: PayoutDashboardProps) {
                   variant={rec.status === 'Paid' || rec.status === 'PAID' ? 'success' : 'warning'}
                   size="sm"
                 >
-                  {rec.status === 'PENDING' ? 'Pending' : rec.status === 'PAID' ? 'Paid' : rec.status}
+                  {t(PAYOUT_STATUS_LABEL_KEYS[rec.status.toUpperCase()] ?? 'payouts.status.unknown')}
                 </Badge>
 
                 {/* Mark as Paid button */}
@@ -430,7 +441,7 @@ export function PayoutDashboard({ className }: PayoutDashboardProps) {
                     )}
                   >
                     <Check className="w-3.5 h-3.5" />
-                    Mark Paid
+                    {t('payouts.markPaid')}
                   </button>
                 )}
               </div>
@@ -458,7 +469,7 @@ export function PayoutDashboard({ className }: PayoutDashboardProps) {
             )}
           >
             <h3 className="text-base font-semibold text-[var(--text)] font-[family-name:var(--font-heading)] text-center mb-4">
-              Confirm Payout
+              {t('payouts.pin.title')}
             </h3>
             <PinInput
               onSubmit={handlePinSubmit}

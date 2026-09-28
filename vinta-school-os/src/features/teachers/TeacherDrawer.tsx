@@ -7,6 +7,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import {
   X,
   Phone,
@@ -37,7 +39,6 @@ import {
   formatDateShort,
 } from '../../lib/formatters'
 import type { Teacher } from '../../types/teacher'
-import { COMMISSION_TYPE_LABELS } from '../../types/teacher'
 import type { CommissionType } from '../../types/teacher'
 // getTeacherEmail is a read-only fallback for addresses stashed in localStorage
 // back when the backend had no email column. Nothing writes it any more —
@@ -66,6 +67,45 @@ export interface TeacherDrawerProps {
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const
 const TIME_SLOTS = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'] as const
+
+/**
+ * A date that is known to fall on each weekday. The grid labels its rows from
+ * these rather than from `DAYS`, because "Mon" is an English word and the
+ * drawer is not always in English. `DAYS` itself stays as it is: it is the key
+ * the schedule is bucketed by, never a string on screen.
+ */
+const DAY_ANCHORS: Record<(typeof DAYS)[number], string> = {
+  Mon: '2024-01-01',
+  Tue: '2024-01-02',
+  Wed: '2024-01-03',
+  Thu: '2024-01-04',
+  Fri: '2024-01-05',
+}
+
+/** The weekday's own name in the language the drawer is currently read in. */
+function weekdayLabel(day: (typeof DAYS)[number], language: string): string {
+  return new Intl.DateTimeFormat(language, { weekday: 'short' }).format(
+    // Midday, so no timezone can drag the anchor onto the neighbouring day.
+    new Date(`${DAY_ANCHORS[day]}T12:00:00`),
+  )
+}
+
+/**
+ * The commission vocabulary in keys, not in words — a module-level map of
+ * labels would be resolved once, at import, in whichever language happened to
+ * be loaded then, and would never follow a switch.
+ */
+const COMMISSION_TYPE_KEYS: Record<CommissionType, string> = {
+  PERCENTAGE: 'drawer.commissionTypePercentage',
+  FLAT_HOURLY: 'drawer.commissionTypeHourly',
+  FIXED_SESSION: 'drawer.commissionTypeSession',
+}
+
+const COMMISSION_SUFFIX_KEYS: Record<CommissionType, string> = {
+  PERCENTAGE: 'drawer.suffixPercentage',
+  FLAT_HOURLY: 'drawer.suffixHourly',
+  FIXED_SESSION: 'drawer.suffixSession',
+}
 
 /** Generate a weekly schedule grid based on the teacher's assigned classes */
 function generateWeeklySchedule(teacher: Teacher | null) {
@@ -101,14 +141,18 @@ function generateWeeklySchedule(teacher: Teacher | null) {
 // Commission badge label helper
 // ============================================
 
-function commissionBadgeLabel(commissionType: CommissionType, commissionValue: number): string {
+function commissionBadgeLabel(
+  t: TFunction<'teachers'>,
+  commissionType: CommissionType,
+  commissionValue: number,
+): string {
   switch (commissionType) {
     case 'PERCENTAGE':
-      return `${commissionValue}% of gross`
+      return t('drawer.valueOfGross', { value: commissionValue })
     case 'FLAT_HOURLY':
-      return `${formatDa(commissionValue)}/h`
+      return t('drawer.valuePerHour', { amount: formatDa(commissionValue) })
     case 'FIXED_SESSION':
-      return `${formatDa(commissionValue)}/session`
+      return t('drawer.valuePerSession', { amount: formatDa(commissionValue) })
   }
 }
 
@@ -117,6 +161,7 @@ function commissionBadgeLabel(commissionType: CommissionType, commissionValue: n
 // ============================================
 
 export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onClassCreated, onUpdated }: TeacherDrawerProps) {
+  const { t, i18n } = useTranslation('teachers')
   const weeklySchedule = generateWeeklySchedule(teacher)
 
   /* ── Create Class inline form ── */
@@ -217,11 +262,11 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
       setShowCreateClass(false)
       onClassCreated?.()
     } catch (err: any) {
-      setCreateClassError(err?.response?.data?.error ?? 'Failed to create class.')
+      setCreateClassError(err?.response?.data?.error ?? t('drawer.createClassFailed'))
     } finally {
       setCreateClassLoading(false)
     }
-  }, [newClassName, teacher, onClassCreated])
+  }, [t, newClassName, teacher, onClassCreated])
 
   /* ── Edit mode handlers ── */
   const startEditing = useCallback(() => {
@@ -249,14 +294,14 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
 
   const handleSave = useCallback(async () => {
     if (!teacher) return
-    if (!editFirstName.trim()) { toast.error('First name is required'); return }
+    if (!editFirstName.trim()) { toast.error(t('toast.firstNameRequired')); return }
     // Email is optional here for the same reason it is on create: a teacher
     // without one still needs an editable profile. A present value must still
     // be well-formed — the server enforces that too, and 409s on a clash.
     const mailErr = (() => {
       const v = editEmail.trim()
       if (!v) return null
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'Enter a valid email address.'
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return t('drawer.emailInvalid')
       return null
     })()
     setEditEmailError(mailErr)
@@ -284,7 +329,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
       }
 
       await api.put(`/teachers/${teacher.id}`, payload)
-      toast.success('Teacher updated successfully')
+      toast.success(t('toast.updated'))
       setIsEditing(false)
       onUpdated?.()
     } catch (err) {
@@ -295,12 +340,12 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
         (err as { response?: { data?: { error?: string; message?: string } } })
           ?.response?.data?.error ??
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'The server refused the request.'
-      toast.error('Could not save teacher', message)
+        t('toast.saveServerRefused')
+      toast.error(t('toast.saveFailed'), message)
     } finally {
       setEditSaving(false)
     }
-  }, [teacher, editFirstName, editLastName, editEmail, editStatus, editPhone, editSubjectIds, isOwner, editGrossOn, editCommissionType, editCommissionValue, editNotes, onUpdated])
+  }, [t, teacher, editFirstName, editLastName, editEmail, editStatus, editPhone, editSubjectIds, isOwner, editGrossOn, editCommissionType, editCommissionValue, editNotes, onUpdated])
 
   /* ── Filtered subjects for edit dropdown ── */
   const filteredSubjects = subjects.filter((s) =>
@@ -351,7 +396,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
         }
       } catch {
         if (!cancelled) {
-          setPayoutsError('Could not load payout data.')
+          setPayoutsError(t('drawer.payoutsError'))
           setPayouts([])
         }
       } finally {
@@ -361,7 +406,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
 
     fetchPayouts()
     return () => { cancelled = true }
-  }, [isOpen, teacher])
+  }, [t, isOpen, teacher])
 
   /* ── Reset payouts when drawer closes ── */
   useEffect(() => {
@@ -448,10 +493,12 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
       <div
         className={cn(
           'relative h-full w-[400px] max-w-[90vw]',
-          'bg-[var(--glass)] border-l border-[var(--glass-border)]',
+          'bg-[var(--glass)] border-s border-[var(--glass-border)]',
           'backdrop-blur-xl shadow-2xl',
           'flex flex-col',
-          'animate-slide-in-right',
+          // The panel is anchored to the inline-end edge, so in Arabic it comes
+          // in from the left: same motion, mirrored.
+          'animate-slide-in-right rtl:animate-slide-in-left',
         )}
         onClick={(e) => e.stopPropagation()}
       >
@@ -461,7 +508,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
             className="text-base font-bold text-[var(--text)]"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
-            Teacher Profile
+            {t('drawer.title')}
           </h3>
           <button
             onClick={onClose}
@@ -481,11 +528,11 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
             /* ── Edit Form ──────────────────────────── */
             <div className="space-y-4">
               <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
-                Edit Teacher
+                {t('drawer.editTitle')}
               </p>
 
               {/* First Name */}
-              <EditField label="First Name" required>
+              <EditField label={t('drawer.fieldFirstName')} required>
                 <input
                   type="text"
                   value={editFirstName}
@@ -495,7 +542,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
               </EditField>
 
               {/* Last Name */}
-              <EditField label="Last Name">
+              <EditField label={t('drawer.fieldLastName')}>
                 <input
                   type="text"
                   value={editLastName}
@@ -505,16 +552,16 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
               </EditField>
 
               {/* Email — optional, unique per academy when present */}
-              <EditField label="Email (optional)">
+              <EditField label={t('drawer.fieldEmail')}>
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => {
                     setEditEmail(e.target.value)
                     const v = e.target.value.trim()
-                    setEditEmailError(!v ? null : /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : 'Enter a valid email address.')
+                    setEditEmailError(!v ? null : /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : t('drawer.emailInvalid'))
                   }}
-                  placeholder="teacher@academy.dz"
+                  placeholder={t('drawer.emailPlaceholder')}
                   className={cn(editInputCls, editEmailError && 'border-[var(--red)]/50')}
                 />
                 {editEmailError && (
@@ -523,18 +570,18 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
               </EditField>
 
               {/* Phone */}
-              <EditField label="Phone">
+              <EditField label={t('drawer.fieldPhone')}>
                 <input
                   type="tel"
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="0555 12 34 56"
+                  placeholder={t('drawer.phonePlaceholder')}
                   className={editInputCls}
                 />
               </EditField>
 
               {/* Subject — multi-select with portal dropdown */}
-              <EditField label="Subjects">
+              <EditField label={t('drawer.fieldSubjects')}>
                 {/* Selected chips */}
                 {editSubjectIds.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-2">
@@ -548,7 +595,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                           <button
                             type="button"
                             onMouseDown={(e) => { e.preventDefault(); removeEditSubject(id) }}
-                            className="ml-0.5 p-0.5 rounded text-[var(--muted)] hover:text-[var(--red)] transition-colors"
+                            className="ms-0.5 p-0.5 rounded text-[var(--muted)] hover:text-[var(--red)] transition-colors"
                           >
                             <X size={10} />
                           </button>
@@ -570,7 +617,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                       })
                     }}
                     className={cn(
-                      'w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left cursor-pointer',
+                      'w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-start cursor-pointer',
                       'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                       'hover:border-[var(--muted)]/40',
                       'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
@@ -579,13 +626,13 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                     )}
                   >
                     <BookOpen size={14} className="text-[var(--muted)] shrink-0" />
-                    <span className="flex-1 text-left truncate">
+                    <span className="flex-1 text-start truncate">
                       {editSubjectIds.length > 0
-                        ? `${editSubjectIds.length} subject${editSubjectIds.length > 1 ? 's' : ''} selected`
-                        : <span className="text-[var(--muted)]">Select subjects…</span>
+                        ? t('drawer.subjectsSelected', { count: editSubjectIds.length })
+                        : <span className="text-[var(--muted)]">{t('drawer.selectSubjects')}</span>
                       }
                     </span>
-                    <ChevronDown size={14} className={cn('text-[var(--muted)] ml-auto shrink-0 transition-transform', dropdownOpen && 'rotate-180')} />
+                    <ChevronDown size={14} className={cn('text-[var(--muted)] ms-auto shrink-0 transition-transform', dropdownOpen && 'rotate-180')} />
                   </button>
                 </div>
 
@@ -602,14 +649,14 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                     >
                       {/* Search input */}
                       <div className="relative border-b border-[var(--glass-border)]">
-                        <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                        <SearchIcon size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
                         <input
                           ref={searchRef}
                           type="text"
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          placeholder="Search subjects…"
-                          className="w-full pl-9 pr-3 py-2.5 text-sm text-[var(--text)] bg-transparent outline-none placeholder:text-[var(--muted)]/50"
+                          placeholder={t('drawer.searchSubjects')}
+                          className="w-full ps-9 pe-3 py-2.5 text-sm text-[var(--text)] bg-transparent outline-none placeholder:text-[var(--muted)]/50"
                         />
                       </div>
 
@@ -617,11 +664,11 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                       <div className="max-h-56 overflow-y-auto py-1">
                         {subjectsLoading ? (
                           <div className="px-3 py-4 text-center text-xs text-[var(--muted)]">
-                            Loading subjects…
+                            {t('drawer.subjectsLoading')}
                           </div>
                         ) : filteredSubjects.length === 0 ? (
                           <div className="px-3 py-4 text-center text-xs text-[var(--muted)]">
-                            {subjects.length === 0 ? 'No subjects yet — create them in Settings' : 'No match'}
+                            {subjects.length === 0 ? t('drawer.noSubjects') : t('drawer.noSubjectMatch')}
                           </div>
                         ) : (
                           filteredSubjects.map((s) => {
@@ -636,7 +683,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                                   toggleEditSubject(s.id)
                                 }}
                                 className={cn(
-                                  'w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left cursor-pointer',
+                                  'w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-start cursor-pointer',
                                   'hover:bg-[var(--glass)] transition-colors duration-75',
                                   isSelected && 'bg-[var(--gold-soft)]',
                                 )}
@@ -664,24 +711,24 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
               <div className="pt-2 border-t border-[var(--glass-border)]">
                 <div className="flex items-center justify-between gap-3 mb-3">
                   <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
-                    Turn on calculating gross profit
+                    {t('drawer.grossProfitToggle')}
                   </p>
                   {isOwner ? (
                     <Toggle checked={editGrossOn} onCheckedChange={(v) => { setEditGrossOn(v); if (!v) setEditCommissionValue('') }} />
                   ) : (
                     <span className="text-[11px] text-[var(--muted)]">
-                      {editGrossOn ? 'On' : 'Off'}
+                      {editGrossOn ? t('drawer.on') : t('drawer.off')}
                     </span>
                   )}
                 </div>
                 {!isOwner && (
                   <p className="text-[11px] text-[var(--muted)] mb-1">
-                    Commission is set by the academy owner. Your other changes still save.
+                    {t('drawer.commissionOwnerNote')}
                   </p>
                 )}
                 {!editGrossOn && isOwner && (
                   <p className="text-[11px] text-[var(--muted)] mb-1">
-                    Off — paid per session formula only, no gross/cut math.
+                    {t('drawer.grossOffNote')}
                   </p>
                 )}
                 {editGrossOn && (
@@ -702,21 +749,21 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                         !isOwner && 'opacity-60 cursor-default',
                       )}
                     >
-                      <span className="block">{COMMISSION_TYPE_LABELS[type]}</span>
+                      <span className="block">{t(COMMISSION_TYPE_KEYS[type])}</span>
                       <span className={cn(
                         'block text-[10px] mt-0.5',
                         editCommissionType === type ? 'text-[var(--gold)]/70' : 'text-[var(--muted)]/60',
                       )}>
-                        {type === 'PERCENTAGE' && '% of gross revenue'}
-                        {type === 'FLAT_HOURLY' && 'DA per hour'}
-                        {type === 'FIXED_SESSION' && 'Flat DA per session'}
+                        {type === 'PERCENTAGE' && t('drawer.commissionHintPercentage')}
+                        {type === 'FLAT_HOURLY' && t('drawer.commissionHintHourly')}
+                        {type === 'FIXED_SESSION' && t('drawer.commissionHintSession')}
                       </span>
                     </button>
                   ))}
                 </div>
 
                 {/* Commission Value Input */}
-                <EditField label="Commission Value">
+                <EditField label={t('drawer.fieldCommissionValue')}>
                   <div className="relative">
                     <input
                       type="number"
@@ -736,10 +783,10 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                       placeholder={editCommissionType === 'PERCENTAGE' ? '30' : editCommissionType === 'FLAT_HOURLY' ? '1500' : '800'}
                       min={0}
                       max={editCommissionType === 'PERCENTAGE' ? 100 : undefined}
-                      className={cn(editInputCls, 'pr-20', !isOwner && 'opacity-60 cursor-default')}
+                      className={cn(editInputCls, 'pe-20', !isOwner && 'opacity-60 cursor-default')}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted)]">
-                      {editCommissionType === 'PERCENTAGE' ? '%' : editCommissionType === 'FLAT_HOURLY' ? 'DA/h' : 'DA/session'}
+                    <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted)]">
+                      {t(COMMISSION_SUFFIX_KEYS[editCommissionType])}
                     </span>
                   </div>
                 </EditField>
@@ -753,7 +800,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
               <div className="pt-2 border-t border-[var(--glass-border)]">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
-                    Active
+                    {t('drawer.statusActive')}
                   </p>
                   <Toggle
                     checked={editStatus === 'ACTIVE'}
@@ -762,17 +809,17 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 </div>
                 <p className="text-[11px] text-[var(--muted)] mt-1">
                   {editStatus === 'ACTIVE'
-                    ? 'Available for new classes and sessions.'
-                    : 'Kept on record, but hidden from the class and session pickers.'}
+                    ? t('drawer.statusActiveHint')
+                    : t('drawer.statusInactiveHint')}
                 </p>
               </div>
 
               {/* Notes */}
-              <EditField label="Notes">
+              <EditField label={t('drawer.fieldNotes')}>
                 <textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Optional notes about this teacher…"
+                  placeholder={t('drawer.notesPlaceholder')}
                   rows={2}
                   className={cn(editInputCls, 'resize-none')}
                 />
@@ -788,7 +835,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                     'hover:bg-[var(--glass)] transition-colors duration-150',
                   )}
                 >
-                  Cancel
+                  {t('common:action.cancel')}
                 </button>
                 <button
                   onClick={handleSave}
@@ -801,7 +848,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                     'transition-all duration-150',
                   )}
                 >
-                  {editSaving ? 'Saving…' : <><Save size={14} /> Save Changes</>}
+                  {editSaving ? t('common:state.saving') : <><Save size={14} /> {t('drawer.saveChanges')}</>}
                 </button>
               </div>
             </div>
@@ -827,11 +874,11 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
               {/* T9: name + email + phone — "Not set" fallbacks, never "— — —" */}
               <p className="text-sm text-[var(--muted)] flex items-center gap-1.5 mt-1 truncate">
                 <span className="shrink-0">✉️</span>
-                <span className="truncate">{teacher.email ?? getTeacherEmail(teacher.id) ?? 'Not set'}</span>
+                <span className="truncate">{teacher.email ?? getTeacherEmail(teacher.id) ?? t('drawer.notSet')}</span>
               </p>
               <p className="text-sm text-[var(--muted)] flex items-center gap-1.5 mt-1">
                 <Phone size={13} className="shrink-0" />
-                {teacher.phone ? formatPhone(teacher.phone) : 'Not set'}
+                {teacher.phone ? formatPhone(teacher.phone) : t('drawer.notSet')}
               </p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {/* Status — only INACTIVE is worth a badge; an active teacher
@@ -844,7 +891,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                       'text-[var(--muted)]',
                     )}
                   >
-                    Inactive
+                    {t('drawer.statusInactiveBadge')}
                   </span>
                 )}
 
@@ -857,7 +904,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                       'text-[var(--text)]',
                     )}
                   >
-                    {commissionBadgeLabel(teacher.commission_type, teacher.commission_value)}
+                    {commissionBadgeLabel(t, teacher.commission_type, teacher.commission_value)}
                   </span>
                 )}
 
@@ -877,7 +924,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
           {/* Assigned Classes */}
           <Section
             icon={<BookOpen size={14} />}
-            title="Assigned Classes"
+            title={t('drawer.sectionClasses')}
           >
             {(teacher.classes_assigned ?? []).length > 0 ? (
               <div className="flex flex-wrap gap-1.5 mb-3">
@@ -895,7 +942,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-[var(--muted)] italic mb-3">No classes assigned</p>
+              <p className="text-xs text-[var(--muted)] italic mb-3">{t('drawer.noClasses')}</p>
             )}
 
             {/* Create Class inline form */}
@@ -906,7 +953,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                   'bg-[var(--input-bg)] border border-[var(--glass-border)]',
                 )}
               >
-                <p className="text-xs font-medium text-[var(--muted)] mb-2">New Class</p>
+                <p className="text-xs font-medium text-[var(--muted)] mb-2">{t('drawer.newClass')}</p>
                 {createClassError && (
                   <p className="text-[11px] text-[var(--red)] mb-2">{createClassError}</p>
                 )}
@@ -925,7 +972,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                       setCreateClassError(null)
                     }
                   }}
-                  placeholder="e.g. 1er Lycee"
+                  placeholder={t('drawer.classNamePlaceholder')}
                   autoFocus
                   className={cn(
                     'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
@@ -949,7 +996,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                       background: 'linear-gradient(135deg, var(--gold), var(--emerald))',
                     }}
                   >
-                    {createClassLoading ? 'Creating...' : 'Create'}
+                    {createClassLoading ? t('drawer.creating') : t('common:action.create')}
                   </button>
                   <button
                     onClick={() => {
@@ -965,7 +1012,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                       'disabled:opacity-40',
                     )}
                   >
-                    Cancel
+                    {t('common:action.cancel')}
                   </button>
                 </div>
               </div>
@@ -981,7 +1028,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 )}
               >
                 <Plus size={13} />
-                Create Class
+                {t('drawer.createClass')}
               </button>
             )}
           </Section>
@@ -989,7 +1036,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
           {/* Weekly Schedule */}
           <Section
             icon={<Calendar size={14} />}
-            title="Weekly Schedule"
+            title={t('drawer.sectionSchedule')}
           >
             {weeklySchedule.length > 0 ? (
               <div className="space-y-1">
@@ -997,8 +1044,10 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                   const daySlots = weeklySchedule.filter((s) => s.day === day)
                   return (
                     <div key={day} className="flex items-start gap-2">
-                      <span className="text-[11px] font-semibold text-[var(--muted)] w-8 shrink-0 mt-1">
-                        {day}
+                      {/* Wide enough for "الأربعاء": a literal "Mon" column
+                          truncates every Arabic weekday into a smear. */}
+                      <span className="text-[11px] font-semibold text-[var(--muted)] w-12 shrink-0 mt-1">
+                        {weekdayLabel(day, i18n.language)}
                       </span>
                       <div className="flex-1 flex flex-wrap gap-1">
                         {daySlots.length > 0 ? (
@@ -1024,7 +1073,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 })}
               </div>
             ) : (
-              <p className="text-xs text-[var(--muted)] italic">No schedule data</p>
+              <p className="text-xs text-[var(--muted)] italic">{t('drawer.noSchedule')}</p>
             )}
           </Section>
 
@@ -1032,20 +1081,20 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
           {isGrossProfitEnabled() && (
           <Section
             icon={<CreditCard size={14} />}
-            title="Gross Profit"
+            title={t('drawer.sectionGrossProfit')}
           >
             <div className="grid grid-cols-2 gap-3">
               <PayrollStat
-                label="Students"
+                label={t('drawer.statStudents')}
                 value={`${teacher?.students_count ?? 0}`}
                 icon={<Users size={12} />}
               />
               <PayrollStat
-                label="Rate"
+                label={t('drawer.statRate')}
                 value={
                   teacher.commission_type && teacher.commission_value != null
-                    ? commissionRateLabel(teacher.commission_type, teacher.commission_value)
-                    : '—'
+                    ? commissionRateLabel(t, teacher.commission_type, teacher.commission_value)
+                    : t('common:dash')
                 }
                 icon={<TrendingUp size={12} />}
               />
@@ -1056,10 +1105,10 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
           {/* Payout Summary */}
           <Section
             icon={<Wallet size={14} />}
-            title="Payout Summary"
+            title={t('drawer.sectionPayouts')}
           >
             {payoutsLoading ? (
-              <p className="text-xs text-[var(--muted)] italic">Loading payouts…</p>
+              <p className="text-xs text-[var(--muted)] italic">{t('drawer.payoutsLoading')}</p>
             ) : payoutsError ? (
               <p className="text-xs text-[var(--red)]">{payoutsError}</p>
             ) : (
@@ -1067,12 +1116,12 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 {/* Summary row */}
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <PayrollStat
-                    label="Total Pending"
+                    label={t('drawer.totalPending')}
                     value={formatDa(totalPending)}
                     icon={<Clock size={12} />}
                   />
                   <PayrollStat
-                    label="Total Paid"
+                    label={t('drawer.totalPaid')}
                     value={formatDa(totalPaid)}
                     icon={<GraduationCap size={12} />}
                     highlight
@@ -1096,34 +1145,38 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                               ? formatDateShort(payout.session_date)
                               : payout.created_at
                                 ? formatDateShort(payout.created_at)
-                                : '—'}
+                                : t('common:dash')}
                           </p>
                           {isGrossProfitEnabled() && (
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] text-[var(--muted)]">
-                              Gross {formatDa(payout.gross_revenue_da)}
+                              {t('drawer.gross', { amount: formatDa(payout.gross_revenue_da) })}
                             </span>
                             <span className="text-[10px] text-[var(--muted)]">
-                              Cut {formatDa(payout.teacher_cut_da)}
+                              {t('drawer.cut', { amount: formatDa(payout.teacher_cut_da) })}
                             </span>
                           </div>
                           )}
                         </div>
+                        {/* The wire value is `Paid` / anything else; neither is
+                            a word to put on screen untranslated. */}
                         <span
                           className={cn(
                             'shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
-                            payout.status === 'Paid'
+                            isPaidStatus(payout.status)
                               ? 'bg-[var(--emerald-soft)] text-[var(--emerald)]'
                               : 'bg-[var(--gold-soft)] text-[var(--gold)]',
                           )}
                         >
-                          {payout.status}
+                          {isPaidStatus(payout.status)
+                            ? t('drawer.payoutStatusPaid')
+                            : t('drawer.payoutStatusPending')}
                         </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-[var(--muted)] italic">No payouts recorded yet.</p>
+                  <p className="text-xs text-[var(--muted)] italic">{t('drawer.noPayouts')}</p>
                 )}
               </>
             )}
@@ -1131,7 +1184,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
 
           {/* Notes */}
           {teacher.notes && (
-            <Section icon={<BookOpen size={14} />} title="Notes">
+            <Section icon={<BookOpen size={14} />} title={t('drawer.sectionNotes')}>
               <p className="text-sm text-[var(--muted)] leading-relaxed">
                 {teacher.notes}
               </p>
@@ -1156,7 +1209,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 )}
               >
                 <Phone size={15} />
-                Call Teacher
+                {t('drawer.callTeacher')}
               </a>
             )}
             {!isEditing && (
@@ -1171,7 +1224,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 )}
               >
                 <Pencil size={15} />
-                Edit Teacher
+                {t('drawer.editTeacher')}
               </button>
             )}
             {!isEditing && onDelete && (
@@ -1186,7 +1239,7 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
                 )}
               >
                 <Trash2 size={15} />
-                Delete Teacher
+                {t('drawer.deleteTeacher')}
               </button>
             )}
           </div>
@@ -1200,14 +1253,18 @@ export default function TeacherDrawer({ teacher, isOpen, onClose, onDelete, onCl
 // Commission rate label (for Payroll Summary)
 // ============================================
 
-function commissionRateLabel(commissionType: CommissionType, commissionValue: number): string {
+function commissionRateLabel(
+  t: TFunction<'teachers'>,
+  commissionType: CommissionType,
+  commissionValue: number,
+): string {
   switch (commissionType) {
     case 'PERCENTAGE':
-      return `${commissionValue}%/session`
+      return t('drawer.ratePerSessionPercentage', { value: commissionValue })
     case 'FLAT_HOURLY':
-      return `${formatDa(commissionValue)}/h`
+      return t('drawer.valuePerHour', { amount: formatDa(commissionValue) })
     case 'FIXED_SESSION':
-      return `${formatDa(commissionValue)}/session`
+      return t('drawer.valuePerSession', { amount: formatDa(commissionValue) })
   }
 }
 

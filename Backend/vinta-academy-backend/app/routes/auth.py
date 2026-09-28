@@ -24,15 +24,27 @@ auth_bp = Blueprint("auth", __name__, description="Authentication & profile mana
 @limiter.limit(SIGNUP_LIMIT)
 @auth_bp.arguments(SignupRequestSchema)
 @auth_bp.response(201, SignupResponseSchema)
-@auth_bp.doc(responses={400: ("Validation error", ErrorSchema), 500: ("Server error", ErrorSchema)})
+@auth_bp.doc(responses={
+    400: ("Validation error", ErrorSchema),
+    409: ("Email already registered", ErrorSchema),
+    500: ("Server error", ErrorSchema),
+})
 def signup(data):
     """Create a new academy (tenant provisioning)
     Creates a new academy with default settings and subscription. Returns the academy ID for the create-owner step.
     """
+    email = User.normalize_email(data["email"])
+    # Checked before provisioning rather than after: a refused signup must not
+    # leave an academy, its settings, its subscription and its payment plans
+    # behind with no owner able to reach them. The signup → create-owner →
+    # login chain has no rollback, so orphans are permanent.
+    if auth_service.owner_email_taken(email):
+        return jsonify({"error": "An account with this email already exists"}), 409
+
     try:
         result = tenant_service.create_academy(
             name=data["name"],
-            email=data["email"],
+            email=email,
             password=data["password"],
         )
         db.session.commit()
@@ -127,7 +139,7 @@ def verify_pin(data):
 @auth_bp.response(201, CreateOwnerResponseSchema)
 @auth_bp.doc(
     parameters=[{"in": "header", "name": "X-Academy-Id", "required": True, "schema": {"type": "string"}, "description": "Must match body academy_id"}],
-    responses={400: ("Validation error", ErrorSchema), 404: ("Academy not found", ErrorSchema), 409: ("Owner already exists", ErrorSchema)},
+    responses={400: ("Validation error", ErrorSchema), 404: ("Academy not found", ErrorSchema), 409: ("Owner already exists, or email already registered", ErrorSchema)},
 )
 def create_owner(data):
     """Create the first owner profile during academy setup
@@ -149,6 +161,13 @@ def create_owner(data):
     ).first()
     if existing_owner:
         return jsonify({"error": "Owner already exists for this academy"}), 409
+
+    # The academy-scoped check above cannot see an owner registered under a
+    # different academy. This endpoint is reachable without a JWT, so it has
+    # to carry the same guard signup does — otherwise the duplicate-email
+    # state that makes login unresolvable can be recreated straight from here.
+    if auth_service.owner_email_taken(data["email"]):
+        return jsonify({"error": "An account with this email already exists"}), 409
 
     try:
         owner = tenant_service.create_owner_profile(

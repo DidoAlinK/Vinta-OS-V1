@@ -1,0 +1,397 @@
+{
+  "page": {
+    "navTitle": "Settings",
+    "loading": "Loading settings…",
+    "openNav": "Open settings navigation",
+    "toast": {
+      "academyUpdated": "Academy profile updated",
+      "settingsUpdated": "Settings updated",
+      "saveFailed": "Failed to save. Please try again.",
+      "staffDeactivated": "Staff member deactivated",
+      "staffReactivated": "Staff member reactivated",
+      "deactivateFailed": "Failed to deactivate staff",
+      "reactivateFailed": "Failed to reactivate staff",
+      "tryAgain": "Please try again."
+    }
+  },
+  "section": {
+    "appearance": "Appearance",
+    "account": "My Account",
+    "academy": "Academy Profile",
+    "subjects": "Subjects",
+    "staff": "Staff & Roles",
+    "billing": "Billing Config",
+    "automations": "Automations",
+    "export": "Data & Export",
+    "danger": "Danger Zone"
+  },
+  "appearance": {
+    "theme": {
+      "title": "Theme",
+      "darkActive": "Dark mode is active — easy on the eyes.",
+      "lightActive": "Light mode is active — clean and bright."
+    },
+    "fontSize": {
+      "title": "Font Size",
+      "hint": "Adjust the text size for comfortable reading.",
+      "small": "Small",
+      "normal": "Normal",
+      "large": "Large"
+    },
+    "language": {
+      "title": "Language",
+      "hint": "Interface language for labels and navigation."
+    }
+  },
+  "account": {
+    "title": "My Account",
+    "fullName": "Full Name",
+    "namePlaceholder": "Your name",
+    "changePin": {
+      "title": "Change PIN",
+      "hint": "Update your 4-digit PIN used for login.",
+      "current": "Current PIN",
+      "new": "New PIN",
+      "confirm": "Confirm PIN",
+      "submit": "Change PIN"
+    },
+    "pinChanged": "PIN changed successfully!",
+    "error": {
+      "saveProfile": "Failed to save profile",
+      "currentPinRequired": "Enter your current 4-digit PIN",
+      "newPinLength": "New PIN must be 4 digits",
+      "pinMismatch": "New PINs do not match",
+      "pinReused": "New PIN must be different from current",
+      "currentPinWrong": "Current PIN is incorrect"
+    },
+    "action": {
+      "save": "Save Changes"
+    },
+    "saved": "Saved ✓"
+  },
+  "academy": {
+    "info": {
+      "title": "Academy Info",
+      "name": "Academy Name",
+      "namePlaceholder": "e.g. Vinta Academy",
+      "email": "Email",
+      "address": "Address",
+      "addressPlaceholder": "Street, City, Wilaya"
+    },
+    "schedule": {
+      "title": "Schedule",
+      "workingDays": "Working Days",
+      "hours": "Open 7:00 AM – 9:00 PM, Sunday through Saturday",
+      "currentTerm": "Current Term"
+    },
+    "day": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "term": {
+      "term1": "Term 1",
+      "term2": "Term 2",
+      "fullYear": "Full Year"
+    },
+    "action": {
+      "save": "Save Changes"
+    },
+    "saved": "Saved ✓"
+  },
+  "staff": {
+    "title": "Staff & Roles",
+    "addProfile": "Add Profile",
+    "description": "Manage staff members and their access levels. Owners have full control, while staff members have limited access.",
+    "active_one": "Active ({{count}})",
+    "active_other": "Active ({{count}})",
+    "deactivated_one": "Deactivated ({{count}})",
+    "deactivated_other": "Deactivated ({{count}})",
+    "role": {
+      "owner": "Owner",
+      "staff": "Staff"
+    },
+    "deactivatedBadge": "Deactivated",
+    "reactivate": "Reactivate",
+    "empty": "No staff members yet. Add your first profile to get started."
+  },
+  "addStaff": {
+    "title": "Add Staff Profile",
+    "namePlaceholder": "Staff member name",
+    "role": "Role",
+    "roleOwner": "👑 Owner",
+    "roleStaff": "👤 Staff",
+    "pin": "PIN",
+    "confirmPin": "Confirm PIN",
+    "ownerPin": "Your Owner PIN",
+    "ownerPinPlaceholder": "Enter your PIN to authorize",
+    "submit": "Add Staff",
+    "submitting": "Adding…",
+    "error": {
+      "nameRequired": "Name is required",
+      "pinLength": "PIN must be 4 digits",
+      "pinMismatch": "PINs do not match",
+      "ownerPinRequired": "Owner PIN is required to create a staff profile",
+      "failed": "Failed to create staff profile"
+    }
+  },
+  "subjects": {
+    "title": "Subjects That We Teach",
+    "description": "Create custom subjects for teacher profiles and class assignment.",
+    "loading": "Loading subjects…",
+    "fromClass": "(from class)",
+    "add": {
+      "title": "Add New Subject",
+      "name": "Subject Name",
+      "namePlaceholder": "e.g. Physics, Arabic, Music…",
+      "busy": "Adding…",
+      "color": "Color"
+    },
+    "currentTitle_one": "Current Subjects ({{count}})",
+    "currentTitle_other": "Current Subjects ({{count}})",
+    "empty": {
+      "title": "No subjects created yet",
+      "hint": "Add your first subject above"
+    },
+    "delete": {
+      "title": "Delete this subject?",
+      "label": "Delete subject",
+      "message": "will be removed from the subject list. Classes already using it keep their name."
+    },
+    "toast": {
+      "created": "Subject created",
+      "createdBody": "\"{{name}}\" has been added.",
+      "createFailedTitle": "Failed to create subject",
+      "unknownError": "Unknown error",
+      "deleteBlockedTitle": "Cannot delete",
+      "deleteBlockedBody": "This subject is derived from a class and cannot be removed here.",
+      "deleteFailedTitle": "Failed to delete",
+      "deleteFailedBody": "Could not remove the subject.",
+      "deleted": "Subject deleted",
+      "deletedBody": "\"{{name}}\" has been removed."
+    }
+  },
+  "automations": {
+    "autoCheckout": {
+      "title": "Auto Checkout",
+      "label": "Enable automatic checkout",
+      "hint": "Students are automatically checked out when the session ends"
+    },
+    "endClassPopup": {
+      "title": "End Class Popup",
+      "label": "Show end-of-class popup",
+      "hint": "Display attendance summary when a session ends"
+    },
+    "proHintBefore": "More automations available on the",
+    "proHintAfter": " plan."
+  },
+  "export": {
+    "title": "Export Data",
+    "description": "Download your academy data as CSV files for backup or analysis.",
+    "action": "Export",
+    "items": {
+      "students": "Students",
+      "teachers": "Teachers",
+      "classes": "Classes",
+      "billing": "Billing Records",
+      "activityLog": "Activity Log"
+    },
+    "toast": {
+      "success": "{{label}} exported successfully",
+      "failed": "Failed to export {{label}}"
+    }
+  },
+  "billing": {
+    "rules": {
+      "title": "Billing Rules",
+      "ownerOnlyHeader": "Academy rules · owner only",
+      "ownerVerified": "Owner verified",
+      "verifyOwnerPin": "Verify owner PIN",
+      "loadFailed": "Could not read the rules from the server.",
+      "defaultsNotice": "What you see below is the documented default, not necessarily this academy's rule.",
+      "changeRefused": "The server refused the change.",
+      "stateServer": "Currently {{state}} — stored on the server.",
+      "stateDefault": "Showing the default ({{state}}) — not read from the server yet.",
+      "on": "On",
+      "off": "Off",
+      "onUpper": "ON",
+      "offUpper": "OFF",
+      "toggleTitle": "{{field}} — stored on the server, owner PIN",
+      "footnote": "A rule is read at the moment a class is finalised, so a change applies from the next class and never rewrites one that has already been paid out.",
+      "absence": {
+        "label": "Charge for missed sessions?",
+        "hint": "ON: a student who did not turn up still spends a credit at End Class. OFF: only the students who came are charged, and an absence costs nothing."
+      },
+      "makeups": {
+        "label": "Allow makeups?",
+        "hint": "ON: an absence banks a makeup credit instead of burning the seat. This is the default for new groups, and each group can be set differently."
+      },
+      "gapSessions": {
+        "label": "Charge sessions missed while overdue?",
+        "hint": "ON: classes missed during a payment gap are charged against the next plan. OFF: a new payment always starts a clean cycle."
+      },
+      "restoreCredits": {
+        "label": "Give a credit back when a class is cancelled?",
+        "hint": "ON: cancelling a class that already charged returns the credit. OFF: the academy keeps it."
+      },
+      "freeSession": {
+        "label": "Free sessions fill their own register?",
+        "hint": "ON: a free session marks everyone present and skips tracking — there is no money on it, so the register earns nothing. OFF: you mark it yourself for the record. Billing is 0 either way."
+      },
+      "shareCredits": {
+        "label": "Share credits across groups?",
+        "hint": "ON: one credit pool covers every group of the same subject. OFF: each group needs its own subscription."
+      },
+      "earlyPayment": {
+        "label": "Ask for renewal early?",
+        "hint": "ON: the desk is prompted as soon as extra sessions drain the credits, rather than waiting for the cycle to end."
+      }
+    },
+    "grossProfit": {
+      "label": "Turn on calculating gross profit",
+      "hint": "Off by default. When on, commission model shows per teacher and gross/cut math renders across payouts and session finances."
+    },
+    "swap": {
+      "title": "Guest swap window?",
+      "hint": "SAME_DAY: a guest links only to a session on the same calendar day. OPEN: a 7-day rolling window. Saved in this browser — the server keeps no field for it, so it does not follow the academy onto another machine.",
+      "sameDay": "Same day",
+      "open7d": "Open 7d"
+    },
+    "pin": {
+      "title": "Owner PIN required",
+      "hint": "Billing rules change only with owner verification.",
+      "verifying": "Verifying…",
+      "verify": "Verify"
+    },
+    "currency": {
+      "title": "Currency",
+      "label": "Default Currency"
+    },
+    "moneyModel": {
+      "title": "Money Model Defaults",
+      "hint": "Default values applied to new Course Groups. You can override per-group.",
+      "creditsPerCycle": "Credits per Cycle",
+      "forCreditBased": "For {{type}} groups",
+      "maxGroups": "Max Groups per Subscription",
+      "accessDuration": "Access Duration (weeks)",
+      "notSet": "Not set",
+      "forTimeBased": "For {{type}} groups",
+      "creditRollover": "Credit Rollover",
+      "makeupSessions": "Makeup Sessions"
+    },
+    "groupType": {
+      "creditBased": "Credit-based",
+      "timeBased": "Time-based"
+    },
+    "planDuration": {
+      "title": "Plan Duration",
+      "hint": "Default billing cycle for new student enrollments.",
+      "create": "Create a Preset",
+      "labelPlaceholder": "Label (e.g. 4 Months)",
+      "daysPlaceholder": "Days"
+    },
+    "preset": {
+      "oneMonth": "1 Month",
+      "threeMonths": "3 Months",
+      "sixMonths": "6 Months",
+      "daysShort_one": "({{count}}d)",
+      "daysShort_other": "({{count}}d)",
+      "remove": "Remove {{label}}"
+    },
+    "reminders": {
+      "title": "Reminder Days",
+      "hint": "Days before due date to send a payment reminder.",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days"
+    },
+    "whatsapp": {
+      "title": "WhatsApp Template",
+      "hint": "Custom message template for payment reminders sent via WhatsApp. {{name}} = student name, {{amount}} = amount, {{date}} = due date.",
+      "placeholder": "Bonjour {{name}}, votre paiement de {{amount}} est dû le {{date}}. Merci de régulariser."
+    },
+    "action": {
+      "save": "Save Changes"
+    },
+    "saved": "Saved ✓",
+    "toast": {
+      "ownerPinOnly": "Owner PIN only",
+      "ownerRoleRequired": "Billing rules require the owner role.",
+      "ruleUpdated": "Rule updated",
+      "ruleUpdatedBody": "{{label}} — applies from the next class, not retroactively.",
+      "ruleChangeFailed": "Could not change the rule",
+      "ownerNotSet": "Owner profile Not set.",
+      "pinBlocked": "PIN blocked",
+      "invalidPin": "Invalid PIN.",
+      "verificationFailed": "Verification failed. Press Retry.",
+      "ownerVerified": "Owner verified",
+      "unlocked": "Billing rules unlocked for this session."
+    }
+  },
+  "subscription": {
+    "title": "Subscription",
+    "current": "Current",
+    "currentPlanBefore": "You are currently on the",
+    "currentPlanAfter": "plan (free).",
+    "tier": {
+      "starter": "Starter",
+      "pro": "Pro",
+      "scaler": "Scaler"
+    },
+    "price": {
+      "free": "Free",
+      "pro": "2,500 DA/mo",
+      "scaler": "5,000 DA/mo"
+    },
+    "feature": {
+      "basicManagement": "Basic student/teacher management",
+      "upTo3Staff": "Up to 3 staff profiles",
+      "billingAlerts": "Billing alerts",
+      "calendar": "Calendar",
+      "basicAnalytics": "Basic analytics",
+      "upTo10Staff": "Up to 10 staff profiles",
+      "automations": "Automations",
+      "unlimitedStudents": "Unlimited students",
+      "advancedAnalytics": "Advanced analytics",
+      "unlimitedStaff": "Unlimited staff"
+    }
+  },
+  "danger": {
+    "reset": {
+      "title": "Reset All Data",
+      "description": "Remove all students, teachers, classes, and billing records. This cannot be undone.",
+      "action": "Reset Academy Data"
+    },
+    "delete": {
+      "title": "Delete Academy",
+      "warning": "This action is irreversible",
+      "description": "Deleting your academy will permanently remove all data including student records, billing history, and staff accounts."
+    },
+    "resetModal": {
+      "bodyBefore": "This will permanently delete all data. Type",
+      "bodyAfter": "to confirm.",
+      "placeholder": "Type Reset",
+      "busy": "Resetting…",
+      "confirm": "Reset Everything"
+    },
+    "deleteModal": {
+      "warning": "This will permanently delete your academy and ALL associated data. This cannot be undone.",
+      "bodyBefore": "Type",
+      "bodyAfter": "to confirm.",
+      "placeholder": "Type DELETE",
+      "busy": "Deleting…",
+      "confirm": "Delete Academy Forever"
+    },
+    "toast": {
+      "resetDone": "Academy data has been reset.",
+      "resetFailedTitle": "Reset failed",
+      "resetFailedBody": "Please try again.",
+      "deletedDone": "Academy deleted. Redirecting…",
+      "deleteFailedTitle": "Delete failed",
+      "deleteFailedBody": "Please try again."
+    }
+  }
+}

@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { X, UserPlus, Phone, BookOpen, ChevronDown, Search, Plus, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
@@ -18,7 +19,6 @@ import { toast } from '../../stores/uiStore'
 import { isValidEmail } from '../../lib/teacherEmails'
 import { formatDuration } from '../../lib/formatters'
 import type { CommissionType } from '../../types/teacher'
-import { COMMISSION_TYPE_LABELS } from '../../types/teacher'
 
 // ============================================
 // Types
@@ -50,10 +50,21 @@ interface TeacherGroup {
 
 const COMMISSION_TYPES: CommissionType[] = ['PERCENTAGE', 'FLAT_HOURLY', 'FIXED_SESSION']
 
-const COMMISSION_SUFFIX: Record<CommissionType, string> = {
-  PERCENTAGE: '%',
-  FLAT_HOURLY: 'DA/h',
-  FIXED_SESSION: 'DA/session',
+/**
+ * Commission wording travels as key names, never as words. A module-level map
+ * of labels is resolved once, at import, in whatever language happened to be
+ * loaded at the time, and would then ignore every later language switch.
+ */
+const COMMISSION_TYPE_KEYS: Record<CommissionType, string> = {
+  PERCENTAGE: 'modal.commissionTypePercentage',
+  FLAT_HOURLY: 'modal.commissionTypeHourly',
+  FIXED_SESSION: 'modal.commissionTypeSession',
+}
+
+const COMMISSION_SUFFIX_KEYS: Record<CommissionType, string> = {
+  PERCENTAGE: 'modal.suffixPercentage',
+  FLAT_HOURLY: 'modal.suffixHourly',
+  FIXED_SESSION: 'modal.suffixSession',
 }
 
 const COMMISSION_PLACEHOLDER: Record<CommissionType, string> = {
@@ -77,6 +88,8 @@ export interface AddTeacherModalProps {
 // ============================================
 
 export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacherModalProps) {
+  const { t } = useTranslation('teachers')
+
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -207,11 +220,11 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
     // profile must still be creatable. Only a value that is present and
     // malformed blocks the save.
     if (!v) return null
-    if (!isValidEmail(v)) return 'Enter a valid email address.'
+    if (!isValidEmail(v)) return t('modal.emailInvalid')
     // Uniqueness is enforced by the server (academy-scoped, 409). Do NOT block
     // the button on the draft value.
     return null
-  }, [])
+  }, [t])
 
   const resetForm = useCallback(() => {
     setFirstName('')
@@ -254,19 +267,19 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
     // 10:00-12:00"), store it on the group, and leave the calendar empty — so
     // the desk created a group, enrolled nobody, and only found out later.
     if (!groupStartTime || !groupEndTime) {
-      toast.error('Set the group time', 'A group needs a Start At and an End At.')
+      toast.error(t('toast.groupTimeTitle'), t('toast.groupTimeBody'))
       return
     }
     if (groupEndTime <= groupStartTime) {
-      toast.error('Check the times', 'End At must be after Start At.')
+      toast.error(t('toast.checkTimesTitle'), t('toast.checkTimesBody'))
       return
     }
     if (!groupDay) {
       toast.error(
-        groupClassType === 'weekly' ? 'Pick the weekly day' : 'Pick the date',
+        groupClassType === 'weekly' ? t('toast.pickDayTitle') : t('toast.pickDateTitle'),
         groupClassType === 'weekly'
-          ? 'The weekday is what the weekly series is built from.'
-          : 'A one-off group needs its date.',
+          ? t('toast.pickDayBody')
+          : t('toast.pickDateBody'),
       )
       return
     }
@@ -285,22 +298,22 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
     setGroups(prev => [...prev, newGroup])
     resetGroupForm()
     setShowGroupForm(false)
-  }, [groupName, groupSubject, groupCapacity, groupPrice, groupClassType, groupDay, groupStartTime, groupEndTime, groupNotes, resetGroupForm])
+  }, [t, groupName, groupSubject, groupCapacity, groupPrice, groupClassType, groupDay, groupStartTime, groupEndTime, groupNotes, resetGroupForm])
 
   const handleRemoveGroup = useCallback((groupId: string) => {
     setGroups(prev => prev.filter(g => g.id !== groupId))
   }, [])
 
   const handleSubmit = useCallback(async () => {
-    if (!firstName.trim()) { toast.error('Name is required'); return }
+    if (!firstName.trim()) { toast.error(t('toast.nameRequired')); return }
     // Email is optional and round-trips through the API now (it used to live
     // only in localStorage). Only a value that is present and malformed blocks
     // the save; uniqueness is the server's job and comes back as a 409.
     const mailErr = validateEmailLive(email)
     setEmailError(mailErr)
     if (mailErr) { toast.error(mailErr); return }
-    if (!phone.trim()) { toast.error('Phone is required'); return }
-    if (selectedSubjectIds.length === 0) { toast.error('At least one subject is required'); return }
+    if (!phone.trim()) { toast.error(t('toast.phoneRequired')); return }
+    if (selectedSubjectIds.length === 0) { toast.error(t('toast.subjectRequired')); return }
     setIsSubmitting(true)
     try {
       // 1. Create teacher. No contract/rate fields: hourly model removed.
@@ -382,8 +395,8 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
         // The teacher exists. Saying "created" over the top of a group that did
         // not make it is the same lie this handler was fixed for once already.
         toast.error(
-          'Teacher added, some groups were not',
-          `${failed.join(', ')} — add the time from the group panel, then reload.`,
+          t('toast.groupsFailedTitle'),
+          t('toast.groupsFailedBody', { names: failed.join(', ') }),
         )
       }
 
@@ -398,12 +411,12 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
         (err as { response?: { data?: { error?: string; message?: string } } })
           ?.response?.data?.error ??
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'The server refused the request.'
-      toast.error('Teacher not created', message)
+        t('modal.serverRefused')
+      toast.error(t('toast.notCreated'), message)
     } finally {
       setIsSubmitting(false)
     }
-  }, [firstName, lastName, email, validateEmailLive, phone, selectedSubjectIds, grossOn, notes, commissionType, commissionValue, groups, resetForm, onAdded, onClose])
+  }, [t, firstName, lastName, email, validateEmailLive, phone, selectedSubjectIds, grossOn, notes, commissionType, commissionValue, groups, resetForm, onAdded, onClose])
 
   if (!isOpen) return null
 
@@ -434,7 +447,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
               className="text-lg font-bold text-[var(--text)]"
               style={{ fontFamily: 'var(--font-heading)' }}
             >
-              Add Teacher
+              {t('modal.title')}
             </h2>
           </div>
           <button
@@ -453,21 +466,21 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
         <div className="space-y-4">
           {/* Name row */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="First Name" required>
+            <Field label={t('modal.fieldFirstName')} required>
               <input
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Ahmed"
+                placeholder={t('modal.firstNamePlaceholder')}
                 className={inputCls}
               />
             </Field>
-            <Field label="Last Name" required>
+            <Field label={t('modal.fieldLastName')} required>
               <input
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                placeholder="Benali"
+                placeholder={t('modal.lastNamePlaceholder')}
                 className={inputCls}
               />
             </Field>
@@ -476,12 +489,12 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
           {/* Email — optional, and the only one that is: plenty of teachers
               here have no address, and the profile must still be creatable.
               Validated only when present; uniqueness is the server's call. */}
-          <Field label="Email (optional)">
+          <Field label={t('modal.fieldEmail')}>
             <input
               type="email"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setEmailError(validateEmailLive(e.target.value)) }}
-              placeholder="teacher@academy.dz"
+              placeholder={t('modal.emailPlaceholder')}
               className={cn(inputCls, emailError && 'border-[var(--red)]/50')}
             />
             {emailError && (
@@ -492,21 +505,21 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
           {/* Phone — required, and the label says so. It was silently
               mandatory before: the button stayed enabled and the save bounced
               off a toast, which reads as the form being broken. */}
-          <Field label="Phone" required>
+          <Field label={t('modal.fieldPhone')} required>
             <div className="relative">
-              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <Phone size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="0555 12 34 56"
-                className={cn(inputCls, 'pl-9')}
+                placeholder={t('modal.phonePlaceholder')}
+                className={cn(inputCls, 'ps-9')}
               />
             </div>
           </Field>
 
           {/* Subjects — multi-select with portal dropdown */}
-          <Field label="Subjects" required>
+          <Field label={t('modal.fieldSubjects')} required>
             {/* Selected chips */}
             {selectedSubjects.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
@@ -520,7 +533,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                     <button
                       type="button"
                       onMouseDown={(e) => { e.preventDefault(); removeSubject(s.id!) }}
-                      className="ml-0.5 p-0.5 rounded text-[var(--muted)] hover:text-[var(--red)] transition-colors"
+                      className="ms-0.5 p-0.5 rounded text-[var(--muted)] hover:text-[var(--red)] transition-colors"
                     >
                       <X size={10} />
                     </button>
@@ -536,15 +549,15 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                 onClick={toggleDropdown}
                 className={cn(
                   inputCls,
-                  'flex items-center gap-2 text-left min-h-[38px] cursor-pointer',
+                  'flex items-center gap-2 text-start min-h-[38px] cursor-pointer',
                   dropdownOpen && 'ring-2 ring-[var(--gold)]/30',
                 )}
               >
                 <BookOpen size={14} className="text-[var(--muted)] shrink-0" />
-                <span className="flex-1 text-left truncate">
+                <span className="flex-1 text-start truncate">
                   {selectedSubjects.length > 0
-                    ? `${selectedSubjects.length} subject${selectedSubjects.length > 1 ? 's' : ''} selected`
-                    : <span className="text-[var(--muted)]">Select subjects…</span>
+                    ? t('modal.subjectsSelected', { count: selectedSubjects.length })
+                    : <span className="text-[var(--muted)]">{t('modal.selectSubjects')}</span>
                   }
                 </span>
                 <ChevronDown
@@ -564,15 +577,15 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                 <div className="rounded-xl bg-[var(--card-bg)] border border-[var(--glass-border)] shadow-2xl overflow-hidden animate-fade-in">
                   {/* Search */}
                   <div className="relative border-b border-[var(--glass-border)]">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                    <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
                     <input
                       ref={searchRef}
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search subjects…"
+                      placeholder={t('modal.searchSubjects')}
                       className={cn(
-                        'w-full pl-9 pr-3 py-2.5 text-sm text-[var(--text)]',
+                        'w-full ps-9 pe-3 py-2.5 text-sm text-[var(--text)]',
                         'bg-transparent outline-none',
                         'placeholder:text-[var(--muted)]',
                       )}
@@ -582,11 +595,11 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                   <div className="max-h-56 overflow-y-auto py-1">
                     {subjectsLoading ? (
                       <div className="px-3 py-4 text-center text-xs text-[var(--muted)]">
-                        Loading subjects…
+                        {t('modal.subjectsLoading')}
                       </div>
                     ) : filteredSubjects.length === 0 ? (
                       <div className="px-3 py-4 text-center text-xs text-[var(--muted)]">
-                        {subjects.length === 0 ? 'No subjects yet — create them in Settings' : 'No match'}
+                        {subjects.length === 0 ? t('modal.noSubjects') : t('modal.noSubjectMatch')}
                       </div>
                     ) : (
                       filteredSubjects.map((s) => {
@@ -602,7 +615,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                               toggleSubject(s.id!)
                             }}
                             className={cn(
-                              'w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left cursor-pointer',
+                              'w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-start cursor-pointer',
                               'hover:bg-[var(--glass)] transition-colors duration-75',
                               isSelected && 'bg-[var(--gold-soft)]',
                             )}
@@ -627,8 +640,8 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
 
             {selectedSubjectIds.length === 0 && (
               <p className="text-[10px] text-[var(--red)] mt-1">
-                At least one subject is required
-                {subjects.length === 0 && !subjectsLoading && ' — none exist yet, create them in Settings → Subjects first'}
+                {t('modal.subjectRequired')}
+                {subjects.length === 0 && !subjectsLoading && t('modal.noSubjectsHint')}
               </p>
             )}
           </Field>
@@ -637,13 +650,13 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
           <div className="pt-2 border-t border-[var(--glass-border)]">
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
-                Turn on calculating gross profit
+                {t('modal.grossProfitToggle')}
               </p>
               <Toggle checked={grossOn} onCheckedChange={(v) => { setGrossOn(v); if (!v) setCommissionValue('') }} />
             </div>
             {!grossOn && (
               <p className="text-[11px] text-[var(--muted)] mb-1">
-                Off — teacher is paid per session formula only, no gross/cut math.
+                {t('modal.grossOffNote')}
               </p>
             )}
             {grossOn && (
@@ -661,11 +674,11 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                           : 'bg-[var(--input-bg)] text-[var(--muted)] border border-[var(--glass-border)] hover:border-[var(--muted)]/30',
                       )}
                     >
-                      <span className="block">{COMMISSION_TYPE_LABELS[type]}</span>
+                      <span className="block">{t(COMMISSION_TYPE_KEYS[type])}</span>
                     </button>
                   ))}
                 </div>
-                <Field label="Commission Value">
+                <Field label={t('modal.fieldCommissionValue')}>
                   <div className="relative">
                     <input
                       type="number"
@@ -682,10 +695,10 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                       placeholder={COMMISSION_PLACEHOLDER[commissionType]}
                       min={0}
                       max={commissionType === 'PERCENTAGE' ? 100 : undefined}
-                      className={cn(inputCls, 'pr-20')}
+                      className={cn(inputCls, 'pe-20')}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted)]">
-                      {COMMISSION_SUFFIX[commissionType]}
+                    <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted)]">
+                      {t(COMMISSION_SUFFIX_KEYS[commissionType])}
                     </span>
                   </div>
                 </Field>
@@ -694,11 +707,11 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
           </div>
 
           {/* Notes */}
-          <Field label="Notes">
+          <Field label={t('modal.fieldNotes')}>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes about this teacher..."
+              placeholder={t('modal.notesPlaceholder')}
               rows={2}
               className={cn(inputCls, 'resize-none')}
             />
@@ -708,7 +721,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
           <div className="pt-2 border-t border-[var(--glass-border)]">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
-                Groups (Optional)
+                {t('modal.groupsSection')}
               </p>
               <button
                 type="button"
@@ -720,7 +733,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                 )}
               >
                 <Plus size={12} />
-                Add Group
+                {t('modal.addGroup')}
               </button>
             </div>
 
@@ -741,7 +754,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                         {group.subject && (
                           <span className="text-[10px] text-[var(--muted)]">{group.subject}</span>
                         )}
-                        <span className="text-[10px] text-[var(--muted)]">Cap: {group.capacity}</span>
+                        <span className="text-[10px] text-[var(--muted)]">{t('modal.groupCapacity', { count: group.capacity })}</span>
                         {group.price_da > 0 && (
                           <span className="text-[10px] text-[var(--muted)]">{group.price_da} DA</span>
                         )}
@@ -758,7 +771,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                             ? 'bg-[var(--emerald-soft)] text-[var(--emerald)]'
                             : 'bg-[var(--gold-soft)] text-[var(--gold)]',
                         )}>
-                          {group.class_type === 'weekly' ? 'Weekly' : 'Temp'}
+                          {group.class_type === 'weekly' ? t('modal.groupTypeWeekly') : t('modal.groupTypeTemp')}
                         </span>
                       </div>
                     </div>
@@ -784,7 +797,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                   type="text"
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="Group name (e.g. Math - CM2)"
+                  placeholder={t('modal.groupNamePlaceholder')}
                   className={inputCls}
                   autoFocus
                 />
@@ -793,7 +806,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                     value={groupSubject}
                     onChange={setGroupSubject}
                     options={[
-                      { value: '', label: 'Subject...' },
+                      { value: '', label: t('modal.groupSubjectPlaceholder') },
                       ...subjects.map(s => ({ value: s.name, label: s.name })),
                     ]}
                     className={cn(inputCls, 'h-auto')}
@@ -802,7 +815,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                     type="number"
                     value={groupCapacity}
                     onChange={(e) => setGroupCapacity(Number(e.target.value))}
-                    placeholder="Capacity"
+                    placeholder={t('modal.groupCapacityPlaceholder')}
                     min={1}
                     className={inputCls}
                   />
@@ -812,24 +825,26 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                     type="number"
                     value={groupPrice || ''}
                     onChange={(e) => setGroupPrice(Number(e.target.value))}
-                    placeholder="Price (DA)"
+                    placeholder={t('modal.groupPricePlaceholder')}
                     min={0}
                     className={inputCls}
                   />
                   <div className="flex rounded-lg overflow-hidden border border-[var(--glass-border)]">
-                    {(['weekly', 'temporary'] as const).map(t => (
+                    {/* The loop variable used to be `t`, which now shadows the
+                        translator — one of the two had to be renamed. */}
+                    {(['weekly', 'temporary'] as const).map(type => (
                       <button
-                        key={t}
+                        key={type}
                         type="button"
-                        onClick={() => setGroupClassType(t)}
+                        onClick={() => setGroupClassType(type)}
                         className={cn(
                           'flex-1 py-1.5 text-[11px] font-medium transition-all',
-                          groupClassType === t
+                          groupClassType === type
                             ? 'bg-[var(--gold)] text-white'
                             : 'bg-[var(--input-bg)] text-[var(--muted)]',
                         )}
                       >
-                        {t === 'weekly' ? 'Weekly' : 'Temp'}
+                        {type === 'weekly' ? t('modal.groupTypeWeekly') : t('modal.groupTypeTemp')}
                       </button>
                     ))}
                   </div>
@@ -842,26 +857,26 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                 <DayPicker
                   value={groupDay}
                   onChange={setGroupDay}
-                  placeholder={groupClassType === 'weekly' ? 'Pick the weekly day…' : 'Pick the one-off date…'}
+                  placeholder={groupClassType === 'weekly' ? t('modal.pickWeeklyDay') : t('modal.pickOneOffDate')}
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <TimePicker
                     value={groupStartTime}
                     onChange={setGroupStartTime}
-                    aria-label="Start At"
+                    aria-label={t('modal.startAt')}
                     className={inputCls}
                   />
                   <TimePicker
                     value={groupEndTime}
                     onChange={setGroupEndTime}
-                    aria-label="End At"
+                    aria-label={t('modal.endAt')}
                     className={inputCls}
                   />
                 </div>
                 <p className="text-[10px] text-[var(--muted)] -mt-1">
                   {groupStartTime && groupEndTime && groupEndTime > groupStartTime
-                    ? `Start At – End At · a ${formatDuration(groupStartTime, groupEndTime)} session.`
-                    : 'Start At / End At — the class runs between these two times.'}
+                    ? t('modal.timeSummary', { duration: formatDuration(groupStartTime, groupEndTime) })
+                    : t('modal.timeHint')}
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -869,7 +884,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                     onClick={() => { setShowGroupForm(false); resetGroupForm() }}
                     className="flex-1 py-1.5 rounded-lg text-xs font-medium bg-[var(--glass)] text-[var(--muted)]"
                   >
-                    Cancel
+                    {t('common:action.cancel')}
                   </button>
                   <button
                     type="button"
@@ -877,7 +892,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
                     disabled={!groupName.trim()}
                     className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-[#b3872a] to-[#0f6b4d] disabled:opacity-40"
                   >
-                    Add Group
+                    {t('modal.addGroup')}
                   </button>
                 </div>
               </div>
@@ -885,7 +900,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
 
             {!showGroupForm && groups.length === 0 && (
               <p className="text-xs text-[var(--muted)] italic">
-                No groups added. Groups will be created as classes.
+                {t('modal.noGroups')}
               </p>
             )}
           </div>
@@ -901,7 +916,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
               'hover:bg-[var(--glass)] transition-colors duration-150',
             )}
           >
-            Cancel
+            {t('common:action.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -914,7 +929,7 @@ export default function AddTeacherModal({ isOpen, onClose, onAdded }: AddTeacher
               'transition-all duration-150',
             )}
           >
-            {isSubmitting ? 'Adding...' : 'Add Teacher'}
+            {isSubmitting ? t('modal.adding') : t('modal.submit')}
           </button>
         </div>
       </div>

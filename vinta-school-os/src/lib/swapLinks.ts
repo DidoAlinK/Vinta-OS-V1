@@ -14,6 +14,8 @@
  *   are excluded from makeup display/counts; backend's row is untouched).
  */
 
+import { getDayName } from './formatters'
+
 export interface SwapLink {
   id: string
   studentId: string
@@ -120,7 +122,8 @@ export function sessionLabel(dateStr: string, timeStr: string): string {
   try {
     const d = new Date(`${dateStr}T${timeStr || '00:00'}:00`)
     if (Number.isNaN(d.getTime())) return `${dateStr} ${timeStr}`.trim()
-    const day = d.toLocaleDateString('en-US', { weekday: 'short' })
+    // Localised weekday, so an Arabic toast does not say "Mon 14:00".
+    const day = getDayName(d)
     const t = (timeStr || '').slice(0, 5)
     return `${day} ${t}`
   } catch {

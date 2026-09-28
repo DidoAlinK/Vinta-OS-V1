@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import {
   GraduationCap,
   Plus,
@@ -26,6 +27,8 @@ import type { Teacher } from '../../types/teacher'
 // ============================================
 
 export default function TeachersPage() {
+  const { t } = useTranslation('teachers')
+
   /* ── State ── */
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null)
@@ -107,14 +110,14 @@ export default function TeachersPage() {
     try {
       await api.delete(`/teachers/${target.id}`)
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? 'Please try again.'
-      toast.error('Failed to delete teacher', msg)
+      const msg = err?.response?.data?.error ?? t('toast.tryAgain')
+      toast.error(t('toast.deleteFailed'), msg)
       throw new Error(msg)
     }
     setTeachers((prev) => prev.filter((t) => t.id !== target.id))
     handleCloseDrawer()
-    toast.success('Teacher deleted successfully')
-  }, [teacherToDelete, handleCloseDrawer])
+    toast.success(t('toast.deleted'))
+  }, [t, teacherToDelete, handleCloseDrawer])
 
   /* ── Filtered list ── */
   const filteredTeachers = search
@@ -140,10 +143,10 @@ export default function TeachersPage() {
                 className="text-xl font-bold text-[var(--text)]"
                 style={{ fontFamily: 'var(--font-heading)' }}
               >
-                Teachers
+                {t('page.title')}
               </h1>
               <p className="text-xs text-[var(--muted)]">
-                Manage teacher contracts, schedules, and payroll
+                {t('page.subtitle')}
               </p>
             </div>
           </div>
@@ -156,7 +159,7 @@ export default function TeachersPage() {
                 'hover:bg-[var(--glass)] hover:text-[var(--text)]',
                 'transition-colors duration-150',
               )}
-              title="Refresh"
+              title={t('common:action.refresh')}
             >
               <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
             </button>
@@ -170,7 +173,7 @@ export default function TeachersPage() {
               )}
             >
               <Plus size={16} />
-              Add Teacher
+              {t('page.addTeacher')}
             </button>
           </div>
         </div>
@@ -178,7 +181,7 @@ export default function TeachersPage() {
         {/* ── Stats Rail ──────────────────────────── */}
         <div className="flex items-center gap-5 mb-4">
           <StatCard
-            label="Total Teachers"
+            label={t('page.statTotal')}
             value={stats.total}
             color="var(--text)"
             icon={<GraduationCap size={14} />}
@@ -189,15 +192,15 @@ export default function TeachersPage() {
         <div className="relative">
           <Search
             size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+            className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
           />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or subject..."
+            placeholder={t('page.searchPlaceholder')}
             className={cn(
-              'w-full pl-9 pr-4 py-2 rounded-xl text-sm text-[var(--text)]',
+              'w-full ps-9 pe-4 py-2 rounded-xl text-sm text-[var(--text)]',
               'bg-[var(--input-bg)] border border-[var(--glass-border)]',
               'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
               'placeholder:text-[var(--muted)]/50',
@@ -236,15 +239,19 @@ export default function TeachersPage() {
       <PinConfirmDialog
         open={!!teacherToDelete}
         onClose={() => setTeacherToDelete(null)}
-        title="Delete this teacher?"
-        confirmLabel="Delete teacher"
+        title={t('confirm.deleteTitle')}
+        confirmLabel={t('confirm.deleteConfirm')}
         message={
           teacherToDelete ? (
-            <>
-              <strong className="font-semibold">{teacherToDelete.full_name}</strong> will be
-              removed from the roster. Their published classes and past sessions keep their
-              history — reassign the groups that still need a teacher.
-            </>
+            /* One key rather than a bolded name glued to a sentence fragment:
+               the name does not lead the clause in every language, and a
+               translator who cannot move it writes a sentence nobody says. */
+            <Trans
+              ns="teachers"
+              i18nKey="confirm.deleteMessage"
+              values={{ name: teacherToDelete.full_name }}
+              components={{ strong: <strong className="font-semibold" /> }}
+            />
           ) : null
         }
         onConfirm={confirmDeleteTeacher}

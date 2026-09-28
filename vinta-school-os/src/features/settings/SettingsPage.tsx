@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
 import { toast } from '../../stores/uiStore'
@@ -29,30 +30,33 @@ import {
   X,
 } from 'lucide-react'
 
-/* ─── Section definitions ─── */
+/* ─── Section definitions ───
+   `labelKey` rather than `label`: this table is built at module scope, before
+   any language is in play, and the running language can change under it. */
 
 interface SettingsSection {
   id: string
-  label: string
+  labelKey: string
   icon: React.ReactNode
   roles: ('owner' | 'staff')[]
 }
 
 const SECTIONS: SettingsSection[] = [
-  { id: 'appearance', label: 'Appearance', icon: <Palette className="w-4 h-4" />, roles: ['owner', 'staff'] },
-  { id: 'account', label: 'My Account', icon: <User className="w-4 h-4" />, roles: ['owner', 'staff'] },
-  { id: 'academy', label: 'Academy Profile', icon: <Building2 className="w-4 h-4" />, roles: ['owner'] },
-  { id: 'subjects', label: 'Subjects', icon: <BookOpen className="w-4 h-4" />, roles: ['owner'] },
-  { id: 'staff', label: 'Staff & Roles', icon: <Users className="w-4 h-4" />, roles: ['owner'] },
-  { id: 'billing', label: 'Billing Config', icon: <CreditCard className="w-4 h-4" />, roles: ['owner'] },
-  { id: 'automations', label: 'Automations', icon: <Zap className="w-4 h-4" />, roles: ['owner'] },
-  { id: 'export', label: 'Data & Export', icon: <Download className="w-4 h-4" />, roles: ['owner', 'staff'] },
-  { id: 'danger', label: 'Danger Zone', icon: <AlertTriangle className="w-4 h-4" />, roles: ['owner'] },
+  { id: 'appearance', labelKey: 'section.appearance', icon: <Palette className="w-4 h-4" />, roles: ['owner', 'staff'] },
+  { id: 'account', labelKey: 'section.account', icon: <User className="w-4 h-4" />, roles: ['owner', 'staff'] },
+  { id: 'academy', labelKey: 'section.academy', icon: <Building2 className="w-4 h-4" />, roles: ['owner'] },
+  { id: 'subjects', labelKey: 'section.subjects', icon: <BookOpen className="w-4 h-4" />, roles: ['owner'] },
+  { id: 'staff', labelKey: 'section.staff', icon: <Users className="w-4 h-4" />, roles: ['owner'] },
+  { id: 'billing', labelKey: 'section.billing', icon: <CreditCard className="w-4 h-4" />, roles: ['owner'] },
+  { id: 'automations', labelKey: 'section.automations', icon: <Zap className="w-4 h-4" />, roles: ['owner'] },
+  { id: 'export', labelKey: 'section.export', icon: <Download className="w-4 h-4" />, roles: ['owner', 'staff'] },
+  { id: 'danger', labelKey: 'section.danger', icon: <AlertTriangle className="w-4 h-4" />, roles: ['owner'] },
 ]
 
 /* ─── Component ─── */
 
 export function SettingsPage() {
+  const { t } = useTranslation('settings')
   const [activeSection, setActiveSection] = useState('appearance')
   const [academy, setAcademy] = useState<Academy | null>(null)
   const [settings, setSettings] = useState<AcademySettings | null>(null)
@@ -100,9 +104,9 @@ export function SettingsPage() {
       await api.put('/settings/academy', data)
       // Backend returns {message} only — merge updates into local state
       setAcademy(prev => prev ? { ...prev, ...data } : prev)
-      toast.success('Academy profile updated')
+      toast.success(t('page.toast.academyUpdated'))
     } catch {
-      toast.error('Failed to save. Please try again.')
+      toast.error(t('page.toast.saveFailed'))
     }
   }
 
@@ -111,9 +115,9 @@ export function SettingsPage() {
       await api.put('/settings/appearance', data)
       // Backend returns {message} only — merge updates into local state
       setSettings(prev => prev ? { ...prev, ...data } : prev)
-      toast.success('Settings updated')
+      toast.success(t('page.toast.settingsUpdated'))
     } catch {
-      toast.error('Failed to save. Please try again.')
+      toast.error(t('page.toast.saveFailed'))
     }
   }
 
@@ -137,9 +141,9 @@ export function SettingsPage() {
       setStaff((prev) =>
         prev.map((s) => (s.id === id ? { ...s, is_active: false } : s)),
       )
-      toast.success('Staff member deactivated')
+      toast.success(t('page.toast.staffDeactivated'))
     } catch {
-      toast.error('Failed to deactivate staff', 'Please try again.')
+      toast.error(t('page.toast.deactivateFailed'), t('page.toast.tryAgain'))
     }
   }
 
@@ -149,9 +153,9 @@ export function SettingsPage() {
       setStaff((prev) =>
         prev.map((s) => (s.id === id ? { ...s, is_active: true } : s)),
       )
-      toast.success('Staff member reactivated')
+      toast.success(t('page.toast.staffReactivated'))
     } catch {
-      toast.error('Failed to reactivate staff', 'Please try again.')
+      toast.error(t('page.toast.reactivateFailed'), t('page.toast.tryAgain'))
     }
   }
 
@@ -199,7 +203,7 @@ export function SettingsPage() {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center gap-3 text-[var(--muted)]">
           <div className="w-8 h-8 border-2 border-[var(--gold)] border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm">Loading settings…</span>
+          <span className="text-sm">{t('page.loading')}</span>
         </div>
       </div>
     )
@@ -219,7 +223,7 @@ export function SettingsPage() {
         )}
       >
         <span className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider px-3 pb-2 pt-1">
-          Settings
+          {t('page.navTitle')}
         </span>
         {visibleSections.map((section) => {
           const isActive = activeSection === section.id
@@ -230,16 +234,18 @@ export function SettingsPage() {
               onClick={() => handleSectionSelect(section.id)}
               className={cn(
                 'flex items-center gap-2.5 w-full px-3 py-2.5 rounded-[var(--radius-sm)]',
-                'text-sm font-medium text-left transition-all duration-200',
+                'text-sm font-medium text-start transition-all duration-200',
                 isActive
-                  ? 'bg-[var(--gold-soft)] text-[var(--gold)] border-l-2 border-[var(--gold)]'
-                  : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--glass)] border-l-2 border-transparent',
+                  ? 'bg-[var(--gold-soft)] text-[var(--gold)] border-s-2 border-[var(--gold)]'
+                  : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--glass)] border-s-2 border-transparent',
               )}
             >
               {section.icon}
-              <span className="flex-1 truncate">{section.label}</span>
+              <span className="flex-1 truncate">{t(section.labelKey)}</span>
               {isActive && (
-                <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                // Points "forward" — which is left in Arabic, so the glyph
+                // mirrors rather than the meaning.
+                <ChevronRight className="w-3.5 h-3.5 opacity-60 rtl:-scale-x-100" />
               )}
             </button>
           )
@@ -250,8 +256,9 @@ export function SettingsPage() {
       <button
         type="button"
         onClick={() => setMobileNavOpen(true)}
+        aria-label={t('page.openNav')}
         className={cn(
-          'md:hidden fixed bottom-4 left-4 z-40',
+          'md:hidden fixed bottom-4 start-4 z-40',
           'w-12 h-12 rounded-full',
           'bg-[var(--gold)] text-white',
           'shadow-lg',
@@ -272,19 +279,22 @@ export function SettingsPage() {
           />
           <nav
             className={cn(
-              'absolute left-0 top-0 bottom-0 w-[280px]',
-              'bg-[var(--bg)] border-r border-[var(--glass-border)]',
+              // Anchored to the inline start and mirrored with it — in Arabic
+              // the panel is on the right and therefore slides in from there.
+              'absolute start-0 top-0 bottom-0 w-[280px]',
+              'bg-[var(--bg)] border-e border-[var(--glass-border)]',
               'flex flex-col gap-0.5 p-4',
-              'animate-slide-in-left',
+              'animate-slide-in-left rtl:animate-slide-in-right',
             )}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
-                Settings
+                {t('page.navTitle')}
               </span>
               <button
                 type="button"
                 onClick={() => setMobileNavOpen(false)}
+                aria-label={t('common:action.close')}
                 className="p-1 rounded-lg hover:bg-[var(--glass)]"
               >
                 <X className="w-4 h-4 text-[var(--muted)]" />
@@ -299,14 +309,14 @@ export function SettingsPage() {
                   onClick={() => handleSectionSelect(section.id)}
                   className={cn(
                     'flex items-center gap-2.5 w-full px-3 py-2.5 rounded-[var(--radius-sm)]',
-                    'text-sm font-medium text-left transition-all duration-200',
+                    'text-sm font-medium text-start transition-all duration-200',
                     isActive
-                      ? 'bg-[var(--gold-soft)] text-[var(--gold)] border-l-2 border-[var(--gold)]'
-                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--glass)] border-l-2 border-transparent',
+                      ? 'bg-[var(--gold-soft)] text-[var(--gold)] border-s-2 border-[var(--gold)]'
+                      : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--glass)] border-s-2 border-transparent',
                   )}
                 >
                   {section.icon}
-                  <span className="flex-1 truncate">{section.label}</span>
+                  <span className="flex-1 truncate">{t(section.labelKey)}</span>
                 </button>
               )
             })}

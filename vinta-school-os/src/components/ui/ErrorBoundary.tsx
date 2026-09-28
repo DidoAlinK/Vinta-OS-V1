@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 
 interface Props {
@@ -9,6 +10,44 @@ interface Props {
 interface State {
   hasError: boolean
   error: Error | null
+}
+
+/*
+  The crash screen is its own function component because a class has no way to
+  call `useTranslation` — and a fallback left in English would be the one
+  screen in the app that never changed language, which is precisely the screen
+  a user is least able to work around.
+
+  The wording stays deliberately plain. Whoever reads this is already having a
+  bad moment; the message says what happened and offers one way forward, and
+  the technical detail is whatever the error itself said.
+*/
+function CrashFallback({ error, onReset }: { error: Error | null; onReset: () => void }) {
+  const { t } = useTranslation('common')
+
+  return (
+    <div className="flex items-center justify-center h-full p-6">
+      <div className="text-center max-w-sm">
+        <div className="w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: 'var(--red-soft)', color: 'var(--red)' }}>
+          <AlertTriangle size={24} />
+        </div>
+        <h3 className="text-base font-semibold mb-2" style={{ fontFamily: 'var(--font-heading)', color: 'var(--text)' }}>
+          {t('state.error')}
+        </h3>
+        <p className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
+          {error?.message || t('errorBoundary.detail')}
+        </p>
+        <button
+          onClick={onReset}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white"
+          style={{ background: 'var(--gold)' }}
+        >
+          <RefreshCw size={14} />
+          {t('errorBoundary.retry')}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -35,29 +74,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback
 
-      return (
-        <div className="flex items-center justify-center h-full p-6">
-          <div className="text-center max-w-sm">
-            <div className="w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: 'var(--red-soft)', color: 'var(--red)' }}>
-              <AlertTriangle size={24} />
-            </div>
-            <h3 className="text-base font-semibold mb-2" style={{ fontFamily: 'var(--font-heading)', color: 'var(--text)' }}>
-              Something went wrong
-            </h3>
-            <p className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
-              {this.state.error?.message || 'An unexpected error occurred'}
-            </p>
-            <button
-              onClick={this.handleReset}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white"
-              style={{ background: 'var(--gold)' }}
-            >
-              <RefreshCw size={14} />
-              Try again
-            </button>
-          </div>
-        </div>
-      )
+      return <CrashFallback error={this.state.error} onReset={this.handleReset} />
     }
 
     return this.props.children

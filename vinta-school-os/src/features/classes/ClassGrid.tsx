@@ -5,6 +5,7 @@
  */
 
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
 import { SUBJECT_COLORS } from '../../lib/constants'
 import { classFillPercent, classStateOf, type ClassState } from '../../lib/classState'
@@ -47,32 +48,33 @@ function resolveColor(cls: Class): string {
 /** Status dot color */
 function statusDotColor(state: ClassState): string {
   switch (state) {
-    case 'full':
-      return 'bg-[var(--red)]'
+    case 'scheduled':
+      return 'bg-[var(--gold)]'
     case 'active':
       return 'bg-[var(--emerald)]'
     case 'empty':
       return 'bg-[var(--muted)]/40'
-    case 'unscheduled':
-      return 'bg-[var(--gold)]'
+    case 'unattended':
+      return 'bg-[var(--red)]'
   }
 }
 
-/** Status label */
-function statusLabel(state: ClassState): string {
-  switch (state) {
-    case 'full':
-      return 'Full'
-    case 'active':
-      return 'Active'
-    case 'empty':
-      return 'Empty'
-    // Says what is missing rather than what is wrong: the group has students
-    // and no time, and the fix is to give it one. "Inactive" would leave the
-    // desk asking what to do about it; this names the missing step.
-    case 'unscheduled':
-      return 'No schedule'
-  }
+/**
+ * Status label, held as a key rather than as text.
+ *
+ * The map is read inside the card so a language switch relabels the dot on the
+ * next render — a module-level `t()` would have baked in whatever language was
+ * active when this file was imported.
+ */
+const STATUS_KEYS: Record<ClassState, string> = {
+  scheduled: 'grid.status.scheduled',
+  active: 'grid.status.active',
+  // One word for both empty states, on purpose: the word describes the room
+  // and the dot describes whether it matters — grey when there is nothing to
+  // teach, red when somebody was supposed to be in there (the class is
+  // running with nobody in it, or the group has students and no time at all).
+  empty: 'grid.status.empty',
+  unattended: 'grid.status.empty',
 }
 
 // ============================================
@@ -110,6 +112,8 @@ export default function ClassGrid({
   isLoading = false,
   cardMenu,
 }: ClassGridProps) {
+  const { t } = useTranslation('classes')
+
   // ── Loading state ─────────────────────────────
 
   if (isLoading) {
@@ -134,10 +138,10 @@ export default function ClassGrid({
           className="text-lg font-semibold text-[var(--text)] mb-1"
           style={{ fontFamily: 'var(--font-heading)' }}
         >
-          No classes yet
+          {t('grid.emptyTitle')}
         </h3>
         <p className="text-sm text-[var(--muted)] max-w-xs">
-          Create your first class to start managing students and schedules.
+          {t('grid.emptyBody')}
         </p>
       </div>
     )
@@ -172,15 +176,16 @@ interface ClassCardProps {
 }
 
 function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
+  const { t } = useTranslation('classes')
   const color = resolveColor(cls)
   // One reading of the group's state, used by the dot, the label and the bar.
   // These were three separate reads of `cls.status`, a field the API has never
   // sent — so the dot rendered transparent, the label rendered nothing, and the
   // bar was never coloured for a full room.
   const state = classStateOf(cls)
-  const isFull = state === 'full'
+  const isScheduled = state === 'scheduled'
   const isEmpty = state === 'empty'
-  const isUnscheduled = state === 'unscheduled'
+  const isUnattended = state === 'unattended'
 
   // `relative flex` on the wrapper, not just `relative`: the card used to be
   // the grid item and stretched to the row height, and moving it inside a
@@ -197,7 +202,7 @@ function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
       <button
         onClick={onClick}
         className={cn(
-          'glass rounded-[var(--radius-md)] overflow-hidden text-left w-full',
+          'glass rounded-[var(--radius-md)] overflow-hidden text-start w-full',
           'group hover:scale-[1.02] active:scale-[0.98]',
           'transition-transform duration-150',
           'focus:outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
@@ -212,12 +217,12 @@ function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
         />
 
         <div className="p-4">
-          {/* Header: class name + status dot. The `pr-10` reserves the corner
+          {/* Header: class name + status dot. The `pe-10` reserves the corner
               for the ☰ and its running lamp, which are mounted outside this
-              button — the dot moves left rather than sitting underneath them.
-              40px is their width plus the gap between: 8px lamp + 4px ring,
-              6px gap, 20px ☰. */}
-          <div className="flex items-start justify-between gap-2 mb-2 pr-10">
+              button — the dot moves toward the start rather than sitting
+              underneath them. 40px is their width plus the gap between:
+              8px lamp + 4px ring, 6px gap, 20px ☰. */}
+          <div className="flex items-start justify-between gap-2 mb-2 pe-10">
             <h3
               className="text-sm font-bold text-[var(--text)] leading-tight truncate"
               style={{ fontFamily: 'var(--font-heading)' }}
@@ -258,21 +263,21 @@ function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
           <div className="mt-auto">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] text-[var(--muted)]">
-                {cls.enrolled_count}/{cls.capacity} enrolled
+                {t('grid.enrolled', { enrolled: cls.enrolled_count, capacity: cls.capacity })}
               </span>
               <span
                 className={cn(
                   'text-[10px] font-medium',
-                  isFull
+                  isUnattended
                     ? 'text-[var(--red)]'
                     : isEmpty
                       ? 'text-[var(--muted)]'
-                      : isUnscheduled
+                      : isScheduled
                         ? 'text-[var(--gold)]'
                         : 'text-[var(--emerald)]',
                 )}
               >
-                {statusLabel(state)}
+                {t(STATUS_KEYS[state])}
               </span>
             </div>
 
@@ -282,7 +287,7 @@ function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
                 className="h-full rounded-full transition-all duration-300"
                 style={{
                   width: `${classFillPercent(cls)}%`,
-                  backgroundColor: isFull
+                  backgroundColor: isUnattended
                     ? 'var(--red)'
                     : isEmpty
                       ? 'var(--muted)'
@@ -296,10 +301,11 @@ function ClassCard({ cls, index, onClick, menu }: ClassCardProps) {
       </button>
 
       {/* The ☰ and its dropdown live here, outside the card's <button> — see
-          the note on `cardMenu` in ClassGridProps. `top-5 right-4` is the
+          the note on `cardMenu` in ClassGridProps. `top-5 end-4` is the
           card's own padding, so it lands in the corner the header just made
-          room for. */}
-      {menu && <div className="absolute top-5 right-4">{menu}</div>}
+          room for — the inline-end corner, which follows the card into
+          Arabic rather than staying on the right. */}
+      {menu && <div className="absolute top-5 end-4">{menu}</div>}
     </div>
   )
 }

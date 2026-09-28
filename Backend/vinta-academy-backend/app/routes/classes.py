@@ -162,31 +162,75 @@ def delete_classroom(room_id):
 @jwt_required()
 @tenant_required
 def list_classes():
-    """List all classes with enrollment status dots."""
+    """List all classes with the dot that says what is happening in each."""
+    from datetime import date
+
     from flask import g
+    from app.models.attendance import SessionStudent
+    from app.models.scheduling import Session
     from app.models.student import Enrollment
+    from app.services.session_lifecycle_service import IN_PROGRESS
 
     classes = Class.query.filter_by(academy_id=g.current_academy_id).all()
+    class_ids = [c.id for c in classes]
 
     # Which groups have a time on the books at all.
     #
-    # "Active" used to mean "somebody is enrolled", and that is true of every
-    # group that exists for a reason — so every card carried the same green dot
-    # and the same word, and the state told the desk nothing. A group with no
-    # schedule is the case that actually needs saying: it can never run. It has
-    # students, so it is not Empty; it is waiting for a time, which is a
-    # different thing from being ready to teach, and the difference is worth a
-    # colour because it is the one the desk can act on.
-    #
-    # Read in one query rather than one per class: this endpoint already walks
-    # every group, and a per-group existence check would double that.
+    # A group with students and no weekly slot can never run as it stands, and
+    # that is a different card from one that is merely waiting for its next
+    # class — the desk can act on this one, and only on this one. Read in one
+    # query rather than one per class: this endpoint already walks every group,
+    # and a per-group existence check would double that.
     scheduled_class_ids = {
         class_id
         for (class_id,) in db.session.query(Schedule.class_id)
-        .filter(Schedule.class_id.in_([c.id for c in classes]))
+        .filter(Schedule.class_id.in_(class_ids))
         .distinct()
         .all()
     }
+
+    # What is on right now, and who is actually in the room.
+    #
+    # "Started" is the server's own fact, not the clock's: a session turns
+    # `in_progress` when the desk starts it and leaves only when a human ends
+    # it — nothing closes a class on a timer (see tasks/cron_jobs.py, which
+    # deliberately does not) — so `in_progress` is as close as the database
+    # gets to "this class is running". The clock-based half of that question
+    # (live vs overdue) belongs to the card's lamp, which ticks every minute.
+    #
+    # Dated today on purpose. A register nobody ever closed would otherwise
+    # keep painting a card as a class in progress for days, which is the
+    # opposite of what this dot is for.
+    running_sessions = (
+        Session.query.filter(
+            Session.class_id.in_(class_ids),
+            Session.status == IN_PROGRESS,
+            Session.date == date.today(),
+        ).all()
+    )
+    running_by_class = {session.class_id: session.id for session in running_sessions}
+
+    # One grouped count for every running session, not one query per card.
+    #
+    # Counted on `is_present` rather than `checked_out_at`: the overnight tidy
+    # stamps a checkout on everyone still checked in and deliberately leaves
+    # `is_present` alone, so a class that ran late still reads as attended.
+    present_by_session = (
+        {
+            session_id: count
+            for session_id, count in db.session.query(
+                SessionStudent.session_id, db.func.count(SessionStudent.id)
+            )
+            .filter(
+                SessionStudent.session_id.in_([s.id for s in running_sessions]),
+                SessionStudent.is_present.is_(True),
+            )
+            .group_by(SessionStudent.session_id)
+            .all()
+        }
+        if running_sessions
+        else {}
+    )
 
     result = []
     for cls in classes:
@@ -194,20 +238,34 @@ def list_classes():
             class_id=cls.id, status="active"
         ).count()
 
-        # Status dot logic: Red=full, Amber=has students but no time set,
-        # Green=has students and meets, Grey=empty.
+        running_session_id = running_by_class.get(cls.id)
+        present = present_by_session.get(running_session_id, 0) if running_session_id else 0
+
+        # One state per card, in this order:
         #
-        # Full outranks unscheduled: both can be true, and the room being at
-        # capacity is the fact about this group that is not going to change by
-        # adding a slot.
-        if enrolled_count >= cls.capacity and cls.capacity > 0:
-            status_color = "red"
-        elif enrolled_count > 0 and cls.id not in scheduled_class_ids:
-            status_color = "amber"
-        elif enrolled_count > 0:
-            status_color = "green"
-        else:
+        #   running, somebody in the room  -> green  Active
+        #   running, nobody in the room    -> red    Empty  — a class is on
+        #       and the room is empty, which is today's problem rather than
+        #       next week's
+        #   not running, nobody enrolled   -> grey   Empty
+        #   not running, students, a time  -> amber  Scheduled
+        #   not running, students, no time -> red    Empty  — it can never run
+        #       as it stands, and for the desk that is the same fact as an
+        #       empty room: nobody is being taught
+        #
+        # "Full" is gone. A room at capacity is not a state of today's
+        # teaching, and it was outranking the things that are — a full group
+        # that is running with everyone present read the same as a full group
+        # that never meets. Capacity is still on the card, as the enrollment
+        # bar, where it belongs: it is a number, not a status.
+        if running_session_id:
+            status_color = "green" if present else "red"
+        elif enrolled_count == 0:
             status_color = "grey"
+        elif cls.id in scheduled_class_ids:
+            status_color = "amber"
+        else:
+            status_color = "red"
 
         entry = {
             "id": cls.id,
@@ -219,6 +277,8 @@ def list_classes():
             "capacity": cls.capacity,
             "enrolled_count": enrolled_count,
             "status_color": status_color,
+            "is_running": running_session_id is not None,
+            "students_present": present,
             "notes": cls.notes,
             "class_type": cls.class_type,
             "dedicated_time": cls.dedicated_time,
