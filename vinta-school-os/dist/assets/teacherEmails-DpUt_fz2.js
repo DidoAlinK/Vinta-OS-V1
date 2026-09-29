@@ -1,0 +1,2 @@
+function e(){try{let e=localStorage.getItem(`vinta:teacher-emails:v1`);if(!e)return{};let t=JSON.parse(e);return typeof t==`object`&&t?t:{}}catch{return{}}}function t(e){let t=(e||``).trim();return!t||t.length>254?!1:/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t)}function n(t){return t?e()[t]?.email??null:null}export{t as n,n as t};
+//# sourceMappingURL=teacherEmails-DpUt_fz2.js.map

@@ -1,0 +1,2 @@
+function e(e){if(!e||typeof e!=`object`)return;let t=e;if(typeof t.subject==`string`){let e=t.subject.trim();if(e)return e}if(!Array.isArray(t.subjects))return;let n=t.subjects.map(e=>{let t=e?.name;return typeof t==`string`?t.trim():``}).filter(Boolean);return n.length===1?n[0]:void 0}export{e as t};
+//# sourceMappingURL=teacherSubject-Dj3vwixD.js.map

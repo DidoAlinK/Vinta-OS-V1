@@ -1,0 +1,2 @@
+var e=`vinta:sessions-changed`;function t(t){try{window.dispatchEvent(new CustomEvent(e,{detail:{source:t}}))}catch{}}function n(t){let n=e=>{let n=e.detail;t(n?.source??`calendar`)};return window.addEventListener(e,n),()=>window.removeEventListener(e,n)}export{n,t};
+//# sourceMappingURL=sessionSync-gBOWiVsH.js.map
