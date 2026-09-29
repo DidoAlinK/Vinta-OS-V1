@@ -16,6 +16,7 @@ import {
   UserPlus,
   Check,
   Search,
+  Plus,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import api from '../../lib/api'
@@ -35,6 +36,13 @@ import { DayPicker } from '../../components/ui/DayPicker'
 import { Select } from '../../components/ui/Select'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { PinConfirmDialog } from '../../components/ui/PinConfirmDialog'
+import {
+  type WeeklySlot,
+  WEEKLY_SLOT_LIMIT,
+  blankSlot,
+  dowOf,
+  slotFingerprint,
+} from './classSlots'
 import type { Class, BillingModel, Schedule } from '../../types/class'
 
 // ============================================
@@ -157,6 +165,22 @@ function nextDateForDow(dow: number): string {
   const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + delta)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+/**
+ * The geometry this form's own fields use.
+ *
+ * The day picker and the two time pickers have to agree — the picker's `md`
+ * default is `rounded-xl` and these are `rounded-lg`, which is why the date
+ * field used to sit visibly taller than the times under it.
+ */
+const editFieldCls = cn(
+  'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
+  'bg-[var(--input-bg)] border border-[var(--glass-border)]',
+  'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
+)
+
+/** A block the edit panel is about to send, once it has passed the checks. */
+type DraftSlot = { id: string; dayAnchor: string; startTime: string; endTime: string }
 
 /**
  * Which reading the card is showing, as data rather than as a finished
@@ -333,14 +357,21 @@ function ScheduleSlotsBlock({ cls }: { cls: Class }) {
     return () => { cancelled = true }
   }, [cls])
 
+  // One line per slot, each carrying its own hours.
+  //
+  // Folding the slots into a single range — earliest start to latest end — was
+  // right for a group with one of them and a lie for a group with two: a group
+  // meeting Mon 09:00-10:30 and Fri 14:00-15:00 rendered as
+  // "Mon/Fri 09:00-15:00", hours no session in it ever runs.
   let summary: string | null = null
   if (rows && rows.length > 0) {
-    const days = [...new Set(rows.map((r) => r.dow))]
-      .filter((d) => d >= 0 && d < DAY_KEYS.length)
-      .map((d) => t(DAY_KEYS[d]))
-    const starts = rows.map((r) => r.start).sort()
-    const ends = rows.map((r) => r.end).sort()
-    summary = `${days.join('/')} ${starts[0] ?? ''}-${ends[ends.length - 1] ?? ''} · ${t('detail.slots', { count: rows.length })}`
+    const lines = [...rows]
+      .sort((a, b) => a.dow - b.dow || a.start.localeCompare(b.start))
+      .map((r) => {
+        const day = r.dow >= 0 && r.dow < DAY_KEYS.length ? t(DAY_KEYS[r.dow]) : ''
+        return `${day} ${r.start}-${r.end}`.trim()
+      })
+    summary = `${lines.join(' · ')} · ${t('detail.slots', { count: rows.length })}`
   }
 
   return (
@@ -397,6 +428,25 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
   const [editDay, setEditDay] = useState('')
   const [editStartTime, setEditStartTime] = useState('')
   const [editEndTime, setEditEndTime] = useState('')
+  // Extra blocks the desk is adding in this panel, beyond the group's first.
+  //
+  // Local state only, and deliberately so: a block that has not been saved has
+  // no Schedule row, so removing one is a state filter and never a call to
+  // `DELETE /classes/:id/schedules/:id` — a route whose bulk delete bypasses
+  // the ORM cascade and orphans the attendance rows hanging off the sessions it
+  // removes. Saved slots are not listed here and are not editable: there is no
+  // `PUT` for a Schedule, so "editing" one would mean deleting and recreating
+  // it, which rewrites attendance, billing and charged credits.
+  const [extraSlots, setExtraSlots] = useState<WeeklySlot[]>([])
+
+  const patchExtraSlot = useCallback((id: string, patch: Partial<WeeklySlot>) => {
+    setExtraSlots(prev => prev.map(s => (s.id === id ? { ...s, ...patch } : s)))
+  }, [])
+
+  /** The first block is one of the seven, so the extras stop one short. */
+  const addExtraSlot = useCallback(() => {
+    setExtraSlots(prev => (prev.length + 1 >= WEEKLY_SLOT_LIMIT ? prev : [...prev, blankSlot()]))
+  }, [])
   const [saving, setSaving] = useState(false)
 
   // ── Teachers ──
@@ -616,18 +666,23 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
     return result
   }, [minHour, maxHour])
 
-  // Group schedules by weekday
+  // Group schedules by weekday.
+  //
+  // Reads the `schedules` state, not the `cls.schedules` prop. The two start
+  // equal and then diverge: `reloadSchedules()` refreshes the state after a
+  // Save that added a slot, and the prop does not change until the drawer is
+  // closed and reopened. Grouping the prop left a slot the desk had just added
+  // missing from the grid it was standing in front of — while the duplicate
+  // guard, which reads the state, already knew it was there.
   const schedulesByDay = useMemo(() => {
     const map = new Map<number, Schedule[]>()
     for (const day of WEEKDAY_INDICES) map.set(day, [])
-    if (cls?.schedules) {
-      for (const s of cls.schedules) {
-        const existing = map.get(s.day_of_week)
-        if (existing) existing.push(s)
-      }
+    for (const s of schedules) {
+      const existing = map.get(s.day_of_week)
+      if (existing) existing.push(s)
     }
     return map
-  }, [cls?.schedules])
+  }, [schedules])
 
   // ── Handlers ──
 
@@ -646,6 +701,10 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
     setEditAcademicLevel(cls.academic_level || '')
     setEditClassType(cls.class_type || 'weekly')
     seedEditTimes(schedules)
+    // Blocks added in a previous visit were either saved — and are now rows in
+    // `schedules`, where they belong — or abandoned, and are not this panel's
+    // to reopen.
+    setExtraSlots([])
     setIsEditing(true)
   }, [cls, schedules, seedEditTimes])
 
@@ -666,6 +725,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
       setEditClassType(cls.class_type || 'weekly')
       seedEditTimes(schedules)
     }
+    setExtraSlots([])
   }, [cls, schedules, seedEditTimes])
 
   /**
@@ -687,9 +747,16 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
   const handleSaveEdit = useCallback(async () => {
     if (!cls || !editName.trim()) return
     // Check the times before the PUT, not after: the group save and the slot
-    // save are two requests, and refusing here means a bad time can never
+    // saves are separate requests, and refusing here means a bad time can never
     // leave the group half-saved with its name changed and its time missing.
+    //
+    // The first block is the group's own first slot, seeded from it when the
+    // panel opened, and it stays optional — a group may have no slot yet, or
+    // the desk may be here to rename it and nothing else. The blocks after it
+    // are ones the desk added in this panel, and a block they added and then
+    // left empty is one they thought better of, not a mistake to refuse.
     const wantsWeeklySlot = editClassType === 'weekly'
+    const drafted: DraftSlot[] = []
     if (wantsWeeklySlot && (editStartTime || editEndTime)) {
       if (!editStartTime || !editEndTime) {
         toast.error(t('detail.errors.checkTimes'), t('detail.errors.needBothTimes'))
@@ -703,6 +770,40 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
         toast.error(t('detail.errors.pickDay'), t('detail.errors.pickDayBody'))
         return
       }
+      drafted.push({ id: 'first', dayAnchor: editDay, startTime: editStartTime, endTime: editEndTime })
+    }
+    if (wantsWeeklySlot) {
+      for (const slot of extraSlots) {
+        if (!slot.dayAnchor && !slot.startTime && !slot.endTime) continue
+        if (!slot.startTime || !slot.endTime) {
+          toast.error(t('detail.errors.checkTimes'), t('detail.errors.needBothTimes'))
+          return
+        }
+        if (slot.endTime <= slot.startTime) {
+          toast.error(t('detail.errors.checkTimes'), t('detail.errors.endAfterStart'))
+          return
+        }
+        if (!slot.dayAnchor) {
+          toast.error(t('detail.errors.pickDay'), t('detail.errors.pickDayBody'))
+          return
+        }
+        drafted.push({ id: slot.id, dayAnchor: slot.dayAnchor, startTime: slot.startTime, endTime: slot.endTime })
+      }
+    }
+
+    // Two blocks in this form describing the same meeting. The server answers
+    // the second with a 409, but by then the PUT has landed and the first block
+    // already has its sessions on the calendar — so it is caught here, before
+    // either request goes out. A repeat of a slot the group *already* has is a
+    // different thing and is handled below, by skipping it.
+    const seen = new Set<string>()
+    for (const block of drafted) {
+      const fingerprint = slotFingerprint(block.dayAnchor, block.startTime, block.endTime)
+      if (seen.has(fingerprint)) {
+        toast.error(t('detail.errors.checkTimes'), t('detail.errors.slotDuplicate'))
+        return
+      }
+      seen.add(fingerprint)
     }
 
     setSaving(true)
@@ -732,47 +833,51 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
         // are present.
       })
 
-      // Then the slot, and only when it is actually new. Every slot here
+      // Then the slots, and only the ones that are actually new. Every slot here
       // becomes a series of sessions, so a blind re-post is not harmless: an
       // exact duplicate is refused with 409, but a start time nudged by a
       // minute is accepted and quietly doubles the group's calendar. Comparing
       // against the loaded slots first is the whole guard.
-      if (wantsWeeklySlot && editStartTime && editEndTime && editDay) {
-        const dow = new Date(`${editDay}T12:00:00`).getDay()
+      let added = 0
+      // A 409 means the server holds a slot this panel had not loaded — which
+      // is the one case where the reload is worth making even with nothing new.
+      let stale = false
+      let failure: string | null = null
+      for (const block of drafted) {
         const alreadyThere = schedules.some(
           (s) =>
-            s.day_of_week === dow &&
-            hhmm(s.start_time) === editStartTime &&
-            hhmm(s.end_time) === editEndTime,
+            s.day_of_week === dowOf(block.dayAnchor) &&
+            hhmm(s.start_time) === block.startTime &&
+            hhmm(s.end_time) === block.endTime,
         )
-        if (!alreadyThere) {
-          try {
-            await api.post(`/classes/${cls.id}/schedules`, {
-              day_of_week: dow,
-              start_time: editStartTime,
-              end_time: editEndTime,
-            })
-            // Pull the list back so a second Save sees the slot it just added
-            // instead of posting it again.
-            await reloadSchedules()
-          } catch (err) {
-            const res = (err as { response?: { status?: number; data?: { error?: string } } })?.response
-            if (res?.status !== 409) {
-              // The server's own sentence, when it has one, says why — "Assign
-              // a teacher to Group B first" is actionable where "the time was
-              // not saved" is not.
-              toast.error(
-                t('detail.errors.timeNotSaved'),
-                res?.data?.error ?? t('detail.errors.timeNotSavedBody'),
-              )
-            } else {
-              await reloadSchedules()
-            }
+        if (alreadyThere) continue
+        try {
+          await api.post(`/classes/${cls.id}/schedules`, {
+            day_of_week: dowOf(block.dayAnchor),
+            start_time: block.startTime,
+            end_time: block.endTime,
+          })
+          added += 1
+        } catch (err) {
+          const res = (err as { response?: { status?: number; data?: { error?: string } } })?.response
+          if (res?.status === 409) {
+            stale = true
+            continue
           }
+          // The server's own sentence, when it has one, says why — "Assign
+          // a teacher to Group B first" is actionable where "the time was
+          // not saved" is not.
+          failure = failure ?? (res?.data?.error ?? t('detail.errors.timeNotSavedBody'))
         }
       }
+      // Once, at the end, rather than per slot: the reload re-seeds the time
+      // fields from the first slot, and doing it mid-loop would rewrite the
+      // block the next iteration is about to read.
+      if (added > 0 || stale) await reloadSchedules()
+      if (failure) toast.error(t('detail.errors.timeNotSaved'), failure)
 
       toast.success(t('detail.toast.updated'), t('detail.toast.updatedBody'))
+      setExtraSlots([])
       setIsEditing(false)
       onUpdated?.()
     } catch {
@@ -780,7 +885,7 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
     } finally {
       setSaving(false)
     }
-  }, [cls, schedules, reloadSchedules, editName, editSubject, editColor, editCapacity, editTeacherId, editNotes, editPriceDa, editBillingModel, editCreditsPerCycle, editGroupName, editAcademicLevel, editClassType, editDay, editStartTime, editEndTime, onUpdated, t])
+  }, [cls, schedules, reloadSchedules, editName, editSubject, editColor, editCapacity, editTeacherId, editNotes, editPriceDa, editBillingModel, editCreditsPerCycle, editGroupName, editAcademicLevel, editClassType, editDay, editStartTime, editEndTime, extraSlots, onUpdated, t])
 
   /**
    * Delete, behind a PIN.
@@ -900,6 +1005,48 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
   }, [allStudents, studentSearch])
 
   // ── Render ──
+
+  /**
+   * One weekly block's fields: the day, the two clock times, and the line that
+   * says what they will produce.
+   *
+   * Rendered once for the group's own first slot and once per block added
+   * below it, so the two can never drift into asking for the same thing in two
+   * different ways.
+   */
+  const slotFields = (
+    day: string,
+    startTime: string,
+    endTime: string,
+    onDay: (v: string) => void,
+    onStart: (v: string) => void,
+    onEnd: (v: string) => void,
+  ) => (
+    <>
+      <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.meetsOn')}</label>
+      <DayPicker
+        value={day}
+        onChange={onDay}
+        placeholder={t('detail.form.dayPlaceholder')}
+        className={editFieldCls}
+      />
+      <div className="grid grid-cols-2 gap-3 mt-2">
+        <div>
+          <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.startAt')}</label>
+          <TimePicker value={startTime} onChange={onStart} className={editFieldCls} />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.endAt')}</label>
+          <TimePicker value={endTime} onChange={onEnd} className={editFieldCls} />
+        </div>
+      </div>
+      <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
+        {startTime && endTime && endTime > startTime
+          ? t('detail.form.sessionRepeats', { duration: formatDuration(startTime, endTime) })
+          : t('detail.form.slotHint')}
+      </p>
+    </>
+  )
 
   if (!isOpen || !cls) return null
 
@@ -1130,56 +1277,67 @@ export default function ClassDetail({ cls, isOpen, onClose, onDelete, onUpdated 
                     "Dedicated Time" text box that stored a sentence on the
                     group and produced no sessions at all. */}
                 {editClassType === 'weekly' ? (
-                  <div>
-                    <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.meetsOn')}</label>
-                    <DayPicker
-                      value={editDay}
-                      onChange={setEditDay}
-                      placeholder={t('detail.form.dayPlaceholder')}
-                      /* Carries this form's own field geometry. Without it the
-                         picker falls back to its `md` default (`rounded-xl`)
-                         and sits above two `rounded-lg` time fields — and above
-                         the nine other `rounded-lg` inputs in this same form.
-                         The date field was the odd one out, not the times. */
-                      className={cn(
-                        'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
-                        'bg-[var(--input-bg)] border border-[var(--glass-border)]',
-                        'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
-                      )}
-                    />
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                      <div>
-                        <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.startAt')}</label>
-                        <TimePicker
-                          value={editStartTime}
-                          onChange={setEditStartTime}
-                          className={cn(
-                            'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
-                            'bg-[var(--input-bg)] border border-[var(--glass-border)]',
-                            'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
-                          )}
-                        />
+                  <div className="space-y-4">
+                    {/* The group's own first slot. Saving it adds it if the
+                        group has no time yet, and skips it if it already does —
+                        so opening the panel to rename a group never doubles its
+                        calendar. Blocks the desk adds below are the same fields
+                        again, one per extra meeting. */}
+                    <div>{slotFields(editDay, editStartTime, editEndTime, setEditDay, setEditStartTime, setEditEndTime)}</div>
+
+                    {extraSlots.map((slot, index) => (
+                      <div
+                        key={slot.id}
+                        className="p-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass)]"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--gold)' }}>
+                            {t('detail.form.sessionBlock', { n: index + 1 })}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setExtraSlots(prev => prev.filter(s => s.id !== slot.id))}
+                            title={t('detail.form.removeSession')}
+                            aria-label={t('detail.form.removeSession')}
+                            className={cn(
+                              'p-1 rounded-lg text-[var(--muted)]',
+                              'hover:bg-[var(--red-soft)] hover:text-[var(--red)]',
+                              'transition-colors duration-150',
+                            )}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        {slotFields(
+                          slot.dayAnchor,
+                          slot.startTime,
+                          slot.endTime,
+                          v => patchExtraSlot(slot.id, { dayAnchor: v }),
+                          v => patchExtraSlot(slot.id, { startTime: v }),
+                          v => patchExtraSlot(slot.id, { endTime: v }),
+                        )}
                       </div>
-                      <div>
-                        <label className="text-xs font-medium text-[var(--muted)] mb-1 block">{t('detail.form.endAt')}</label>
-                        <TimePicker
-                          value={editEndTime}
-                          onChange={setEditEndTime}
-                          className={cn(
-                            'w-full px-3 py-2 rounded-lg text-sm text-[var(--text)]',
-                            'bg-[var(--input-bg)] border border-[var(--glass-border)]',
-                            'outline-none focus:ring-2 focus:ring-[var(--gold)]/30',
-                          )}
-                        />
-                      </div>
+                    ))}
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={addExtraSlot}
+                        disabled={extraSlots.length + 1 >= WEEKLY_SLOT_LIMIT}
+                        className={cn(
+                          'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold',
+                          'bg-[var(--input-bg)] text-[var(--gold)] border border-[var(--glass-border)]',
+                          'hover:bg-[var(--glass)] transition-colors duration-150',
+                          'disabled:opacity-40 disabled:cursor-not-allowed',
+                        )}
+                      >
+                        <Plus size={14} />
+                        {t('detail.form.addSession')}
+                      </button>
+                      <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
+                        {t('detail.form.addSessionHint')}
+                      </p>
                     </div>
-                    <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
-                      {editStartTime && editEndTime && editEndTime > editStartTime
-                        ? t('detail.form.sessionRepeats', {
-                            duration: formatDuration(editStartTime, editEndTime),
-                          })
-                        : t('detail.form.slotHint')}
-                    </p>
                   </div>
                 ) : (
                   <div>

@@ -85,6 +85,10 @@
     "endAt": "Heure de fin",
     "durationSession": "Une séance de {{duration}}.",
     "timeHint": "Le cours se déroule de l'heure de début à l'heure de fin.",
+    "addSession": "Ajouter une autre séance dans la même semaine",
+    "addSessionHint": "Chacune a son propre jour, son horaire et ses séances.",
+    "sessionBlock": "Séance {{n}}",
+    "removeSession": "Retirer cette séance",
     "color": "Couleur",
     "notes": "Notes",
     "notesPlaceholder": "Notes facultatives…",
@@ -118,7 +122,11 @@
       "timeOrder": "L'heure de fin doit être postérieure à l'heure de début.",
       "day": "Choisissez le jour où ce groupe se réunit chaque semaine.",
       "teacher": "Choisissez un enseignant — un groupe hebdomadaire en a besoin avant que ses séances puissent être créées.",
-      "date": "Choisissez la date de cette séance unique."
+      "date": "Choisissez la date de cette séance unique.",
+      "slotTimes": "La séance {{n}} doit avoir une heure de début et une heure de fin.",
+      "slotTimeOrder": "Séance {{n}} : l'heure de fin doit être postérieure à l'heure de début.",
+      "slotDay": "Séance {{n}} : choisissez son jour.",
+      "slotDuplicate": "Deux séances ont le même jour et le même horaire."
     }
   },
   "addRoom": {
@@ -162,6 +170,7 @@
       "createdTimesExist": "{{name}} ajouté. Ses horaires étaient déjà définis.",
       "sessionsFailedTitle": "Séances non générées",
       "sessionsFailedFallback": "Le groupe a été créé, mais pas ses séances. Définissez les horaires depuis le panneau du groupe.",
+      "sessionsPartial": "{{name}} ajouté — séances créées : {{done}} sur {{total}}.",
       "deleteFailed": "Échec de la suppression",
       "roomDeleteFailed": "La salle n'a pas été supprimée. Appuyez sur Réessayer.",
       "roomDeleted": "Salle supprimée",
@@ -270,6 +279,10 @@
       "endAt": "Heure de fin",
       "sessionRepeats": "Une séance de {{duration}}, qui se répète chaque semaine.",
       "slotHint": "Enregistrer un nouvel horaire ajoute un créneau et génère ses séances.",
+      "addSession": "Ajouter une autre séance dans la même semaine",
+      "addSessionHint": "Chacune a son propre jour, son horaire et ses séances.",
+      "sessionBlock": "Nouvelle séance {{n}}",
+      "removeSession": "Retirer cette séance",
       "time": "Horaire",
       "temporaryHint": "Un groupe temporaire n'a pas d'horaire hebdomadaire — sa date et ses heures figurent sur la séance unique elle-même, et se modifient depuis cette séance.",
       "billingModel": "Modèle de facturation",
@@ -287,7 +300,8 @@
       "pickDay": "Choisissez le jour",
       "pickDayBody": "Choisissez le jour de la semaine où ce groupe se réunit.",
       "timeNotSaved": "Horaire non enregistré",
-      "timeNotSavedBody": "Le groupe a été enregistré, mais pas son horaire."
+      "timeNotSavedBody": "Le groupe a été enregistré, mais pas son horaire.",
+      "slotDuplicate": "Deux séances ont le même jour et le même horaire."
     },
     "toast": {
       "updated": "Classe mise à jour",

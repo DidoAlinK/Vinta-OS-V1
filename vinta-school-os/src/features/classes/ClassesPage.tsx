@@ -21,6 +21,14 @@ import { SUBJECT_COLORS } from '../../lib/constants'
 import ClassGrid from './ClassGrid'
 import ClassCardMenu from './ClassCardMenu'
 import ClassDetail from './ClassDetail'
+import {
+  type WeeklySlot,
+  type WeeklyScheduleInput,
+  WEEKLY_SLOT_LIMIT,
+  blankSlot,
+  slotFingerprint,
+  toScheduleInput,
+} from './classSlots'
 import SessionCheckInModal from '../calendar/SessionCheckInModal'
 import type { Class, Classroom, BillingModel, Session } from '../../types/class'
 
@@ -88,6 +96,16 @@ interface TeacherOption {
   subject?: string
 }
 
+/* ─── Weekly blocks ───
+   One block of the weekly timetable: the weekday a group meets, and the hours.
+   A group holds one or more of them — a class that meets twice a week has two —
+   and each becomes its own Schedule row and therefore its own series of
+   sessions. They are kept in a list rather than as "the first one plus extras"
+   so that a mistake on the third block is refused exactly the way a mistake on
+   the first one is. */
+/* A weekly timetable is a list of blocks — see `classSlots.ts` for the shape,
+   the weekday maths and the duplicate guard both forms share. */
+
 /* ═══════════════════════════════════════════════════════
    Add Course Group Modal
    ═══════════════════════════════════════════════════════ */
@@ -106,15 +124,20 @@ function AddCourseGroupModal({
   const [color, setColor] = useState(COLOR_PRESETS[0].color)
   const [notes, setNotes] = useState('')
   const [classType, setClassType] = useState<'weekly' | 'temporary'>('weekly')
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
-  /** A key of this namespace, not a sentence: the banner is read at render, so
-      a refusal written in English mid-form follows a language switch. */
-  const [error, setError] = useState<string | null>(null)
-  // Themed day selection (DayPicker popup): weekly = weekday anchor,
-  // temporary = exact one-off date.
-  const [dayAnchor, setDayAnchor] = useState('')
+  // The weekly timetable: one block to begin with, more when the group meets
+  // more than once a week.
+  const [slots, setSlots] = useState<WeeklySlot[]>(() => [blankSlot()])
+  /** A key of this namespace plus its interpolation, not a sentence: the banner
+      is read at render, so a refusal written in English mid-form follows a
+      language switch — and `n` names which block is at fault once there are
+      several of them. */
+  const [error, setError] = useState<{ key: string; n?: number } | null>(null)
+  // The one-off branch: the exact date, and the hours that session runs. A
+  // temporary class has no weekly series, so its time lives here and not in
+  // `slots`.
   const [tempDate, setTempDate] = useState('')
+  const [tempStartTime, setTempStartTime] = useState('')
+  const [tempEndTime, setTempEndTime] = useState('')
 
   // Billing fields
   const [academicLevel, setAcademicLevel] = useState('')
@@ -174,11 +197,11 @@ function AddCourseGroupModal({
     setColor(COLOR_PRESETS[0].color)
     setNotes('')
     setClassType('weekly')
-    setStartTime('')
-    setEndTime('')
+    setSlots([blankSlot()])
     setError(null)
-    setDayAnchor('')
     setTempDate('')
+    setTempStartTime('')
+    setTempEndTime('')
     setAcademicLevel('')
     setGroupName('A')
     setBillingModel('CREDIT_BASED')
@@ -212,75 +235,126 @@ function AddCourseGroupModal({
     }
   }, [teachers, subjectOptions])
 
+  /** Update one weekly block in place. */
+  const patchSlot = useCallback((id: string, patch: Partial<WeeklySlot>) => {
+    setSlots(prev => prev.map(s => (s.id === id ? { ...s, ...patch } : s)))
+  }, [])
+
+  const addSlot = useCallback(() => {
+    setSlots(prev => (prev.length >= WEEKLY_SLOT_LIMIT ? prev : [...prev, blankSlot()]))
+  }, [])
+
+  /** Never empties the list: a weekly group with no block has no timetable. */
+  const removeSlot = useCallback((id: string) => {
+    setSlots(prev => (prev.length <= 1 ? prev : prev.filter(s => s.id !== id)))
+  }, [])
+
   const handleSubmit = useCallback(() => {
     if (!name.trim()) {
-      setError('addGroup.error.name')
-      return
-    }
-    // A group with no time is a group that can never produce a session, which
-    // is exactly the state every group created through this form used to end
-    // up in. Refusing here is cheaper than a silent empty calendar.
-    if (!startTime || !endTime) {
-      setError('addGroup.error.times')
-      return
-    }
-    if (endTime <= startTime) {
-      setError('addGroup.error.timeOrder')
-      return
-    }
-    if (classType === 'weekly' && !dayAnchor) {
-      setError('addGroup.error.day')
-      return
-    }
-    // Sessions carry a teacher (sessions.teacher_id is NOT NULL), so a weekly
-    // group without one cannot have a calendar generated. Asking here keeps the
-    // desk from filling in the whole form only to be refused at the last step.
-    if (classType === 'weekly' && !teacherId) {
-      setError('addGroup.error.teacher')
-      return
-    }
-    if (classType === 'temporary' && !tempDate) {
-      setError('addGroup.error.date')
+      setError({ key: 'addGroup.error.name' })
       return
     }
 
-    // Day selection feeds the payload: weekly derives day_of_week from the
-    // anchor day; temporary passes the exact one-off date.
-    const anchorDow = dayAnchor ? new Date(`${dayAnchor}T12:00:00`).getDay() : undefined
+    const weekly = classType === 'weekly'
+    // A group with no time is a group that can never produce a session, which is
+    // exactly the state every group created through this form used to end up in.
+    // Refusing here is cheaper than a silent empty calendar — and now that a
+    // group can hold several blocks, every one of them is checked *before* any
+    // of them is sent, because the group itself is created first and cannot be
+    // rolled back.
+    if (weekly) {
+      // A block is only worth naming when there is more than one to tell apart.
+      const many = slots.length > 1
+      for (let i = 0; i < slots.length; i += 1) {
+        const slot = slots[i]
+        const n = i + 1
+        if (!slot.startTime || !slot.endTime) {
+          setError(many ? { key: 'addGroup.error.slotTimes', n } : { key: 'addGroup.error.times' })
+          return
+        }
+        if (slot.endTime <= slot.startTime) {
+          setError(many ? { key: 'addGroup.error.slotTimeOrder', n } : { key: 'addGroup.error.timeOrder' })
+          return
+        }
+        if (!slot.dayAnchor) {
+          setError(many ? { key: 'addGroup.error.slotDay', n } : { key: 'addGroup.error.day' })
+          return
+        }
+      }
+      // Two blocks on the same weekday at the same hours are one block written
+      // twice. The server refuses the duplicate with a 409, but by then the group
+      // already exists — so it is caught here, where nothing has been created yet.
+      const seen = new Set<string>()
+      for (const slot of slots) {
+        const fingerprint = slotFingerprint(slot.dayAnchor, slot.startTime, slot.endTime)
+        if (seen.has(fingerprint)) {
+          setError({ key: 'addGroup.error.slotDuplicate' })
+          return
+        }
+        seen.add(fingerprint)
+      }
+    } else {
+      if (!tempStartTime || !tempEndTime) {
+        setError({ key: 'addGroup.error.times' })
+        return
+      }
+      if (tempEndTime <= tempStartTime) {
+        setError({ key: 'addGroup.error.timeOrder' })
+        return
+      }
+    }
+
+    // Sessions carry a teacher (sessions.teacher_id is NOT NULL), so a weekly
+    // group without one cannot have a calendar generated. Asking here keeps the
+    // desk from filling in the whole form only to be refused at the last step.
+    if (weekly && !teacherId) {
+      setError({ key: 'addGroup.error.teacher' })
+      return
+    }
+    if (!weekly && !tempDate) {
+      setError({ key: 'addGroup.error.date' })
+      return
+    }
+
     setError(null)
     onAdd({
-      name: name.trim(),
-      subject,
-      teacher_id: teacherId || undefined,
-      capacity,
-      color,
-      notes: notes.trim() || undefined,
-      class_type: classType,
-      day_of_week: classType === 'weekly' && anchorDow != null && !Number.isNaN(anchorDow) ? anchorDow : undefined,
-      session_date: classType === 'temporary' && tempDate ? tempDate : undefined,
-      // The real times. `dedicated_time` is gone from this payload: it was
-      // never a time, only a sentence about one, and the server stored the
-      // sentence.
-      start_time: startTime,
-      end_time: endTime,
-      academic_level: academicLevel.trim() || undefined,
-      group_name: groupName.trim() || 'A',
-      billing_model: billingModel,
-      price_da: priceDa || undefined,
-      credits_per_cycle: billingModel === 'CREDIT_BASED' ? creditsPerCycle : undefined,
-      cycle_week_limit: billingModel === 'CREDIT_BASED' && cycleWeekLimit ? Number(cycleWeekLimit) : undefined,
-      allow_rollover: billingModel === 'CREDIT_BASED' ? allowRollover : undefined,
-      allow_makeups: billingModel === 'CREDIT_BASED' ? allowMakeups : undefined,
-      access_duration_weeks: billingModel === 'TIME_BASED' && accessDurationWeeks ? Number(accessDurationWeeks) : undefined,
-      max_groups_included: maxGroupsIncluded,
-      enforce_attendance: enforceAttendance,
-      attendance_threshold: enforceAttendance ? attendanceThreshold : undefined,
+      payload: {
+        name: name.trim(),
+        subject,
+        teacher_id: teacherId || undefined,
+        capacity,
+        color,
+        notes: notes.trim() || undefined,
+        class_type: classType,
+        academic_level: academicLevel.trim() || undefined,
+        group_name: groupName.trim() || 'A',
+        billing_model: billingModel,
+        price_da: priceDa || undefined,
+        credits_per_cycle: billingModel === 'CREDIT_BASED' ? creditsPerCycle : undefined,
+        cycle_week_limit: billingModel === 'CREDIT_BASED' && cycleWeekLimit ? Number(cycleWeekLimit) : undefined,
+        allow_rollover: billingModel === 'CREDIT_BASED' ? allowRollover : undefined,
+        allow_makeups: billingModel === 'CREDIT_BASED' ? allowMakeups : undefined,
+        access_duration_weeks: billingModel === 'TIME_BASED' && accessDurationWeeks ? Number(accessDurationWeeks) : undefined,
+        max_groups_included: maxGroupsIncluded,
+        enforce_attendance: enforceAttendance,
+        attendance_threshold: enforceAttendance ? attendanceThreshold : undefined,
+      },
+      // The timetable travels *beside* the group rather than inside it. `POST
+      // /classes` ignores every scheduling key — carrying them in the body only
+      // ever worked because there happened to be exactly one of them. The real
+      // times are what `POST /classes/:id/schedules` consumes, one call per block.
+      slots: weekly
+        ? slots.map((slot): WeeklyScheduleInput => toScheduleInput(slot))
+        : [],
+      oneOff: weekly
+        ? null
+        : { date: tempDate, start_time: tempStartTime, end_time: tempEndTime },
     })
     resetAll()
     onClose()
   }, [
-    name, subject, teacherId, capacity, color, notes, classType, startTime, endTime,
-    dayAnchor, tempDate,
+    name, subject, teacherId, capacity, color, notes, classType, slots,
+    tempDate, tempStartTime, tempEndTime,
     academicLevel, groupName, billingModel, priceDa,
     creditsPerCycle, cycleWeekLimit, allowRollover, allowMakeups,
     accessDurationWeeks, maxGroupsIncluded, enforceAttendance, attendanceThreshold,
@@ -329,7 +403,7 @@ function AddCourseGroupModal({
               silent no-op: the Create button did nothing and said nothing. */}
           {error && (
             <div className="px-3 py-2 rounded-lg bg-[var(--red-soft)] text-[var(--red)] text-xs font-medium">
-              {t(error)}
+              {t(error.key, { n: error.n })}
             </div>
           )}
           {/* ── Basic Info ── */}
@@ -402,26 +476,124 @@ function AddCourseGroupModal({
                 </div>
               </div>
 
-              {/* Day selection — themed calendar popup (NOT a generic input) */}
-              <div>
-                <label className={labelCls} style={{ color: 'var(--muted)' }}>
-                  {classType === 'weekly' ? t('addGroup.meetingDay') : t('addGroup.sessionDate')}
-                </label>
-                {classType === 'weekly' ? (
-                  <>
-                    <DayPicker
-                      value={dayAnchor}
-                      onChange={setDayAnchor}
-                      placeholder={t('addGroup.dayPlaceholder')}
-                    />
+              {/* The weekly blocks, or the one-off date.
+                  Each weekly block is its own Schedule row and therefore its own
+                  series of sessions, which is why a group meeting Monday and
+                  Wednesday ends up with two independent calendars — exactly what
+                  two separate POSTs to /classes/:id/schedules would produce. */}
+              {classType === 'weekly' ? (
+                <div className="space-y-4">
+                  {slots.map((slot, index) => (
+                    <div
+                      key={slot.id}
+                      className={cn(
+                        'space-y-3',
+                        // The frame only earns its place once there is more than
+                        // one block, so the common single-session case looks
+                        // exactly as it always did.
+                        slots.length > 1
+                          ? 'p-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass)]'
+                          : '',
+                      )}
+                    >
+                      {slots.length > 1 && (
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--gold)' }}>
+                            {t('addGroup.sessionBlock', { n: index + 1 })}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => removeSlot(slot.id)}
+                            title={t('addGroup.removeSession')}
+                            aria-label={t('addGroup.removeSession')}
+                            className={cn(
+                              'p-1 rounded-lg text-[var(--muted)]',
+                              'hover:bg-[var(--red-soft)] hover:text-[var(--red)]',
+                              'transition-colors duration-150',
+                            )}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Day selection — themed calendar popup (NOT a generic input) */}
+                      <div>
+                        <label className={labelCls} style={{ color: 'var(--muted)' }}>
+                          {t('addGroup.meetingDay')}
+                        </label>
+                        <DayPicker
+                          value={slot.dayAnchor}
+                          onChange={v => patchSlot(slot.id, { dayAnchor: v })}
+                          placeholder={t('addGroup.dayPlaceholder')}
+                        />
+                        <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
+                          {slot.dayAnchor
+                            ? t('addGroup.repeatsEvery', { day: getDayName(new Date(`${slot.dayAnchor}T12:00:00`), false) })
+                            : t('addGroup.dayHint')}
+                        </p>
+                      </div>
+
+                      {/* Start / End At — two real times, not one free-text field.
+                          The old "Dedicated Time" box asked for prose like
+                          "Mon/Wed 10:00-12:00" and the server stored it as a
+                          string on the group, so nothing could ever turn it into
+                          a session. These two values are what
+                          `POST /classes/:id/schedules` consumes. */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.startAt')}</label>
+                          <TimePicker
+                            value={slot.startTime}
+                            onChange={v => patchSlot(slot.id, { startTime: v })}
+                            className={inputCls}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.endAt')}</label>
+                          <TimePicker
+                            value={slot.endTime}
+                            onChange={v => patchSlot(slot.id, { endTime: v })}
+                            className={inputCls}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                        {slot.startTime && slot.endTime && slot.endTime > slot.startTime
+                          ? t('addGroup.durationSession', { duration: formatDuration(slot.startTime, slot.endTime) })
+                          : t('addGroup.timeHint')}
+                      </p>
+                    </div>
+                  ))}
+
+                  {/* One block per weekday is the most a weekly timetable can
+                      mean, and the button is what says so. */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={addSlot}
+                      disabled={slots.length >= WEEKLY_SLOT_LIMIT}
+                      className={cn(
+                        'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold',
+                        'bg-[var(--input-bg)] text-[var(--gold)] border border-[var(--glass-border)]',
+                        'hover:bg-[var(--glass)] transition-colors duration-150',
+                        'disabled:opacity-40 disabled:cursor-not-allowed',
+                      )}
+                    >
+                      <Plus size={14} />
+                      {t('addGroup.addSession')}
+                    </button>
                     <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
-                      {dayAnchor
-                        ? t('addGroup.repeatsEvery', { day: getDayName(new Date(`${dayAnchor}T12:00:00`), false) })
-                        : t('addGroup.dayHint')}
+                      {t('addGroup.addSessionHint')}
                     </p>
-                  </>
-                ) : (
-                  <>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className={labelCls} style={{ color: 'var(--muted)' }}>
+                      {t('addGroup.sessionDate')}
+                    </label>
                     <DayPicker
                       value={tempDate}
                       onChange={setTempDate}
@@ -430,38 +602,33 @@ function AddCourseGroupModal({
                     <p className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
                       {t('addGroup.oneOffHint')}
                     </p>
-                  </>
-                )}
-              </div>
+                  </div>
 
-              {/* Start / End At — two real times, not one free-text field.
-                  The old "Dedicated Time" box asked for prose like
-                  "Mon/Wed 10:00-12:00" and the server stored it as a string on
-                  the group, so nothing could ever turn it into a session. These
-                  two values are what `POST /classes/:id/schedules` consumes. */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.startAt')}</label>
-                  <TimePicker
-                    value={startTime}
-                    onChange={setStartTime}
-                    className={inputCls}
-                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.startAt')}</label>
+                      <TimePicker
+                        value={tempStartTime}
+                        onChange={setTempStartTime}
+                        className={inputCls}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.endAt')}</label>
+                      <TimePicker
+                        value={tempEndTime}
+                        onChange={setTempEndTime}
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                    {tempStartTime && tempEndTime && tempEndTime > tempStartTime
+                      ? t('addGroup.durationSession', { duration: formatDuration(tempStartTime, tempEndTime) })
+                      : t('addGroup.timeHint')}
+                  </p>
                 </div>
-                <div>
-                  <label className={labelCls} style={{ color: 'var(--muted)' }}>{t('addGroup.endAt')}</label>
-                  <TimePicker
-                    value={endTime}
-                    onChange={setEndTime}
-                    className={inputCls}
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] -mt-2" style={{ color: 'var(--muted)' }}>
-                {startTime && endTime && endTime > startTime
-                  ? t('addGroup.durationSession', { duration: formatDuration(startTime, endTime) })
-                  : t('addGroup.timeHint')}
-              </p>
+              )}
 
               {/* Color */}
               <div>
@@ -973,8 +1140,15 @@ export function ClassesPage() {
    * Without the second call the group exists but its calendar is permanently
    * empty, which is how every group made through this form used to end up:
    * `POST /classes` stores no schedule and ignores `day_of_week` entirely.
+   *
+   * A group meeting more than once a week is the same call repeated — see the
+   * loop below for why one block is worded exactly as it always was.
    */
-  const handleAddClass = useCallback(async (payload: any) => {
+  const handleAddClass = useCallback(async ({ payload, slots, oneOff }: {
+    payload: any
+    slots: WeeklyScheduleInput[]
+    oneOff: { date: string; start_time: string; end_time: string } | null
+  }) => {
     let newClass: Class
     try {
       const { data } = await api.post('/classes', payload)
@@ -989,44 +1163,74 @@ export function ClassesPage() {
     }
 
     const created = newClass
-    const { class_type, day_of_week, session_date, start_time, end_time } = payload
     try {
-      if (class_type === 'weekly') {
-        const { data } = await api.post(`/classes/${created.id}/schedules`, {
-          day_of_week,
-          start_time,
-          end_time,
-        })
-        const made = data?.sessions_created ?? 0
-        toast.success(
-          t('page.toast.created'),
-          made > 0
-            ? t('page.toast.createdWithSessions', { name: payload.name, count: made })
-            : t('page.toast.createdNoSessions', { name: payload.name }),
-        )
-      } else {
+      if (oneOff) {
         await api.post('/sessions', {
           class_id: created.id,
-          date: session_date,
-          start_time,
-          end_time,
+          date: oneOff.date,
+          start_time: oneOff.start_time,
+          end_time: oneOff.end_time,
         })
         toast.success(t('page.toast.created'), t('page.toast.createdOneOff', { name: payload.name }))
-      }
-    } catch (err: any) {
-      // 409 means this group already meets at exactly these hours — a re-save,
-      // not a failure. The sessions are already on the calendar.
-      if (err?.response?.status === 409) {
-        toast.success(t('page.toast.created'), t('page.toast.createdTimesExist', { name: payload.name }))
         return
       }
-      // Otherwise the group exists but has no calendar. Say so plainly rather
-      // than reporting a clean success — the desk can add the time from the
-      // group's detail panel, but only if they know it is missing.
-      const message =
-        err?.response?.data?.error ??
-        t('page.toast.sessionsFailedFallback')
-      toast.error(t('page.toast.sessionsFailedTitle'), message)
+
+      // A group meeting twice a week is this same call, twice: the endpoint is
+      // append-only and takes one slot per request, so N blocks become N rows in
+      // `schedules` and N independent session series. The group itself was
+      // created by the call above and cannot be rolled back, so a run that half
+      // succeeds has to be reported as the count it is.
+      const total = slots.length
+      let placed = 0         // slots the server now holds, including ones it already had
+      let made = 0           // sessions actually generated across those slots
+      let duplicate = false  // a lone block still words 409 the way it always has
+      let failure: string | null = null
+
+      for (const slot of slots) {
+        try {
+          const { data } = await api.post(`/classes/${created.id}/schedules`, slot)
+          made += data?.sessions_created ?? 0
+          placed += 1
+        } catch (err: any) {
+          // 409 means this group already meets at exactly these hours — a
+          // re-save, not a failure. The sessions are already on the calendar.
+          if (err?.response?.status === 409) {
+            placed += 1
+            duplicate = true
+            continue
+          }
+          failure = failure ?? (
+            err?.response?.data?.error ?? t('page.toast.sessionsFailedFallback')
+          )
+        }
+      }
+
+      if (placed === total) {
+        if (total === 1 && duplicate) {
+          toast.success(t('page.toast.created'), t('page.toast.createdTimesExist', { name: payload.name }))
+        } else {
+          toast.success(
+            t('page.toast.created'),
+            made > 0
+              ? t('page.toast.createdWithSessions', { name: payload.name, count: made })
+              : t('page.toast.createdNoSessions', { name: payload.name }),
+          )
+        }
+        return
+      }
+
+      // The group exists but only part of its timetable does. Say how much of it
+      // landed rather than reporting a clean success or a blanket failure — the
+      // desk can finish the job from the group's detail panel, but only if they
+      // know there is a job left.
+      if (placed === 0) {
+        toast.error(t('page.toast.sessionsFailedTitle'), failure ?? t('page.toast.sessionsFailedFallback'))
+      } else {
+        toast.error(
+          t('page.toast.sessionsPartial', { name: payload.name, done: placed, total }),
+          failure ?? t('page.toast.sessionsFailedFallback'),
+        )
+      }
     } finally {
       // `POST /classes` answers with `{id, name, subject}` and nothing else — no
       // capacity, no enrolled_count, no status_color. Pushing that straight into

@@ -85,6 +85,10 @@
     "endAt": "End At",
     "durationSession": "A {{duration}} session.",
     "timeHint": "The class runs from Start At to End At.",
+    "addSession": "Add another session in the same week",
+    "addSessionHint": "Each one gets its own day, time and sessions.",
+    "sessionBlock": "Session {{n}}",
+    "removeSession": "Remove this session",
     "color": "Color",
     "notes": "Notes",
     "notesPlaceholder": "Optional notes…",
@@ -118,7 +122,11 @@
       "timeOrder": "End At must be after Start At.",
       "day": "Pick the day this group meets each week.",
       "teacher": "Pick a teacher — a weekly group needs one before its sessions can be created.",
-      "date": "Pick the date for this one-off session."
+      "date": "Pick the date for this one-off session.",
+      "slotTimes": "Session {{n}} needs a start and an end time.",
+      "slotTimeOrder": "Session {{n}}: End At must be after Start At.",
+      "slotDay": "Session {{n}}: pick its weekday.",
+      "slotDuplicate": "Two sessions have the same day and time."
     }
   },
   "addRoom": {
@@ -162,6 +170,7 @@
       "createdTimesExist": "{{name}} added. Its times were already set.",
       "sessionsFailedTitle": "Sessions not generated",
       "sessionsFailedFallback": "The group was created but its sessions were not. Set the times from the group panel.",
+      "sessionsPartial": "{{name}} added, with {{done}} of {{total}} sessions.",
       "deleteFailed": "Delete failed",
       "roomDeleteFailed": "The room was not deleted. Press Retry.",
       "roomDeleted": "Room deleted",
@@ -270,6 +279,10 @@
       "endAt": "End At",
       "sessionRepeats": "A {{duration}} session, repeating weekly.",
       "slotHint": "Saving a new time adds a slot and generates its sessions.",
+      "addSession": "Add another session in the same week",
+      "addSessionHint": "Each one gets its own day, time and sessions.",
+      "sessionBlock": "New session {{n}}",
+      "removeSession": "Remove this session",
       "time": "Time",
       "temporaryHint": "A temporary group has no weekly time — its date and hours live on the one-off session itself, and are edited from that session.",
       "billingModel": "Billing Model",
@@ -287,7 +300,8 @@
       "pickDay": "Pick the day",
       "pickDayBody": "Pick the weekday this group meets.",
       "timeNotSaved": "Time not saved",
-      "timeNotSavedBody": "The group was saved, but its time was not."
+      "timeNotSavedBody": "The group was saved, but its time was not.",
+      "slotDuplicate": "Two sessions have the same day and time."
     },
     "toast": {
       "updated": "Class updated",
